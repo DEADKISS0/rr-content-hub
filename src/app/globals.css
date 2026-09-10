@@ -92,3 +92,13 @@
   .status-published { color: var(--blanco); background: var(--fucsia); }
   .status-rejected { color: var(--fucsia); }
 }
+
+@media (max-width: 767px) {
+  html, body { overflow-x: hidden; }
+  .display-title { font-size: clamp(2.9rem, 16vw, 5rem); letter-spacing: -.075em; }
+  .brutal-panel { padding: 1rem; }
+  .idea-row { gap: .65rem; padding: .9rem .15rem; }
+  .idea-row h3 { font-size: 1rem; line-height: 1.15; }
+  .input-brutal { min-height: 46px; }
+}
+@media (min-width: 768px) { .mobile-nav-backdrop { display: none; } }

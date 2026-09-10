@@ -1,0 +1,40 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+
+type Comment = { id: string; author: string; role: string; text: string; createdAt: string; resolved: boolean };
+type Asset = { id: string; name: string; kind: string; version: string; createdAt: string };
+
+const seedComments: Comment[] = [
+  { id: 'seed-1', author: 'Manuel · Creativa', role: 'CREATIVA', text: 'La referencia define el ritmo: textura primero, producto después. Validemos que el cierre no prometa disponibilidad que aún no está confirmada.', createdAt: 'Hoy · 09:42', resolved: false },
+  { id: 'seed-2', author: 'Cliente', role: 'CLIENTE', text: 'Nos gusta la dirección. Para aprobar producción necesitamos confirmar la referencia exacta de la prenda.', createdAt: 'Hoy · 10:15', resolved: false },
+];
+
+export function IdeaCollaboration({ projectSlug, ideaId }: { projectSlug: string; ideaId: string }) {
+  const commentKey = `rr-comments-${projectSlug}-${ideaId}`;
+  const assetKey = `rr-assets-${projectSlug}-${ideaId}`;
+  const [comments, setComments] = useState<Comment[]>(seedComments);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [text, setText] = useState('');
+  const [role, setRole] = useState('RR ALIADOS');
+  const [showResolved, setShowResolved] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => { try { const saved = localStorage.getItem(commentKey); if (saved) setComments(JSON.parse(saved)); const savedAssets = localStorage.getItem(assetKey); if (savedAssets) setAssets(JSON.parse(savedAssets)); } catch { /* demo mode remains usable */ } }, 0);
+    return () => window.clearTimeout(timer);
+  }, [commentKey, assetKey]);
+  useEffect(() => { localStorage.setItem(commentKey, JSON.stringify(comments)); }, [commentKey, comments]);
+  useEffect(() => { localStorage.setItem(assetKey, JSON.stringify(assets)); }, [assetKey, assets]);
+
+  const visible = useMemo(() => comments.filter(comment => showResolved || !comment.resolved), [comments, showResolved]);
+  function addComment(event: React.FormEvent) { event.preventDefault(); if (!text.trim()) return; setComments(current => [...current, { id: crypto.randomUUID(), author: `Usuario demo · ${role}`, role, text: text.trim(), createdAt: 'Ahora', resolved: false }]); setText(''); }
+  function addAsset(event: React.ChangeEvent<HTMLInputElement>) { const file = event.target.files?.[0]; if (!file) return; setAssets(current => [...current, { id: crypto.randomUUID(), name: file.name, kind: file.type.split('/')[0].toUpperCase() || 'FILE', version: `v${current.length + 1}`, createdAt: 'Ahora' }]); event.target.value = ''; }
+
+  return <section className="mt-8 border-t-2 border-blanco pt-8" aria-labelledby="collaboration-title">
+    <div className="mb-5 flex flex-wrap items-end justify-between gap-3"><div><p className="eyebrow">[SHARED_CONTEXT]</p><h2 id="collaboration-title" className="section-heading mt-2 text-3xl">COLABORACIÓN SIN PÉRDIDA.</h2></div><span className="font-mono text-[10px] text-mostaza">{comments.filter(c => !c.resolved).length} ABIERTOS · TODOS VEN EL MISMO HILO</span></div>
+    <div className="grid gap-5 lg:grid-cols-[1.2fr_.8fr]">
+      <div className="border-2 border-blanco bg-blanco-05 p-4 sm:p-6"><div className="mb-4 flex items-center justify-between"><span className="mono-label text-mostaza">HILO DE DECISIONES</span><button onClick={() => setShowResolved(value => !value)} className="font-mono text-[10px] text-blanco-60 underline">{showResolved ? 'OCULTAR RESUELTOS' : 'VER RESUELTOS'}</button></div><div className="space-y-4">{visible.map(comment => <article key={comment.id} className={`border-l-2 p-3 ${comment.resolved ? 'border-blanco-20 opacity-60' : 'border-fucsia'}`}><div className="flex flex-wrap justify-between gap-2 font-mono text-[10px]"><span className="text-mostaza">{comment.author}</span><span className="text-blanco-40">{comment.createdAt}</span></div><p className="mt-2 text-sm leading-6 text-blanco-60">{comment.text}</p><button onClick={() => setComments(current => current.map(item => item.id === comment.id ? { ...item, resolved: !item.resolved } : item))} className="mt-3 font-mono text-[10px] text-orquidea underline">{comment.resolved ? 'REABRIR' : 'MARCAR RESUELTO'}</button></article>)}{visible.length === 0 && <p className="py-8 text-center font-mono text-xs text-blanco-40">SIN COMENTARIOS ABIERTOS</p>}</div><form onSubmit={addComment} className="mt-5 border-t border-blanco-20 pt-5"><div className="mb-3 flex flex-col gap-2 sm:flex-row"><select value={role} onChange={event => setRole(event.target.value)} className="input-brutal sm:w-44"><option>RR ALIADOS</option><option>CLIENTE</option><option>MODELO</option><option>CÁMARA</option><option>EDITOR</option><option>PAUTA</option></select><input value={text} onChange={event => setText(event.target.value)} className="input-brutal flex-1" placeholder="Escribe una decisión, duda o ajuste..." /></div><button className="btn-brutal w-full sm:w-auto" type="submit">PUBLICAR COMENTARIO →</button></form></div>
+      <div className="border-2 border-mostaza bg-mostaza/5 p-4 sm:p-6"><p className="mono-label text-mostaza">VERSIONES Y ARCHIVOS</p><p className="mt-3 text-sm leading-6 text-blanco-60">Centraliza referencias, guiones y entregables. Cada archivo queda asociado a esta idea y a su versión.</p><label className="mt-5 flex min-h-28 cursor-pointer flex-col items-center justify-center border-2 border-dashed border-mostaza p-4 text-center hover:bg-mostaza/10"><input type="file" className="sr-only" onChange={addAsset} accept="image/*,video/*,.pdf,.doc,.docx" /><span className="font-display text-lg font-bold text-mostaza">+ CARGAR ARCHIVO</span><span className="mt-2 font-mono text-[10px] text-blanco-40">PDF · VIDEO · IMAGEN · GUIÓN</span></label><div className="mt-5 space-y-2">{assets.map(asset => <div key={asset.id} className="flex items-center justify-between border-b border-blanco-20 py-3 font-mono text-[10px]"><span className="truncate text-blanco-60">{asset.kind} // {asset.name}</span><span className="text-mostaza">{asset.version}</span></div>)}{assets.length === 0 && <p className="font-mono text-[10px] text-blanco-40">AÚN NO HAY ARCHIVOS LOCALES</p>}</div></div>
+    </div>
+  </section>;
+}
