@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { loadTimeline, transitionIdeaStatus, type TimelineEvent } from '@/lib/workspace-client';
-import { STATUS_META, TONE_CLASS, allowedTransitions, statusMeta, waitingOn, type RoleKey, type WorkflowStatus } from '@/lib/flow';
-import { useActiveRole } from '@/lib/role-client';
+import { STATUS_META, TONE_CLASS, allowedTransitions, statusMeta, waitingOn, type WorkflowStatus } from '@/lib/flow';
 import { createClient } from '@/lib/supabase/client';
 
 /**
@@ -12,14 +11,13 @@ import { createClient } from '@/lib/supabase/client';
  * (ENVIAR A CLIENTE, no "siguiente") and, on click, the note previews what
  * happens next so nobody presses blind.
  */
-export function IdeaActions({ ideaId, currentStatus = 'pending_approval', role = 'owner' }: { projectSlug: string; ideaId: string; currentStatus?: string; role?: string }) {
+export function IdeaActions({ ideaId, currentStatus = 'pending_approval' }: { projectSlug: string; ideaId: string; currentStatus?: string; role?: string }) {
   const [status, setStatus] = useState<WorkflowStatus>(currentStatus as WorkflowStatus);
   const [history, setHistory] = useState<TimelineEvent[]>([]);
   const [note, setNote] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [justChanged, setJustChanged] = useState(false);
-  const selectedRole = useActiveRole();
 
   const refresh = useCallback(() => { loadTimeline(ideaId).then(setHistory); }, [ideaId]);
   useEffect(() => { const timer = window.setTimeout(refresh, 0); return () => window.clearTimeout(timer); }, [refresh]);
@@ -37,8 +35,8 @@ export function IdeaActions({ ideaId, currentStatus = 'pending_approval', role =
     return () => { supabase.removeChannel(channel); };
   }, [ideaId, refresh]);
 
-  const activeRole = selectedRole ?? role as RoleKey;
-  const moves = useMemo(() => allowedTransitions(activeRole, status), [activeRole, status]);
+  const activeRole = 'owner' as const;
+  const moves = useMemo(() => allowedTransitions(activeRole, status), [status]);
   const waiting = waitingOn(status);
   const meta = statusMeta(status);
   const tone = TONE_CLASS[meta.tone];
@@ -90,7 +88,7 @@ export function IdeaActions({ ideaId, currentStatus = 'pending_approval', role =
         </div>}
       </> : <div className="border-2 border-dashed border-blanco-20 p-4">
         <p className="mono-label text-mostaza">[SIN ACCIÓN DISPONIBLE]</p>
-        <p className="mt-2 text-xs leading-5 text-blanco-60">Esta pieza no tiene un movimiento pendiente desde tu rol. Puedes seguir el hilo y comentar; cuando el estado cambie, aparecerá aquí la acción.</p>
+        <p className="mt-2 text-xs leading-5 text-blanco-60">Esta pieza no tiene un movimiento pendiente en este estado. Puedes seguir el hilo y comentar; cuando el estado cambie, aparecerá aquí la acción.</p>
       </div>}
 
     {history.length > 0 && <details className="border-t border-blanco-20 pt-4" open>

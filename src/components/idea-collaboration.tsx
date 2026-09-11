@@ -12,8 +12,6 @@ import {
   type IdeaAsset,
   type IdeaComment,
 } from '@/lib/workspace-client';
-import { ROLE_LABEL } from '@/lib/flow';
-import { useActiveRole } from '@/lib/role-client';
 import { createClient } from '@/lib/supabase/client';
 
 const stageOptions: Array<{ value: AssetStage; label: string }> = [
@@ -32,7 +30,6 @@ export function IdeaCollaboration({ projectSlug, ideaId }: { projectSlug: string
   const [comments, setComments] = useState<IdeaComment[]>([]);
   const [assets, setAssets] = useState<IdeaAsset[]>([]);
   const [text, setText] = useState('');
-  const role = useActiveRole();
   const [showResolved, setShowResolved] = useState(false);
   const [stage, setStage] = useState<AssetStage>('reference_brief');
   const [notice, setNotice] = useState('');
@@ -68,7 +65,7 @@ export function IdeaCollaboration({ projectSlug, ideaId }: { projectSlug: string
     event.preventDefault();
     if (!text.trim()) return;
     setBusy(true);
-    const { error } = await addComment({ ideaId, body: text.trim(), roleLabel: ROLE_LABEL[role] });
+    const { error } = await addComment({ ideaId, body: text.trim(), roleLabel: 'RR ALIADOS' });
     setBusy(false);
     if (error) { setNotice(`No se publicó el comentario: ${error}`); return; }
     setText('');
@@ -103,7 +100,7 @@ export function IdeaCollaboration({ projectSlug, ideaId }: { projectSlug: string
 
   return <section className="mt-8 border-t-2 border-blanco pt-8" aria-labelledby="collaboration-title">
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3"><div><p className="eyebrow">[SHARED_CONTEXT]</p><h2 id="collaboration-title" className="section-heading mt-2 text-3xl">COLABORACIÓN SIN PÉRDIDA.</h2></div><span className="font-mono text-[10px] text-mostaza">{comments.filter((comment) => !comment.resolved).length} ABIERTOS · TODOS VEN EL MISMO HILO</span></div>
-    <p className="mb-5 border-2 border-mostaza bg-mostaza/10 p-4 font-mono text-[10px] leading-5 text-blanco anim-fade">[ESPACIO COLABORATIVO] Todo cambio queda guardado con el rol elegido. No necesitas entrar con Google.</p>
+    <p className="mb-5 border-2 border-mostaza bg-mostaza/10 p-4 font-mono text-[10px] leading-5 text-blanco anim-fade">[ESPACIO COLABORATIVO] Todo cambio queda guardado en la base y visible para todos desde cualquier dispositivo.</p>
     <div className="space-y-6">
       <div className="border-2 border-blanco bg-blanco-05 p-4 sm:p-6">
         <div className="mb-4 flex items-center justify-between"><span className="mono-label text-mostaza">HILO DE DECISIONES</span>{comments.length > 0 && <button onClick={() => setShowResolved((value) => !value)} className="font-mono text-[10px] text-blanco-60 underline">{showResolved ? 'OCULTAR RESUELTOS' : 'VER RESUELTOS'}</button>}</div>
@@ -111,7 +108,7 @@ export function IdeaCollaboration({ projectSlug, ideaId }: { projectSlug: string
           {visible.map((comment) => <article key={comment.id} className={`border-l-4 p-3 anim-slide ${comment.resolved ? 'border-blanco-20 opacity-60' : 'border-fucsia'}`}><div className="flex flex-wrap items-center justify-between gap-2"><span className="font-mono text-[10px] text-blanco">{comment.author}</span><span className="border border-mostaza px-2 py-0.5 font-mono text-[10px] text-mostaza">{comment.role}</span></div><p className="mt-2 text-sm leading-6 text-blanco-60">{comment.text}</p><p className="mt-2 font-mono text-[10px] text-blanco-40">{comment.createdAt}</p><button onClick={() => toggleResolved(comment)} className="mt-3 font-mono text-[10px] text-orquidea underline">{comment.resolved ? 'REABRIR' : 'MARCAR RESUELTO'}</button></article>)}
           {visible.length === 0 && <p className="py-8 text-center font-mono text-xs text-blanco-40">{comments.length === 0 ? 'AÚN NO HAY COMENTARIOS EN ESTA PIEZA.' : 'SIN COMENTARIOS ABIERTOS'}</p>}
         </div>
-        <form onSubmit={submitComment} className="mt-5 border-t border-blanco-20 pt-5"><p className="mb-3 font-mono text-[10px] text-mostaza">PUBLICAR COMO: {ROLE_LABEL[role]}</p><input value={text} onChange={(event) => setText(event.target.value)} className="input-brutal" placeholder="Escribe una decisión, duda o ajuste..." /><button disabled={busy} className="btn-brutal mt-3 w-full sm:w-auto" type="submit">{busy ? 'PUBLICANDO…' : 'PUBLICAR COMENTARIO →'}</button></form>
+        <form onSubmit={submitComment} className="mt-5 border-t border-blanco-20 pt-5"><input value={text} onChange={(event) => setText(event.target.value)} className="input-brutal" placeholder="Escribe una decisión, duda o ajuste..." /><button disabled={busy} className="btn-brutal mt-3 w-full sm:w-auto" type="submit">{busy ? 'PUBLICANDO…' : 'PUBLICAR COMENTARIO →'}</button></form>
       </div>
       <div className="border-2 border-mostaza bg-mostaza/5 p-5 sm:p-7">
         <p className="mono-label text-mostaza">VERSIONES Y ARCHIVOS</p>

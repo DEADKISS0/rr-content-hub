@@ -8,7 +8,6 @@ import { IdeaCollaboration } from '@/components/idea-collaboration';
 import { ReferenceWithBrief } from '@/components/reference-with-brief';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { ProductionPipeline } from '@/components/production-pipeline';
-import { RoleWorkbench } from '@/components/role-workbench';
 import { statusMeta, productionStep } from '@/lib/flow';
 
 export default async function IdeaDetail({ params }: { params: Promise<{ projectSlug: string; ideaId: string }> }) {
@@ -57,7 +56,11 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
       <div className="grid gap-6 lg:grid-cols-[1.25fr_.75fr]">
         <section className="space-y-5">
           <ReferenceWithBrief url={raw} title={idea.title} brief={{ intention: idea.objective, camera: idea.camera, talent: idea.talent, edit: idea.edit }} />
-          <RoleWorkbench ideaId={ideaId} objective={idea.objective} camera={idea.camera} talent={idea.talent} edit={idea.edit} script={idea.script_content} />
+          {idea.script_content && <section className="border-2 border-mostaza bg-mostaza/5 p-5 sm:p-7 anim-rise">
+            <p className="mono-label text-mostaza">[GUIÓN]</p>
+            <h2 className="mt-3 font-display text-2xl font-bold text-blanco sm:text-3xl">EL PLAN DE LA PIEZA.</h2>
+            <div className="mt-6 whitespace-pre-wrap border-l-4 border-mostaza bg-negro/40 p-5 text-sm leading-7 text-blanco-60">{idea.script_content}</div>
+          </section>}
           <div className="grid gap-px border-2 border-blanco-20 bg-blanco-10 md:grid-cols-3">
             <Block title="CÁMARA">{idea.camera}</Block>
             <Block title="TALENTO">{idea.talent}</Block>
