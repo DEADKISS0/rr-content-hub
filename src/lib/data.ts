@@ -12,6 +12,11 @@ import { isVisibleProject } from './projects';
  */
 
 type RawIdea = Record<string, unknown>;
+const CLEAN_BOARD_STATUSES = ['pending_approval', 'approved'] as const;
+function isCleanBoardIdea(row: RawIdea) {
+  const urls = Array.isArray(row.reference_urls) ? row.reference_urls : [];
+  return CLEAN_BOARD_STATUSES.includes(row.status as typeof CLEAN_BOARD_STATUSES[number]) && urls.some((url) => typeof url === 'string' && url.trim().length > 0);
+}
 
 /** Maps an `rr_hub_ideas` row onto the field names the UI already consumes. */
 function mapIdea(row: RawIdea) {
@@ -138,7 +143,7 @@ export async function getIdeas(projectId: string) {
     .eq('project_id', projectId)
     .order('created_at', { ascending: false });
 
-  return (data ?? []).map(mapIdea);
+  return (data ?? []).filter(isCleanBoardIdea).map(mapIdea);
 }
 
 export async function getIdea(projectId: string, id: string) {
@@ -214,7 +219,7 @@ export async function getAuditIdeas(projectId: string) {
     .select('id, code, title, description, objective, content_type, category, status, priority, created_at, updated_at, reference_urls, camera_brief, talent_brief, edit_brief, script_content')
     .eq('project_id', projectId)
     .order('code', { ascending: true });
-  return (data ?? []).map(mapIdea);
+  return (data ?? []).filter(isCleanBoardIdea).map(mapIdea);
 }
 
 export async function getAuditIdea(projectId: string, id: string) {
