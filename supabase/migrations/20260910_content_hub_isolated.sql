@@ -111,16 +111,72 @@ alter table public.rr_hub_events enable row level security;
 alter table public.rr_hub_comments enable row level security;
 alter table public.rr_hub_assets enable row level security;
 
-create policy "rr hub profile own or admin" on public.rr_hub_profiles for select using ((id = auth.uid()) or public.rr_hub_is_admin());
-create policy "rr hub admins manage profiles" on public.rr_hub_profiles for all using (public.rr_hub_is_admin()) with check (public.rr_hub_is_admin());
-create policy "rr hub members read projects" on public.rr_hub_projects for select using (public.rr_hub_is_admin() or exists (select 1 from public.rr_hub_access a where a.project_id = id and a.user_id = auth.uid()));
-create policy "rr hub admins manage projects" on public.rr_hub_projects for all using (public.rr_hub_is_admin()) with check (public.rr_hub_is_admin());
-create policy "rr hub members read access" on public.rr_hub_access for select using (user_id = auth.uid() or public.rr_hub_is_admin());
-create policy "rr hub admins manage access" on public.rr_hub_access for all using (public.rr_hub_is_admin()) with check (public.rr_hub_is_admin());
-create policy "rr hub members read ideas" on public.rr_hub_ideas for select using (public.rr_hub_is_admin() or exists (select 1 from public.rr_hub_access a where a.project_id = project_id and a.user_id = auth.uid()));
-create policy "rr hub creators insert ideas" on public.rr_hub_ideas for insert with check (public.rr_hub_is_admin() or exists (select 1 from public.rr_hub_access a where a.project_id = project_id and a.user_id = auth.uid() and a.role_in_project in ('owner','creator')));
-create policy "rr hub members update ideas" on public.rr_hub_ideas for update using (public.rr_hub_is_admin() or exists (select 1 from public.rr_hub_access a where a.project_id = project_id and a.user_id = auth.uid()));
-create policy "rr hub members read comments" on public.rr_hub_comments for select using (exists (select 1 from public.rr_hub_ideas i join public.rr_hub_access a on a.project_id = i.project_id where i.id = idea_id and a.user_id = auth.uid()) or public.rr_hub_is_admin());
-create policy "rr hub members add comments" on public.rr_hub_comments for insert with check (exists (select 1 from public.rr_hub_ideas i join public.rr_hub_access a on a.project_id = i.project_id where i.id = idea_id and a.user_id = auth.uid()) or public.rr_hub_is_admin());
-create policy "rr hub members read assets" on public.rr_hub_assets for select using (exists (select 1 from public.rr_hub_ideas i join public.rr_hub_access a on a.project_id = i.project_id where i.id = idea_id and a.user_id = auth.uid()) or public.rr_hub_is_admin());
-create policy "rr hub members add assets" on public.rr_hub_assets for insert with check (exists (select 1 from public.rr_hub_ideas i join public.rr_hub_access a on a.project_id = i.project_id where i.id = idea_id and a.user_id = auth.uid()) or public.rr_hub_is_admin());
+-- Policies are drop+create so this migration is idempotent and matches production.
+drop policy if exists "rr hub profile own or admin" on public.rr_hub_profiles;
+drop policy if exists "rr hub admins manage profiles" on public.rr_hub_profiles;
+drop policy if exists "rr hub members read projects" on public.rr_hub_projects;
+drop policy if exists "rr hub admins manage projects" on public.rr_hub_projects;
+drop policy if exists "rr hub members read access" on public.rr_hub_access;
+drop policy if exists "rr hub admins manage access" on public.rr_hub_access;
+drop policy if exists "rr hub members read ideas" on public.rr_hub_ideas;
+drop policy if exists "rr hub creators insert ideas" on public.rr_hub_ideas;
+drop policy if exists "rr hub members update ideas" on public.rr_hub_ideas;
+drop policy if exists "rr hub members read comments" on public.rr_hub_comments;
+drop policy if exists "rr hub members add comments" on public.rr_hub_comments;
+drop policy if exists "rr hub members read assets" on public.rr_hub_assets;
+drop policy if exists "rr hub members add assets" on public.rr_hub_assets;
+
+drop policy if exists rr_hub_profile_read on public.rr_hub_profiles;
+drop policy if exists rr_hub_profile_admin on public.rr_hub_profiles;
+drop policy if exists rr_hub_projects_read on public.rr_hub_projects;
+drop policy if exists rr_hub_projects_admin on public.rr_hub_projects;
+drop policy if exists rr_hub_access_read on public.rr_hub_access;
+drop policy if exists rr_hub_access_admin on public.rr_hub_access;
+drop policy if exists rr_hub_ideas_read on public.rr_hub_ideas;
+drop policy if exists rr_hub_ideas_insert on public.rr_hub_ideas;
+drop policy if exists rr_hub_ideas_update on public.rr_hub_ideas;
+drop policy if exists rr_hub_events_read on public.rr_hub_events;
+drop policy if exists rr_hub_events_insert on public.rr_hub_events;
+drop policy if exists rr_hub_comments_read on public.rr_hub_comments;
+drop policy if exists rr_hub_comments_insert on public.rr_hub_comments;
+drop policy if exists rr_hub_assets_read on public.rr_hub_assets;
+drop policy if exists rr_hub_assets_insert on public.rr_hub_assets;
+
+create policy rr_hub_profile_read on public.rr_hub_profiles for all using ((id = auth.uid()) or public.rr_hub_is_admin()) with check ((id = auth.uid()) or public.rr_hub_is_admin());
+create policy rr_hub_profile_admin on public.rr_hub_profiles for all using (public.rr_hub_is_admin()) with check (public.rr_hub_is_admin());
+create policy rr_hub_projects_read on public.rr_hub_projects for all using (public.rr_hub_is_admin() or exists (select 1 from public.rr_hub_access a where a.project_id = rr_hub_projects.id and a.user_id = auth.uid())) with check (public.rr_hub_is_admin() or exists (select 1 from public.rr_hub_access a where a.project_id = rr_hub_projects.id and a.user_id = auth.uid()));
+create policy rr_hub_projects_admin on public.rr_hub_projects for all using (public.rr_hub_is_admin()) with check (public.rr_hub_is_admin());
+create policy rr_hub_access_read on public.rr_hub_access for all using ((user_id = auth.uid()) or public.rr_hub_is_admin()) with check ((user_id = auth.uid()) or public.rr_hub_is_admin());
+create policy rr_hub_access_admin on public.rr_hub_access for all using (public.rr_hub_is_admin()) with check (public.rr_hub_is_admin());
+create policy rr_hub_ideas_read on public.rr_hub_ideas for all using (public.rr_hub_is_admin() or exists (select 1 from public.rr_hub_access a where a.project_id = rr_hub_ideas.project_id and a.user_id = auth.uid())) with check (public.rr_hub_is_admin() or exists (select 1 from public.rr_hub_access a where a.project_id = rr_hub_ideas.project_id and a.user_id = auth.uid()));
+create policy rr_hub_ideas_insert on public.rr_hub_ideas for all with check (public.rr_hub_is_admin() or exists (select 1 from public.rr_hub_access a where a.project_id = rr_hub_ideas.project_id and a.user_id = auth.uid() and a.role_in_project in ('owner','creator')));
+create policy rr_hub_ideas_update on public.rr_hub_ideas for all using (public.rr_hub_is_admin() or exists (select 1 from public.rr_hub_access a where a.project_id = rr_hub_ideas.project_id and a.user_id = auth.uid())) with check (public.rr_hub_is_admin() or exists (select 1 from public.rr_hub_access a where a.project_id = rr_hub_ideas.project_id and a.user_id = auth.uid()));
+create policy rr_hub_events_read on public.rr_hub_events for all using (exists (select 1 from public.rr_hub_ideas i join public.rr_hub_access a on a.project_id = i.project_id where i.id = rr_hub_events.idea_id and a.user_id = auth.uid()) or public.rr_hub_is_admin()) with check (exists (select 1 from public.rr_hub_ideas i join public.rr_hub_access a on a.project_id = i.project_id where i.id = rr_hub_events.idea_id and a.user_id = auth.uid()) or public.rr_hub_is_admin());
+create policy rr_hub_events_insert on public.rr_hub_events for all with check (exists (select 1 from public.rr_hub_ideas i join public.rr_hub_access a on a.project_id = i.project_id where i.id = rr_hub_events.idea_id and a.user_id = auth.uid()) or public.rr_hub_is_admin());
+create policy rr_hub_comments_read on public.rr_hub_comments for all using (exists (select 1 from public.rr_hub_ideas i join public.rr_hub_access a on a.project_id = i.project_id where i.id = rr_hub_comments.idea_id and a.user_id = auth.uid()) or public.rr_hub_is_admin()) with check (exists (select 1 from public.rr_hub_ideas i join public.rr_hub_access a on a.project_id = i.project_id where i.id = rr_hub_comments.idea_id and a.user_id = auth.uid()) or public.rr_hub_is_admin());
+create policy rr_hub_comments_insert on public.rr_hub_comments for all with check (exists (select 1 from public.rr_hub_ideas i join public.rr_hub_access a on a.project_id = i.project_id where i.id = rr_hub_comments.idea_id and a.user_id = auth.uid()) or public.rr_hub_is_admin());
+create policy rr_hub_assets_read on public.rr_hub_assets for all using (exists (select 1 from public.rr_hub_ideas i join public.rr_hub_access a on a.project_id = i.project_id where i.id = rr_hub_assets.idea_id and a.user_id = auth.uid()) or public.rr_hub_is_admin()) with check (exists (select 1 from public.rr_hub_ideas i join public.rr_hub_access a on a.project_id = i.project_id where i.id = rr_hub_assets.idea_id and a.user_id = auth.uid()) or public.rr_hub_is_admin());
+create policy rr_hub_assets_insert on public.rr_hub_assets for all with check (exists (select 1 from public.rr_hub_ideas i join public.rr_hub_access a on a.project_id = i.project_id where i.id = rr_hub_assets.idea_id and a.user_id = auth.uid()) or public.rr_hub_is_admin());
+
+-- Private storage bucket for original files (raw, edits, evidence).
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('rr-content-assets', 'rr-content-assets', false, 52428800)
+on conflict (id) do nothing;
+
+drop policy if exists rr_hub_storage_read on storage.objects;
+drop policy if exists rr_hub_storage_insert on storage.objects;
+drop policy if exists rr_hub_storage_update on storage.objects;
+
+create policy rr_hub_storage_read on storage.objects for select to authenticated using (bucket_id = 'rr-content-assets');
+create policy rr_hub_storage_insert on storage.objects for insert to authenticated with check (bucket_id = 'rr-content-assets');
+create policy rr_hub_storage_update on storage.objects for update to authenticated using (bucket_id = 'rr-content-assets') with check (bucket_id = 'rr-content-assets');
+
+-- First admin bootstrap. The signup trigger only covers new users, so existing
+-- accounts need one profile row; replace the email with the real owner account.
+insert into public.rr_hub_profiles (id, email, full_name, global_role)
+select u.id, u.email, coalesce(u.raw_user_meta_data ->> 'full_name', split_part(u.email, '@', 1)), 'member'
+from auth.users u
+where u.email is not null
+on conflict (id) do nothing;
+
+update public.rr_hub_profiles set global_role = 'admin' where email = 'santiago1209andres@gmail.com';
