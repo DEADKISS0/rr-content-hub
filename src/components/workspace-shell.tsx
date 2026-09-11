@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useParams, usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { ROLE_HOME, ROLE_LABEL, type RoleKey } from '@/lib/flow';
+import { PUBLIC_MODE } from '@/lib/mode';
 
 const modeInfo: Record<string, string> = {
   Resumen: 'Dónde estás y qué sigue',
@@ -68,8 +69,9 @@ export function WorkspaceShell({ children, project, role }: { children: React.Re
       </nav>
 
       <div className="mt-auto border-t border-blanco-10 pt-6">
-        <p className="font-mono text-[10px] leading-5 text-blanco-40">El rol decide qué puedes ejecutar. Todos conservan el mismo contexto de cada pieza.</p>
+        {PUBLIC_MODE ? <p className="border-2 border-mostaza bg-mostaza/10 p-3 font-mono text-[10px] leading-5 text-blanco">[MODO PÚBLICO] Navegación y lectura libres. Editar, comentar o mover estados requiere una cuenta autorizada.</p> : <p className="font-mono text-[10px] leading-5 text-blanco-40">El rol decide qué puedes ejecutar. Todos conservan el mismo contexto de cada pieza.</p>}
         <Link href="/audit" className="mt-3 inline-block font-mono text-[10px] text-blanco-40 underline">VER MODO AUDITORÍA →</Link>
+        {!PUBLIC_MODE && <Link href="/admin" className="mt-2 block font-mono text-[10px] text-blanco-40 underline">ADMINISTRAR ACCESOS →</Link>}
       </div>
     </aside>
 

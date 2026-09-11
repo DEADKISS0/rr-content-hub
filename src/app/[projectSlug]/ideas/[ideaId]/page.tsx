@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { notFound, redirect } from 'next/navigation';
-import { getCurrentUser, getIdea, getProject } from '@/lib/data';
+import { notFound } from 'next/navigation';
+import { getIdea, getProject } from '@/lib/data';
 import { StatusBadge } from '@/components/status-badge';
 import { IdeaActions } from '@/components/idea-actions';
 import { IdeaCollaboration } from '@/components/idea-collaboration';
@@ -10,7 +10,6 @@ import { ReferenceEmbed } from '@/components/reference-embed';
 
 export default async function IdeaDetail({ params }: { params: Promise<{ projectSlug: string; ideaId: string }> }) {
   const { projectSlug, ideaId } = await params;
-  const { user } = await getCurrentUser(); if (!user) redirect('/login');
   const { project, access } = await getProject(projectSlug); if (!project) notFound();
   const idea: any = await getIdea(project.id, ideaId); if (!idea) notFound();
   const role = access?.role_in_project ?? 'owner';

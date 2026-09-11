@@ -60,25 +60,25 @@ export async function getProject(slug: string) {
   if (!project) return { project: null, access: null, supabase };
 
   const { data: { user } } = await supabase.auth.getUser();
-  if (user) {
-    const { data: profile } = await supabase
-      .from('rr_hub_profiles')
-      .select('global_role')
-      .eq('id', user.id)
-      .maybeSingle();
-    if (profile?.global_role === 'admin') {
-      return { project, access: { role_in_project: 'owner' }, supabase };
-    }
-  }
+  // Public mode: without a session every project stays browsable under an owner view.
+  if (!user) return { project, access: { role_in_project: 'owner' }, supabase };
 
-  const { data: access } = user
-    ? await supabase
-        .from('rr_hub_access')
-        .select('role_in_project')
-        .eq('user_id', user.id)
-        .eq('project_id', project.id)
-        .maybeSingle()
-    : { data: null };
+  const { data: access } = await supabase
+    .from('rr_hub_access')
+    .select('role_in_project')
+    .eq('user_id', user.id)
+    .eq('project_id', project.id)
+    .maybeSingle();
+
+  if (access) return { project, access, supabase };
+
+  // Global admins supervise every project even without an explicit access row.
+  const { data: profile } = await supabase
+    .from('rr_hub_profiles')
+    .select('global_role')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (profile?.global_role === 'admin') return { project, access: { role_in_project: 'owner' }, supabase };
 
   return { project, access, supabase };
 }
@@ -90,7 +90,15 @@ export async function getProjects() {
   }
 
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { projects: [], supabase };
+
+  // Public mode: without a session the hub lists every project, browse-only.
+  if (!user) {
+    const { data: allProjects } = await supabase
+      .from('rr_hub_projects')
+      .select('id, name, slug, client_name, brand_primary_color, description')
+      .order('name');
+    return { projects: (allProjects ?? []).map((project) => ({ projects: project, role_in_project: 'owner' })), supabase };
+  }
 
   const { data: profile } = await supabase
     .from('rr_hub_profiles')

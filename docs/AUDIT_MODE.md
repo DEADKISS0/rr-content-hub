@@ -1,81 +1,87 @@
-# Modo auditoría (acceso público sin login)
+# Modo público y auditoría
 
-## Qué es
+## Estado actual: MODO PÚBLICO
 
-Una ventana pública de **solo lectura** sobre **todo** el Content Hub: cada
-proyecto, cada pieza, su trazabilidad, su equipo y sus archivos. Sirve para que
-una persona o una IA externa audite el flujo completo sin credenciales.
+El hub está abierto: **cualquiera con el link ve todo**, sin credenciales.
+Funciona igual que la vista del admin, pero en solo lectura.
 
-No reemplaza el acceso con Google: son dos puertas paralelas. El login sigue
-igual y lo privado sigue privado.
+| Ruta | Qué muestra |
+|---|---|
+| `/` | Entrada al primer proyecto + atajos |
+| `/select-project` | Los tres proyectos |
+| `/wundeer`, `/satiro`, `/boga` | Dashboard, fases y cola de cada proyecto |
+| `/<proyecto>/ideas` | Banco completo de piezas |
+| `/<proyecto>/ideas/<id>` | Ficha: referencia, briefs, hilo, entregas y trazabilidad |
+| `/<proyecto>/aprobaciones · produccion · publicaciones · metricas` | Colas por fase |
+| `/audit` | Índice global + estado de la ventana |
+| `/audit/admin` | Equipo, accesos e invitaciones |
 
-## Interruptor maestro
+## Cómo se apaga y se prende la autenticación
 
-Todo se abre y se cierra desde **una sola fila** en la base:
+### Interruptor de la app
+
+Una sola variable de entorno:
+
+```bash
+NEXT_PUBLIC_AUTH_ENABLED=false   # modo público (actual)
+NEXT_PUBLIC_AUTH_ENABLED=true    # vuelve el login con Google
+```
+
+- **`false` o sin definir** → todo abierto, solo lectura.
+- **`true`** → `src/lib/supabase/middleware.ts` vuelve a redirigir a `/login`
+  a quien no tenga sesión. Google sigue configurado, así que no hay que tocar
+  nada más.
+
+### Interruptor de la base (RLS)
+
+La lectura anónima la habilitan las políticas `*_audit`, que consultan
+`public.rr_hub_audit_enabled()`:
 
 ```sql
--- Abrir por 7 días
+-- Abrir (sin caducidad)
 update public.rr_hub_audit_settings
-   set enabled = true, expires_at = now() + interval '7 days', updated_at = now()
+   set enabled = true, expires_at = null, updated_at = now()
  where id = true;
 
--- Cerrar de inmediato
+-- Cerrar
 update public.rr_hub_audit_settings set enabled = false where id = true;
 ```
 
-La función `public.rr_hub_audit_enabled()` es la única fuente de verdad: todas
-las políticas RLS la consultan. Si `enabled = false`, o la fecha `expires_at`
-pasó, la ventana se cierra sola sin tocar código ni redesplegar.
+Con `enabled = false` la app **sigue abierta** pero anon deja de leer: las
+páginas muestran vacío. Para volver al estado privado hay que apagar **los dos**
+interruptores (env + RLS).
 
-| Columna | Para qué |
-|---|---|
-| `enabled` | Llave maestra del modo auditoría |
-| `opens_at` | Programar la apertura a futuro |
-| `expires_at` | Cierre automático (7 días por defecto) |
-| `updated_at` | Auditoría de cuándo se cambió |
+## Qué pasa al reactivar la autenticación
 
-## Rutas
+1. Poner `NEXT_PUBLIC_AUTH_ENABLED=true` en Vercel y redeplegar.
+2. `update public.rr_hub_audit_settings set enabled = false where id = true;`
+3. Listo: vuelven los roles reales, los botones de escritura y el panel
+   `/admin` de administración de accesos. Nada se perdió.
 
-| Ruta | Contenido |
-|---|---|
-| `/audit` | Índice con todos los proyectos + estado de la ventana |
-| `/audit/<slug>` | Panorama: fases, conteos por estado y banco completo |
-| `/audit/<slug>/ideas/<id>` | Ficha: referencia, briefs, comentarios, archivos y trazabilidad |
-| `/audit/admin` | Panel administrativo: equipo, accesos e invitaciones |
+## Ya nada está borrado ni degradado
 
-## Seguridad
+- Las escrituras siguen existiendo y están intactas: lo único que cambia en
+  modo público es que la UI las oculta.
+- En modo público los componentes muestran el estado y los movimientos
+  posibles, sin botones de acción.
+- El formulario de nueva idea y el de comentarios avisan que requieren cuenta.
 
-El middleware deja pasar `/audit` sin sesión, pero **la barrera real es RLS**.
-Ocho políticas `*_audit` sobre `anon` consultan `rr_hub_audit_enabled()` y solo
-permiten `SELECT`:
-
-- `rr_hub_projects_audit`, `rr_hub_ideas_audit`, `rr_hub_events_audit`,
-  `rr_hub_comments_audit`, `rr_hub_assets_audit`
-- `rr_hub_profiles_audit`, `rr_hub_access_audit`, `rr_hub_invites_audit`
-
-Verificado en vivo con la clave anónima:
+## Seguridad (verificado en vivo)
 
 | Prueba anónima | Resultado |
 |---|---|
-| `rr_hub_projects` | los 3 proyectos (satiro, boga, wundeer) |
-| `rr_hub_ideas` | 12 ideas |
-| `rr_hub_profiles` | roster completo |
-| `rr_hub_access` / `rr_hub_invites` | 3 accesos / 13 invitaciones |
-| `PATCH` a `rr_hub_projects` | devuelve `[]` → bloqueado |
+| `GET rr_hub_projects` | los 3 proyectos |
+| `GET rr_hub_ideas` | 12 ideas |
+| `GET rr_hub_profiles` | 6 perfiles |
+| `PATCH rr_hub_ideas` | `[]` → bloqueado |
+| `POST rr_hub_comments` | error `42501` (RLS) → bloqueado |
+| `DELETE rr_hub_access` | `[]` → bloqueado |
 
-Nunca hay acceso anónimo a escritura: solo existen políticas `SELECT`, y
-PostgreSQL las aplica aunque existan políticas `FOR ALL` para `authenticated`
-(son roles distintos, no se suman).
+Solo existen políticas `SELECT` para `anon`, así que la escritura no es
+posible aunque el modo público esté encendido.
 
-## Qué NO expone
+## Migraciones
 
-- No permite editar, aprobar, comentar ni subir archivos.
-- No firma URLs de archivos privados (el detalle muestra metadatos, no el binario).
-- No expone credenciales ni tokens: solo correos y roles.
-
-## Probar
-
-1. https://rr-content-hub.vercel.app/audit
-2. Entra a cualquier proyecto (Satiro, BOGA o Wundeer).
-3. Revisa el panel administrativo en `/audit/admin`.
-4. Cuando termine la auditoría, cierra el interruptor con el `update` de arriba.
+1. `supabase/migrations/20260910_content_hub_isolated.sql` — esquema base.
+2. `supabase/migrations/20260911_global_audit.sql` — interruptor global de
+   auditoría y políticas de lectura anónima.
