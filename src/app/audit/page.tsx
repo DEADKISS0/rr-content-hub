@@ -41,7 +41,7 @@ export default async function AuditIndex() {
         <span className="font-mono text-[10px] text-blanco-40">{projects.length} REGISTROS</span>
       </div>
       <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-        {(projects as any[]).map((project) => <Link key={project.slug} href={`/audit/${project.slug}`} className="group brutal-panel flex min-h-48 flex-col justify-between">
+        {(projects as any[]).filter((project) => project.slug === 'wundeer').map((project) => <Link key={project.slug} href={`/audit/${project.slug}`} className="group brutal-panel flex min-h-48 flex-col justify-between">
           <div>
             <p className="mono-label">[{project.client_name}]</p>
             <h2 className="mt-4 font-display text-3xl font-bold text-blanco group-hover:text-mostaza">{project.name}</h2>

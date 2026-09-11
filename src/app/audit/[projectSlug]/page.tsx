@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { getAuditIdeas, getAuditProject } from '@/lib/data';
 import { PHASES, STATUS_META, statusMeta, phaseIndex, productionStep, type WorkflowStatus } from '@/lib/flow';
 import { StatusBadge } from '@/components/status-badge';
@@ -10,9 +11,7 @@ export default async function AuditOverview({ params }: { params: Promise<{ proj
   const { projectSlug } = await params;
   const project = await getAuditProject(projectSlug);
 
-  if (!project) {
-    return <main className="min-h-screen bg-negro px-5 py-20"><div className="mx-auto max-w-3xl border-2 border-mostaza p-10"><p className="eyebrow">[AUDITORÍA · SIN ACCESO]</p><h1 className="mt-4 font-display text-4xl font-bold text-blanco">ESTE PROYECTO NO ESTÁ ABIERTO A AUDITORÍA.</h1><p className="mt-5 text-sm leading-7 text-blanco-60">El modo auditoría se activa por proyecto. Pide al owner que lo habilite o entra con tu cuenta autorizada.</p><Link href="/login" className="mt-8 inline-block btn-brutal">ENTRAR CON GOOGLE →</Link></div></main>;
-  }
+  if (!project) notFound();
 
   const ideas = await getAuditIdeas(project.id as string);
   const counts = ideas.reduce<Record<string, number>>((acc, idea: any) => ({ ...acc, [idea.status]: (acc[idea.status] ?? 0) + 1 }), {});

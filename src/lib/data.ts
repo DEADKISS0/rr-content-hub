@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { demoIdeas, demoProjects, getDemoIdea, getDemoProject } from './demo-data';
+import { isVisibleProject } from './projects';
 
 /**
  * Data access layer for the RR Content Hub.
@@ -49,6 +50,7 @@ export async function getCurrentUser() {
 }
 
 export async function getProject(slug: string) {
+  if (!isVisibleProject(slug)) return { project: null, access: null, supabase: null };
   const supabase = await createClient();
   if (!supabase) return { project: getDemoProject(slug), access: { role_in_project: 'admin' }, supabase: null };
 
@@ -86,7 +88,7 @@ export async function getProject(slug: string) {
 export async function getProjects() {
   const supabase = await createClient();
   if (!supabase) {
-    return { projects: demoProjects.map((project) => ({ ...project, role_in_project: 'admin' })), supabase: null };
+    return { projects: demoProjects.filter((project) => isVisibleProject(project.slug)).map((project) => ({ ...project, role_in_project: 'admin' })), supabase: null };
   }
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -96,8 +98,8 @@ export async function getProjects() {
     const { data: allProjects } = await supabase
       .from('rr_hub_projects')
       .select('id, name, slug, client_name, brand_primary_color, description')
-      .order('name');
-    return { projects: (allProjects ?? []).map((project) => ({ projects: project, role_in_project: 'owner' })), supabase };
+      .eq('slug', 'wundeer').order('name');
+    return { projects: (allProjects ?? []).filter((project) => isVisibleProject(project.slug)).map((project) => ({ projects: project, role_in_project: 'owner' })), supabase };
   }
 
   const { data: profile } = await supabase
@@ -111,9 +113,9 @@ export async function getProjects() {
     const { data: allProjects } = await supabase
       .from('rr_hub_projects')
       .select('id, name, slug, client_name, brand_primary_color, description')
-      .order('name');
+      .eq('slug', 'wundeer').order('name');
     return {
-      projects: (allProjects ?? []).map((project) => ({ projects: project, role_in_project: 'owner' })),
+      projects: (allProjects ?? []).filter((project) => isVisibleProject(project.slug)).map((project) => ({ projects: project, role_in_project: 'owner' })),
       supabase,
     };
   }
@@ -123,7 +125,7 @@ export async function getProjects() {
     .select('role_in_project, projects:rr_hub_projects(id, name, slug, client_name, brand_primary_color, description)')
     .eq('user_id', user.id);
 
-  return { projects: data ?? [], supabase };
+  return { projects: (data ?? []).filter((row: any) => isVisibleProject(row.projects?.slug)), supabase };
 }
 
 export async function getIdeas(projectId: string) {
@@ -172,12 +174,12 @@ export async function getAuditSettings() {
 /** Every project, for the global audit index. RLS gates this, not a column filter. */
 export async function getAuditProjects() {
   const supabase = await createClient();
-  if (!supabase) return demoProjects;
+  if (!supabase) return demoProjects.filter((project) => isVisibleProject(project.slug));
   const { data } = await supabase
     .from('rr_hub_projects')
     .select('id, name, slug, client_name, description, brand_primary_color')
     .order('name');
-  return data ?? [];
+  return (data ?? []).filter((project) => isVisibleProject(project.slug));
 }
 
 /** Read-only administrative surface: roster, access matrix and pending invites. */
@@ -193,6 +195,7 @@ export async function getAuditRoster() {
 }
 
 export async function getAuditProject(slug: string) {
+  if (!isVisibleProject(slug)) return null;
   const supabase = await createClient();
   if (!supabase) return getDemoProject(slug) ?? null;
   const { data } = await supabase

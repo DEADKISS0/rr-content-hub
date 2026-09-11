@@ -29,6 +29,6 @@ export default async function Home() {
     <h1 className="mt-4 font-display text-5xl font-bold text-blanco">ENTRA A UN<br/><em className="text-mostaza">PROYECTO.</em></h1>
     <p className="mt-6 text-sm leading-7 text-blanco-60">El link directo también funciona: cada proyecto vive en <span className="text-mostaza">/{slug}</span>.</p>
     <Link href={`/${slug}`} className="btn-brutal mt-8 inline-block">ABRIR {slug.toUpperCase()} →</Link>
-    <p className="mt-4 text-sm"><Link href="/select-project" className="font-mono text-xs text-blanco-60 underline hover:text-mostaza">VER LOS TRES PROYECTOS →</Link></p>
+    <p className="mt-4 text-sm"><Link href="/select-project" className="font-mono text-xs text-blanco-60 underline hover:text-mostaza">ABRIR ESPACIO WUNDEER →</Link></p>
   </div></main>;
 }

@@ -231,3 +231,31 @@ export const PRODUCTION_STEPS = [
 export function productionStep(status: WorkflowStatus): number {
   return PRODUCTION_STEPS.findIndex((step) => (step.statuses as readonly string[]).includes(status));
 }
+
+/** One-word status, for dense board cards. */
+export const STATUS_SHORT: Record<WorkflowStatus, string> = {
+  draft: 'Borrador', pending_approval: 'Espera cliente', needs_changes: 'Ajustes',
+  approved: 'Aprobada', script_in_progress: 'Escribiendo guion', pending_script_review: 'Guion por aprobar',
+  script_approved: 'Guion listo', in_production: 'Grabando', raw_uploaded: 'Crudo subido',
+  editing: 'Editando', ready_to_publish: 'Revisión final', published: 'Publicado', closed: 'Cerrado',
+};
+
+export function statusShort(status: string): string {
+  return STATUS_SHORT[status as WorkflowStatus] ?? status;
+}
+
+/**
+ * Four columns a person can scan in one look. This is the whole point: instead
+ * of thirteen labels and five tabs, the board answers "where is everything?"
+ * at a glance.
+ */
+export const BOARD_COLUMNS = [
+  { key: 'ideas', label: 'IDEAS', plain: 'Propuesta y decisión del cliente', statuses: ['draft', 'pending_approval', 'needs_changes'] },
+  { key: 'scripts', label: 'GUIONES', plain: 'Escritura y aprobación', statuses: ['approved', 'script_in_progress', 'pending_script_review', 'script_approved'] },
+  { key: 'production', label: 'PRODUCCIÓN', plain: 'Rodaje, edición y revisión final', statuses: ['in_production', 'raw_uploaded', 'editing', 'ready_to_publish'] },
+  { key: 'published', label: 'PUBLICADO', plain: 'Salida y cierre', statuses: ['published', 'closed'] },
+] as const;
+
+export function boardColumn(status: string) {
+  return BOARD_COLUMNS.find((column) => (column.statuses as readonly string[]).includes(status)) ?? BOARD_COLUMNS[0];
+}
