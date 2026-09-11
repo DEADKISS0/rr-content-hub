@@ -157,7 +157,7 @@ export async function getIdea(projectId: string, id: string) {
     .eq('id', id)
     .maybeSingle();
 
-  return data ? mapIdea(data) : null;
+  return data && isCleanBoardIdea(data) ? mapIdea(data) : null;
 }
 
 /**
@@ -231,7 +231,7 @@ export async function getAuditIdea(projectId: string, id: string) {
     .eq('project_id', projectId)
     .eq('id', id)
     .maybeSingle();
-  return data ? mapIdea(data) : null;
+  return data && isCleanBoardIdea(data) ? mapIdea(data) : null;
 }
 
 /** Counts per status for the audit summary, computed server-side. */
