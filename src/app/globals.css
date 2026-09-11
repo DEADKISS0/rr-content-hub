@@ -65,7 +65,7 @@
   }
   
   .input-brutal {
-    @apply w-full px-4 py-3 bg-negro border-2 border-blanco text-blanco font-mono text-sm focus:border-fucsia focus:outline-none transition-colors;
+    @apply w-full px-5 py-4 bg-negro border-2 border-blanco text-blanco font-mono text-sm leading-6 focus:border-fucsia focus:outline-none transition-colors;
   }
 }
 
@@ -81,10 +81,10 @@
   .display-title em { color: var(--fucsia); font-style: normal; }
   .section-heading { color: var(--blanco); font-family: 'Space Grotesk', Arial, sans-serif; font-size: 1.5rem; font-weight: 700; letter-spacing: -.06em; }
   .mono-label { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
-  .brutal-panel { position: relative; border: 2px solid var(--blanco); background: var(--negro); padding: 1.4rem; transition: border-color .15s, transform .15s; }
+  .brutal-panel { position: relative; border: 2px solid var(--blanco); background: var(--negro); padding: 1.75rem; transition: border-color .15s, transform .15s; }
   .brutal-panel:hover { border-color: var(--fucsia); transform: translate(-2px, -2px); }
   .project-line { position: absolute; top: -2px; left: -2px; right: -2px; height: 7px; }
-  .idea-row { display: flex; align-items: center; gap: 1.1rem; border-block: 1px solid rgba(255,255,243,.16); padding: 1.1rem .3rem; }
+  .idea-row { display: flex; align-items: center; gap: 1.35rem; border-block: 1px solid rgba(255,255,243,.16); padding: 1.35rem .5rem; }
   .idea-row:hover { border-color: var(--fucsia); background: rgba(190,7,109,.08); }
   .status { border: 1px solid currentColor; padding: .23rem .4rem; font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .05em; }
   .status-pending_approval, .status-needs_changes { color: var(--orquidea); }
@@ -96,8 +96,8 @@
 @media (max-width: 767px) {
   html, body { overflow-x: hidden; }
   .display-title { font-size: clamp(2.9rem, 16vw, 5rem); letter-spacing: -.075em; }
-  .brutal-panel { padding: 1rem; }
-  .idea-row { gap: .65rem; padding: .9rem .15rem; }
+  .brutal-panel { padding: 1.25rem; }
+  .idea-row { gap: .85rem; padding: 1.1rem .3rem; }
   .idea-row h3 { font-size: 1rem; line-height: 1.15; }
   .input-brutal { min-height: 46px; }
 }
