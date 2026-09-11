@@ -1,5 +1,9 @@
 -- Content Hub isolated from existing RR CRM tables in public.*
 -- Safe to apply to the current Supabase project: only creates rr_hub_* objects.
+--
+-- NOTE: the per-project public_audit flag defined further down is SUPERSEDED by
+-- supabase/migrations/20260911_global_audit.sql, which repoints the anon read
+-- policies at a single global switch. Run this file first, then that one.
 
 create table if not exists public.rr_hub_profiles (
   id uuid primary key references auth.users(id) on delete cascade,

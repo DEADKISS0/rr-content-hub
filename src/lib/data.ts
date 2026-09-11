@@ -146,10 +146,44 @@ export async function getIdea(projectId: string, id: string) {
 }
 
 /**
- * Public audit reads. These use the same anonymous client; RLS only exposes
- * rows of projects explicitly flagged `public_audit`, so nothing private leaks
- * even though the route needs no login.
+ * Public audit reads. These use the same anonymous client; RLS turns every
+ * read below into an anon-only, read-only view while the global audit switch
+ * is open, so nothing leaks and nothing can be written.
  */
+export async function getAuditSettings() {
+  const supabase = await createClient();
+  if (!supabase) return { enabled: false, opens_at: null, expires_at: null, updated_at: null };
+  const { data } = await supabase
+    .from('rr_hub_audit_settings')
+    .select('enabled, opens_at, expires_at, updated_at')
+    .eq('id', true)
+    .maybeSingle();
+  return data ?? { enabled: false, opens_at: null, expires_at: null, updated_at: null };
+}
+
+/** Every project, for the global audit index. RLS gates this, not a column filter. */
+export async function getAuditProjects() {
+  const supabase = await createClient();
+  if (!supabase) return demoProjects;
+  const { data } = await supabase
+    .from('rr_hub_projects')
+    .select('id, name, slug, client_name, description, brand_primary_color')
+    .order('name');
+  return data ?? [];
+}
+
+/** Read-only administrative surface: roster, access matrix and pending invites. */
+export async function getAuditRoster() {
+  const supabase = await createClient();
+  if (!supabase) return { profiles: [], access: [], invites: [] };
+  const [profiles, access, invites] = await Promise.all([
+    supabase.from('rr_hub_profiles').select('id, email, full_name, global_role, created_at').order('email'),
+    supabase.from('rr_hub_access').select('user_id, project_id, role_in_project, granted_at'),
+    supabase.from('rr_hub_invites').select('email, project_id, role_in_project').order('email'),
+  ]);
+  return { profiles: profiles.data ?? [], access: access.data ?? [], invites: invites.data ?? [] };
+}
+
 export async function getAuditProject(slug: string) {
   const supabase = await createClient();
   if (!supabase) return getDemoProject(slug) ?? null;
@@ -157,7 +191,6 @@ export async function getAuditProject(slug: string) {
     .from('rr_hub_projects')
     .select('id, name, slug, client_name, description, brand_primary_color, public_audit')
     .eq('slug', slug)
-    .eq('public_audit', true)
     .maybeSingle();
   return data ?? null;
 }
