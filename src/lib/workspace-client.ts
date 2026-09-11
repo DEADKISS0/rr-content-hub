@@ -177,8 +177,12 @@ export async function uploadAsset(input: {
 }): Promise<{ error?: string }> {
   const supabase = createClient();
   if (!supabase) return { error: 'Supabase no está configurado en este entorno.' };
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: 'Tu sesión expiró. Vuelve a iniciar sesión para continuar.' };
+  const maxSize = 50 * 1024 * 1024;
+  if (input.file.size > maxSize) return { error: 'El archivo supera el límite de 50 MB.' };
+  const allowed = input.file.type.startsWith('image/')
+    || input.file.type.startsWith('video/')
+    || ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(input.file.type);
+  if (!allowed) return { error: 'Tipo de archivo no permitido. Usa imagen, video, PDF, DOC o DOCX.' };
 
   const safeName = input.file.name.replace(/[^\w.\-]+/g, '_');
   const path = `${input.projectSlug}/${input.ideaId}/${input.stage}/${Date.now()}-${safeName}`;
@@ -190,7 +194,6 @@ export async function uploadAsset(input: {
 
   const { error: insertError } = await supabase.from('rr_hub_assets').insert({
     idea_id: input.ideaId,
-    uploaded_by: user.id,
     asset_stage: input.stage,
     storage_path: path,
     file_name: input.file.name,
@@ -203,8 +206,9 @@ export async function uploadAsset(input: {
 export async function signedAssetUrl(path: string): Promise<string | null> {
   const supabase = createClient();
   if (!supabase || !path || /^https?:\/\//.test(path)) return path || null;
-  const { data } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrl(path, 60 * 60);
-  return data?.signedUrl ?? null;
+  // Wundeer deliveries are intentionally shared with the public workspace.
+  // Use the bucket URL directly instead of creating a misleading expiring URL.
+  return supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path).data.publicUrl || null;
 }
 
 /**

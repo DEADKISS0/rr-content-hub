@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { loadTimeline, transitionIdeaStatus, type TimelineEvent } from '@/lib/workspace-client';
 import { STATUS_META, TONE_CLASS, allowedTransitions, statusMeta, waitingOn, type RoleKey, type WorkflowStatus } from '@/lib/flow';
 import { useActiveRole } from '@/lib/role-client';
+import { createClient } from '@/lib/supabase/client';
 
 /**
  * Guided hand-off. The person sees where the piece is, who acts now, and at
@@ -22,6 +23,19 @@ export function IdeaActions({ ideaId, currentStatus = 'pending_approval', role =
 
   const refresh = useCallback(() => { loadTimeline(ideaId).then(setHistory); }, [ideaId]);
   useEffect(() => { const timer = window.setTimeout(refresh, 0); return () => window.clearTimeout(timer); }, [refresh]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    if (!supabase) return;
+    const channel = supabase.channel(`wundeer-idea-${ideaId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rr_hub_ideas', filter: `id=eq.${ideaId}` }, (payload) => {
+        const nextStatus = payload.new.status as WorkflowStatus | undefined;
+        if (nextStatus) setStatus(nextStatus);
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'rr_hub_events', filter: `idea_id=eq.${ideaId}` }, refresh)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [ideaId, refresh]);
 
   const activeRole = selectedRole ?? role as RoleKey;
   const moves = useMemo(() => allowedTransitions(activeRole, status), [activeRole, status]);

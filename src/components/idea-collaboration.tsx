@@ -14,6 +14,7 @@ import {
 } from '@/lib/workspace-client';
 import { ROLE_LABEL } from '@/lib/flow';
 import { useActiveRole } from '@/lib/role-client';
+import { createClient } from '@/lib/supabase/client';
 
 const stageOptions: Array<{ value: AssetStage; label: string }> = [
   { value: 'reference_brief', label: 'REFERENCIA / BRIEF' },
@@ -47,6 +48,19 @@ export function IdeaCollaboration({ projectSlug, ideaId }: { projectSlug: string
     const timer = window.setTimeout(() => { refresh(); }, 0);
     return () => window.clearTimeout(timer);
   }, [refresh]);
+
+  // A second collaborator should not need to reload to see a decision, a
+  // resolved note or a delivery. The SQL migration enables these tables in
+  // Supabase Realtime; refresh keeps the client mapping as the single source.
+  useEffect(() => {
+    const supabase = createClient();
+    if (!supabase) return;
+    const channel = supabase.channel(`wundeer-collaboration-${ideaId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rr_hub_comments', filter: `idea_id=eq.${ideaId}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rr_hub_assets', filter: `idea_id=eq.${ideaId}` }, refresh)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [ideaId, refresh]);
 
   const visible = useMemo(() => comments.filter((comment) => showResolved || !comment.resolved), [comments, showResolved]);
 
