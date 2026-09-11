@@ -3,7 +3,9 @@ import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import { getAuditAssets, getAuditComments, getAuditIdea, getAuditProject, getAuditTimeline } from '@/lib/data';
 import { PHASES, STATUS_LABEL, allowedTransitions, phaseIndex, waitingOn, type WorkflowStatus } from '@/lib/flow';
-import { ReferenceEmbed } from '@/components/reference-embed';
+import { ReferenceWithBrief } from '@/components/reference-with-brief';
+import { StatusBadge } from '@/components/status-badge';
+import { Breadcrumbs } from '@/components/breadcrumbs';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,10 +34,10 @@ export default async function AuditIdeaDetail({ params }: { params: Promise<{ pr
 
   return <div className="mx-auto max-w-6xl px-4 py-8 sm:px-5 md:px-10 md:py-10">
     <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-blanco-10 pb-5">
-      <Link href={`/audit/${projectSlug}`} className="font-mono text-xs text-blanco-60 hover:text-mostaza">← PANORAMA</Link>
+      <Breadcrumbs items={[{ label: 'AUDITORÍA', href: '/audit' }, { label: project.name as string, href: `/audit/${projectSlug}` }, { label: idea.code ?? 'IDEA' }]} />
       <div className="flex items-center gap-4">
         <Image src="/brand/rr-symbol-fucsia-on-negro.png" alt="Símbolo RR Aliados" width={52} height={40} className="h-9 w-12 object-contain"/>
-        <span className="font-mono text-[10px] text-mostaza">[{STATUS_LABEL[status] ?? status}]</span>
+        <StatusBadge status={status} animate />
       </div>
     </div>
 
@@ -55,7 +57,7 @@ export default async function AuditIdeaDetail({ params }: { params: Promise<{ pr
 
     <div className="grid gap-6 lg:grid-cols-[1.25fr_.75fr]">
       <section className="space-y-5">
-        <ReferenceEmbed url={raw} title={idea.title}/>
+        <ReferenceWithBrief url={raw} title={idea.title} brief={{ intention: idea.objective, camera: idea.camera, talent: idea.talent, edit: idea.edit }}/>
         <Block title="OBJETIVO">{idea.objective}</Block>
         <div className="grid gap-px border-2 border-blanco-20 bg-blanco-10 md:grid-cols-3">
           <Block title="CÁMARA">{idea.camera}</Block>

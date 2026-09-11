@@ -24,6 +24,6 @@ export function RoleView({ role }: { role: string }) {
     <h3 className="mt-3 font-display text-2xl font-bold text-blanco">{content.title}</h3>
     <p className="mt-3 text-sm leading-6 text-blanco-60">{content.copy}</p>
     <ul className="mt-4 space-y-2 font-mono text-[11px] text-mostaza">{content.bullets.map((bullet) => <li key={bullet}>→ {bullet}</li>)}</ul>
-    <p className="mt-5 border-t border-blanco-20 pt-4 font-mono text-[10px] leading-5 text-blanco-40">Modo público activo: este portal se lee sin credenciales. Iniciar sesión solo es necesario para editar.</p>
+    <p className="mt-5 border-t border-blanco-20 pt-4 font-mono text-[10px] leading-5 text-blanco-40">En modo público este panel es informativo: el rol real se asigna con credenciales y determina qué botones estarían disponibles.</p>
   </div>;
 }

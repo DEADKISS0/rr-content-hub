@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { getAuditIdeas, getAuditProject } from '@/lib/data';
-import { PHASES, STATUS_LABEL, phaseIndex, type WorkflowStatus } from '@/lib/flow';
+import { PHASES, STATUS_META, statusMeta, phaseIndex, productionStep, type WorkflowStatus } from '@/lib/flow';
+import { StatusBadge } from '@/components/status-badge';
+import { ProductionPipeline } from '@/components/production-pipeline';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,10 +51,10 @@ export default async function AuditOverview({ params }: { params: Promise<{ proj
     <section className="mb-12">
       <p className="eyebrow mb-4">[DISTRIBUCIÓN POR ESTADO]</p>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {Object.entries(STATUS_LABEL).map(([status, label]) => {
+        {Object.entries(STATUS_META).map(([status, meta]) => {
           const value = counts[status] ?? 0;
           if (!value) return null;
-          return <div key={status} className="flex items-center justify-between border border-blanco-20 px-4 py-3"><span className="font-mono text-[10px] text-blanco-60">{label}</span><span className="font-display text-xl font-bold text-mostaza">{value}</span></div>;
+          return <div key={status} className="flex items-center justify-between border border-blanco-20 px-4 py-3"><StatusBadge status={status} /><span className="font-display text-xl font-bold text-mostaza">{value}</span></div>;
         })}
         {total === 0 && <p className="font-mono text-xs text-blanco-40">SIN IDEAS REGISTRADAS.</p>}
       </div>
@@ -63,11 +65,12 @@ export default async function AuditOverview({ params }: { params: Promise<{ proj
         <div><p className="eyebrow">[BANCO COMPLETO · READ ONLY]</p><h2 className="section-heading mt-2">TODAS LAS PIEZAS.</h2></div>
         <span className="font-mono text-[10px] text-blanco-40">{sorted.length} REGISTROS</span>
       </div>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="stagger grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {sorted.map((idea: any) => <Link key={idea.id} href={`/audit/${projectSlug}/ideas/${idea.id}`} className="brutal-panel group">
-          <div className="mb-5 flex items-start justify-between gap-3"><span className="mono-label text-mostaza">[{idea.code} · {idea.content_type === 'organic' ? 'ORGÁNICO' : 'PAUTA'}]</span><span className="font-mono text-[10px] text-blanco">[{STATUS_LABEL[idea.status as WorkflowStatus] ?? idea.status}]</span></div>
+          <div className="mb-5 flex flex-wrap items-start justify-between gap-3"><span className="mono-label text-mostaza">[{idea.code} · {idea.content_type === 'organic' ? 'ORGÁNICO' : 'PAUTA'}]</span><StatusBadge status={idea.status} showStep /></div>
           <h3 className="font-display text-2xl font-bold text-blanco group-hover:text-fucsia">{idea.title}</h3>
           <p className="mt-3 line-clamp-3 text-sm leading-6 text-blanco-60">{idea.description}</p>
+          {productionStep(idea.status as WorkflowStatus) >= 0 && <div className="mt-5"><ProductionPipeline status={idea.status} compact /></div>}
           <div className="mt-6 border-t border-blanco-10 pt-4 font-mono text-[10px] text-blanco-40">{idea.category} <span className="float-right text-fucsia">VER FICHA →</span></div>
         </Link>)}
       </div>

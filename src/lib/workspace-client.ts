@@ -195,3 +195,36 @@ export async function signedAssetUrl(path: string): Promise<string | null> {
   const { data } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrl(path, 60 * 60);
   return data?.signedUrl ?? null;
 }
+
+/**
+ * Next human-readable code for a project+type: O1, O2 for organic and P1, P2 for
+ * paid. Codes let people reference a piece out loud or in an email, so every
+ * idea gets one at creation instead of staying anonymous.
+ */
+export async function nextIdeaCode(projectId: string, contentType: 'organic' | 'paid'): Promise<string> {
+  const supabase = createClient();
+  const prefix = contentType === 'organic' ? 'O' : 'P';
+  if (!supabase) return `${prefix}1`;
+  const { data } = await supabase.from('rr_hub_ideas').select('code').eq('project_id', projectId);
+  const max = (data ?? []).reduce((highest, row: any) => {
+    const match = String(row.code ?? '').match(new RegExp(`^${prefix}(\\d+)$`));
+    return match ? Math.max(highest, Number(match[1])) : highest;
+  }, 0);
+  return `${prefix}${max + 1}`;
+}
+
+/**
+ * Light-weight reference check. Cross-origin HEAD calls are opaque, so a
+ * failure here means "not obviously a URL", not "definitely broken". We only
+ * reject text that cannot be a link at all.
+ */
+export function looksLikeUrl(value: string): boolean {
+  const text = value.trim();
+  if (!text) return true;
+  try {
+    const url = new URL(text);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}

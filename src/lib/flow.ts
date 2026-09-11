@@ -154,3 +154,80 @@ export function nextStatus(status: WorkflowStatus): WorkflowStatus {
   const options = TRANSITIONS[status] ?? [];
   return options[0]?.to ?? status;
 }
+
+/* ───────────────────────────────────────────────────────────────────────────
+ * PRESENTACIÓN POR ESTADO
+ *
+ * Cada estado se comunica con CUATRO señales a la vez (ícono + color + texto +
+ * responsable) para que nadie dependa solo del color: si alguien no distingue
+ * mostaza de fucsia, el ícono y el texto siguen contando la historia.
+ *
+ * Tonos B.U.C.M.:
+ *   mostaza  → espera al CLIENTE (atención, decisión pendiente)
+ *   fucsia   → está en PRODUCCIÓN (rodaje, edición, publicación)
+ *   orquidea → está en REVISIÓN interna (alguien del equipo debe actuar)
+ *   neutro   → borrador, publicado o cerrado
+ * ─────────────────────────────────────────────────────────────────────────── */
+export type ToneKey = 'neutro' | 'mostaza' | 'fucsia' | 'orquidea';
+
+export type StatusMeta = { label: string; icon: string; tone: ToneKey; who: string; blurb: string };
+
+export const STATUS_META: Record<WorkflowStatus, StatusMeta> = {
+  draft: { label: 'BORRADOR', icon: '✎', tone: 'neutro', who: 'CREATIVA', blurb: 'Aún se está escribiendo; todavía no viaja al cliente.' },
+  pending_approval: { label: 'ESPERA CLIENTE', icon: '⏱', tone: 'mostaza', who: 'CLIENTE', blurb: 'La propuesta está en manos del cliente para su decisión.' },
+  needs_changes: { label: 'AJUSTES PEDIDOS', icon: '↺', tone: 'fucsia', who: 'CREATIVA', blurb: 'El cliente pidió cambios; la pelota vuelve al equipo.' },
+  approved: { label: 'IDEA APROBADA', icon: '✓', tone: 'mostaza', who: 'CREATIVA', blurb: 'Dirección aprobada. Arranca la escritura del guion.' },
+  script_in_progress: { label: 'GUIÓN EN CURSO', icon: '✍', tone: 'orquidea', who: 'CREATIVA', blurb: 'Se está escribiendo el guion de la pieza.' },
+  pending_script_review: { label: 'GUIÓN POR APROBAR', icon: '⏱', tone: 'mostaza', who: 'CLIENTE', blurb: 'El guion espera la validación del cliente.' },
+  script_approved: { label: 'GUIÓN APROBADO', icon: '✓', tone: 'mostaza', who: 'CÁMARA', blurb: 'Listo para rodar. El equipo de cámara ya tiene su brief.' },
+  in_production: { label: 'GRABANDO', icon: '🎬', tone: 'fucsia', who: 'CÁMARA', blurb: 'Rodaje en curso; el crudo todavía no está cargado.' },
+  raw_uploaded: { label: 'CRUDO SUBIDO', icon: '⬆', tone: 'orquidea', who: 'EDITOR', blurb: 'El material crudo está cargado y listo para montaje.' },
+  editing: { label: 'EDITANDO', icon: '✏', tone: 'fucsia', who: 'EDITOR', blurb: 'Montaje en curso sobre el crudo.' },
+  ready_to_publish: { label: 'REVISIÓN FINAL', icon: '◎', tone: 'orquidea', who: 'OWNER · PUBLISHER', blurb: 'Corte listo; falta la última aprobación antes de salir.' },
+  published: { label: 'PUBLICADO', icon: '✓✓', tone: 'fucsia', who: 'PUBLISHER', blurb: 'La pieza ya salió con su evidencia registrada.' },
+  closed: { label: 'CERRADO', icon: '⊗', tone: 'neutro', who: '—', blurb: 'Flujo terminado; se conserva todo el historial.' },
+};
+
+export function statusMeta(status: string): StatusMeta {
+  return STATUS_META[status as WorkflowStatus] ?? { label: status, icon: '•', tone: 'neutro', who: 'RR ALIADOS', blurb: '' };
+}
+
+/** Groups the 13 states into the five hand-offs a person actually filters by. */
+export type ActGroup = 'cliente' | 'camara' | 'editor' | 'publisher' | 'equipo';
+
+export const ACT_GROUPS: { key: ActGroup; label: string }[] = [
+  { key: 'cliente', label: 'CLIENTE' },
+  { key: 'camara', label: 'CÁMARA' },
+  { key: 'editor', label: 'EDITOR' },
+  { key: 'publisher', label: 'PUBLISHER' },
+  { key: 'equipo', label: 'EQUIPO' },
+];
+
+export function actGroup(status: WorkflowStatus): ActGroup {
+  if (status === 'pending_approval' || status === 'pending_script_review') return 'cliente';
+  if (status === 'script_approved' || status === 'in_production') return 'camara';
+  if (status === 'raw_uploaded' || status === 'editing') return 'editor';
+  if (status === 'ready_to_publish' || status === 'published' || status === 'closed') return 'publisher';
+  return 'equipo';
+}
+
+/** Tailwind classes per tone, reused by badges, rails and filters. */
+export const TONE_CLASS: Record<ToneKey, { border: string; bg: string; text: string; dot: string }> = {
+  mostaza: { border: 'border-mostaza', bg: 'bg-mostaza/10', text: 'text-mostaza', dot: 'bg-mostaza' },
+  fucsia: { border: 'border-fucsia', bg: 'bg-fucsia/10', text: 'text-fucsia', dot: 'bg-fucsia' },
+  orquidea: { border: 'border-orquidea', bg: 'bg-orquidea/10', text: 'text-orquidea', dot: 'bg-orquidea' },
+  neutro: { border: 'border-blanco-20', bg: 'bg-blanco-05', text: 'text-blanco-60', dot: 'bg-blanco-40' },
+};
+
+/** The four visible steps of production, from approved script to ready-to-publish. */
+export const PRODUCTION_STEPS = [
+  { key: 'shoot', label: 'GRABACIÓN', detail: 'Equipo en set', statuses: ['script_approved', 'in_production'] },
+  { key: 'raw', label: 'CRUDO SUBIDO', detail: 'Cámara subió archivos', statuses: ['raw_uploaded'] },
+  { key: 'edit', label: 'EDICIÓN', detail: 'Editor montando', statuses: ['editing'] },
+  { key: 'ready', label: 'LISTO', detail: 'Listo para publicar', statuses: ['ready_to_publish'] },
+] as const;
+
+/** Index of the active production step, or -1 when the piece is not in production. */
+export function productionStep(status: WorkflowStatus): number {
+  return PRODUCTION_STEPS.findIndex((step) => (step.statuses as readonly string[]).includes(status));
+}
