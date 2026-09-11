@@ -190,6 +190,28 @@ create policy rr_hub_storage_read on storage.objects for select to authenticated
 create policy rr_hub_storage_insert on storage.objects for insert to authenticated with check (bucket_id = 'rr-content-assets');
 create policy rr_hub_storage_update on storage.objects for update to authenticated using (bucket_id = 'rr-content-assets') with check (bucket_id = 'rr-content-assets');
 
+-- Public audit mode: a project can be opened read-only for external review.
+-- RLS (not the middleware) is the real barrier: anon only sees flagged projects.
+alter table public.rr_hub_projects add column if not exists public_audit boolean not null default false;
+
+drop policy if exists rr_hub_projects_audit on public.rr_hub_projects;
+create policy rr_hub_projects_audit on public.rr_hub_projects for select to anon using (public_audit = true);
+
+drop policy if exists rr_hub_ideas_audit on public.rr_hub_ideas;
+create policy rr_hub_ideas_audit on public.rr_hub_ideas for select to anon using (exists (select 1 from public.rr_hub_projects p where p.id = rr_hub_ideas.project_id and p.public_audit = true));
+
+drop policy if exists rr_hub_events_audit on public.rr_hub_events;
+create policy rr_hub_events_audit on public.rr_hub_events for select to anon using (exists (select 1 from public.rr_hub_ideas i join public.rr_hub_projects p on p.id = i.project_id where i.id = rr_hub_events.idea_id and p.public_audit = true));
+
+drop policy if exists rr_hub_comments_audit on public.rr_hub_comments;
+create policy rr_hub_comments_audit on public.rr_hub_comments for select to anon using (exists (select 1 from public.rr_hub_ideas i join public.rr_hub_projects p on p.id = i.project_id where i.id = rr_hub_comments.idea_id and p.public_audit = true));
+
+drop policy if exists rr_hub_assets_audit on public.rr_hub_assets;
+create policy rr_hub_assets_audit on public.rr_hub_assets for select to anon using (exists (select 1 from public.rr_hub_ideas i join public.rr_hub_projects p on p.id = i.project_id where i.id = rr_hub_assets.idea_id and p.public_audit = true));
+
+-- Enable the public audit view for Wundeer only; set false to close it again.
+update public.rr_hub_projects set public_audit = true where slug = 'wundeer';
+
 -- First admin bootstrap. The signup trigger only covers new users, so existing
 -- accounts need one profile row; replace the email with the real owner account.
 insert into public.rr_hub_profiles (id, email, full_name, global_role)

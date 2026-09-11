@@ -144,3 +144,103 @@ export async function getIdea(projectId: string, id: string) {
 
   return data ? mapIdea(data) : null;
 }
+
+/**
+ * Public audit reads. These use the same anonymous client; RLS only exposes
+ * rows of projects explicitly flagged `public_audit`, so nothing private leaks
+ * even though the route needs no login.
+ */
+export async function getAuditProject(slug: string) {
+  const supabase = await createClient();
+  if (!supabase) return getDemoProject(slug) ?? null;
+  const { data } = await supabase
+    .from('rr_hub_projects')
+    .select('id, name, slug, client_name, description, brand_primary_color, public_audit')
+    .eq('slug', slug)
+    .eq('public_audit', true)
+    .maybeSingle();
+  return data ?? null;
+}
+
+export async function getAuditIdeas(projectId: string) {
+  const supabase = await createClient();
+  if (!supabase) return demoIdeas;
+  const { data } = await supabase
+    .from('rr_hub_ideas')
+    .select('id, code, title, description, objective, content_type, category, status, priority, created_at, updated_at, reference_urls, camera_brief, talent_brief, edit_brief, script_content')
+    .eq('project_id', projectId)
+    .order('code', { ascending: true });
+  return (data ?? []).map(mapIdea);
+}
+
+export async function getAuditIdea(projectId: string, id: string) {
+  const supabase = await createClient();
+  if (!supabase) return getDemoIdea(id);
+  const { data } = await supabase
+    .from('rr_hub_ideas')
+    .select('*')
+    .eq('project_id', projectId)
+    .eq('id', id)
+    .maybeSingle();
+  return data ? mapIdea(data) : null;
+}
+
+/** Counts per status for the audit summary, computed server-side. */
+export async function getAuditStats(projectId: string) {
+  const ideas = await getAuditIdeas(projectId);
+  const counts: Record<string, number> = {};
+  for (const idea of ideas) counts[idea.status] = (counts[idea.status] ?? 0) + 1;
+  return { total: ideas.length, counts };
+}
+
+export async function getAuditTimeline(ideaId: string) {
+  const supabase = await createClient();
+  if (!supabase) return [];
+  const { data } = await supabase
+    .from('rr_hub_events')
+    .select('id, to_status, comment, created_at, actor:rr_hub_profiles(full_name, email)')
+    .eq('idea_id', ideaId)
+    .order('created_at', { ascending: false });
+  return (data ?? []).map((row: any) => ({
+    id: row.id as string,
+    status: row.to_status as string,
+    actor: (row.actor?.full_name as string) || (row.actor?.email as string) || 'RR ALIADOS',
+    note: (row.comment as string) ?? '',
+    createdAt: row.created_at as string,
+  }));
+}
+
+export async function getAuditComments(ideaId: string) {
+  const supabase = await createClient();
+  if (!supabase) return [];
+  const { data } = await supabase
+    .from('rr_hub_comments')
+    .select('id, body, role_label, resolved_at, created_at, author:rr_hub_profiles(full_name, email)')
+    .eq('idea_id', ideaId)
+    .order('created_at', { ascending: true });
+  return (data ?? []).map((row: any) => ({
+    id: row.id as string,
+    author: (row.author?.full_name as string) || (row.author?.email as string) || 'RR ALIADOS',
+    role: row.role_label as string,
+    body: row.body as string,
+    resolved: Boolean(row.resolved_at),
+    createdAt: row.created_at as string,
+  }));
+}
+
+export async function getAuditAssets(ideaId: string) {
+  const supabase = await createClient();
+  if (!supabase) return [];
+  const { data } = await supabase
+    .from('rr_hub_assets')
+    .select('id, file_name, asset_stage, version_label, created_at, external_url')
+    .eq('idea_id', ideaId)
+    .order('created_at', { ascending: true });
+  return (data ?? []).map((row: any) => ({
+    id: row.id as string,
+    name: row.file_name as string,
+    stage: row.asset_stage as string,
+    version: (row.version_label as string) ?? 'v1',
+    createdAt: row.created_at as string,
+  }));
+}

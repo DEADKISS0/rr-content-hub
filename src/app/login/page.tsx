@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useState } from 'react';
 
 export default function LoginPage() {
@@ -95,10 +96,16 @@ export default function LoginPage() {
               )}
             </button>
 
-            <div className="pt-4 border-t border-blanco-10">
-              <p className="font-mono text-xs text-blanco-40 text-center">
-                Solo emails autorizados por RR ALIADOS
-              </p>
+            <div className="pt-4 border-t border-blanco-10 space-y-3">
+              <Link
+                href="/audit"
+                className="w-full border-2 border-mostaza bg-mostaza/10 px-5 py-4 flex items-center justify-center gap-3 font-display font-bold text-blanco hover:bg-mostaza/20"
+              >
+                <span className="font-mono text-[10px] leading-4 text-mostaza">[MODO AUDITORÍA]</span>
+                <span>ENTRAR SIN CREDENCIALES →</span>
+              </Link>
+              <p className="font-mono text-[10px] leading-5 text-blanco-40">Acceso público de solo lectura para revisión externa. No permite editar ni descargar archivos privados.</p>
+              <p className="font-mono text-[10px] leading-5 text-blanco-40 text-center">Solo emails autorizados por RR ALIADOS</p>
             </div>
           </div>
         </div>

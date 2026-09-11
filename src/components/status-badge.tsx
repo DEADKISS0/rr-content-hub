@@ -1,1 +1,7 @@
-export function StatusBadge({ status }: { status: string }) { const labels: Record<string,string> = { draft:'BORRADOR', pending_approval:'IDEA POR APROBAR', approved:'IDEA APROBADA', needs_changes:'AJUSTES', script_in_progress:'GUIÓN', pending_script_review:'GUIÓN POR APROBAR', script_approved:'GUIÓN APROBADO', in_production:'RODAJE', raw_uploaded:'CRUDO CARGADO', editing:'EDICIÓN', ready_to_publish:'REVISIÓN FINAL', published:'PUBLICADO', closed:'CERRADO' }; return <span className={`status status-${status}`}>[{labels[status] ?? status}]</span>; }
+import { PHASES, STATUS_LABEL, type WorkflowStatus } from '@/lib/flow';
+
+export function StatusBadge({ status }: { status: string }) {
+  const label = STATUS_LABEL[status as WorkflowStatus] ?? status;
+  const phase = PHASES.findIndex((item) => (item.statuses as readonly string[]).includes(status));
+  return <span className={`status status-${status}`} data-phase={phase}>[{label}]</span>;
+}

@@ -38,8 +38,11 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const isPublic = request.nextUrl.pathname.startsWith('/audit');
+
   if (
     !user &&
+    !isPublic &&
     !request.nextUrl.pathname.startsWith('/login') &&
     !request.nextUrl.pathname.startsWith('/auth')
   ) {

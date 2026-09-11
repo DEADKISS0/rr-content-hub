@@ -1,10 +1,29 @@
-'use client';
-import { useState } from 'react';
-const roles: Record<string, { title: string; copy: string; bullets: string[] }> = {
-  CLIENTE: { title: 'DECISIÓN Y CONTEXTO', copy: 'Revisa la intención, la referencia y lo que necesitamos confirmar antes de producir.', bullets: ['Aprobar o solicitar ajustes', 'Confirmar prendas y restricciones', 'Dejar una decisión visible'] },
-  MODELO: { title: 'EJECUCIÓN DE TALENTO', copy: 'Guía rápida para saber qué hacer frente a cámara y mantener consistencia.', bullets: ['Movimiento y actitud', 'Vestuario y continuidad', 'Notas del director'] },
-  CÁMARA: { title: 'PLAN DE RODAJE', copy: 'Información técnica para convertir el concepto en tomas ejecutables.', bullets: ['Planos, lente y foco', 'Luz y encuadre', 'Checklist de captura'] },
-  EDITOR: { title: 'CONSTRUCCIÓN DE LA PIEZA', copy: 'Mapa para editar con intención y entregar versiones comparables.', bullets: ['Duración y ritmo', 'Textos, audio y formatos', 'Subir V1 y V2'] },
-  PAUTA: { title: 'RESULTADO COMERCIAL', copy: 'La pieza vista desde objetivo, audiencia, CTA y aprendizaje.', bullets: ['Objetivo de conversión', 'Variantes de copy', 'Métricas e iteración'] },
+import { ROLE_LABEL, type RoleKey } from '@/lib/flow';
+
+/**
+ * Real-role guidance. Replaces the old role simulator: the role now comes from
+ * the signed-in profile, so this panel explains what that person must do.
+ */
+const guidance: Record<RoleKey, { title: string; copy: string; bullets: string[] }> = {
+  owner: { title: 'DIRIGES LA OPERACIÓN', copy: 'Preparas propuestas, consigues decisiones del cliente y confirmas que cada relevo arranca.', bullets: ['Enviar ideas y guiones al cliente', 'Desbloquear lo que esté detenido', 'Cerrar piezas con su historial'] },
+  creator: { title: 'PROPONES EL CONCEPTO', copy: 'Conviertes referencias en propuestas claras y respondes los ajustes del cliente.', bullets: ['Completar referencia y briefs', 'Responder ajustes con evidencia', 'Reenviar la propuesta'] },
+  camera: { title: 'RUEDAS LO APROBADO', copy: 'Solo trabajas piezas con guion aprobado. Sigues el brief y subes el crudo.', bullets: ['Leer planos, lente y luz', 'Grabar según el guion', 'Subir el crudo y avisar'] },
+  model: { title: 'EJECUTAS EL TALENTO', copy: 'Ves vestuario, actitud y referencias de las piezas listas para rodar.', bullets: ['Revisar referencias y vestuario', 'Mantener continuidad', 'Confirmar rodaje'] },
+  editor: { title: 'CONSTRUYES LA PIEZA', copy: 'Recibes el crudo centralizado, conservas versiones y entregas un corte.', bullets: ['Montar según el brief', 'Subir V1 y V2 con versiones', 'Marcar la edición lista'] },
+  publisher: { title: 'PUBLICAS CON EVIDENCIA', copy: 'Solo recibes piezas aprobadas. Registras canal, URL y evidencia.', bullets: ['Revisar copy y formato', 'Registrar la salida', 'Adjuntar evidencia'] },
+  media_buyer: { title: 'MIDE Y OPTIMIZA', copy: 'Registras hipótesis, resultados y qué formato conviene repetir.', bullets: ['Definir objetivo y audiencia', 'Registrar resultados', 'Decidir qué repetir'] },
+  client_approver: { title: 'DECIDES', copy: 'Ves la propuesta, la referencia y el guion. Apruebas o pides ajustes.', bullets: ['Revisar la referencia', 'Aprobar o pedir ajustes', 'Confirmar restricciones de marca'] },
+  client_viewer: { title: 'CONSULTAS', copy: 'Ves el avance del proyecto sin editar nada.', bullets: ['Consultar el estado', 'Leer el hilo de decisiones', 'Ver las publicaciones'] },
 };
-export function RoleView() { const [role, setRole] = useState('CLIENTE'); const content = roles[role]; return <div className="brutal-panel"><p className="mono-label text-mostaza">// VISTA OPERATIVA</p><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">{Object.keys(roles).map(item => <button type="button" key={item} onClick={() => setRole(item)} aria-pressed={role === item} className={`border px-2 py-3 text-left font-mono text-[10px] ${role === item ? 'border-fucsia bg-fucsia/10 text-blanco' : 'border-blanco-20 text-blanco-60 hover:border-mostaza hover:text-mostaza'}`}>{item}</button>)}</div><div className="mt-6 border-t border-blanco-20 pt-5"><p className="eyebrow">[ROLE: {role}]</p><h3 className="mt-2 font-display text-2xl font-bold text-blanco">{content.title}</h3><p className="mt-3 text-sm leading-6 text-blanco-60">{content.copy}</p><ul className="mt-4 space-y-2 font-mono text-[11px] text-mostaza">{content.bullets.map(bullet => <li key={bullet}>→ {bullet}</li>)}</ul></div></div>; }
+
+export function RoleView({ role }: { role: string }) {
+  const key = (role in guidance ? role : 'owner') as RoleKey;
+  const content = guidance[key];
+  return <div className="brutal-panel">
+    <p className="mono-label text-mostaza">// TU ROL · {ROLE_LABEL[key]}</p>
+    <h3 className="mt-3 font-display text-2xl font-bold text-blanco">{content.title}</h3>
+    <p className="mt-3 text-sm leading-6 text-blanco-60">{content.copy}</p>
+    <ul className="mt-4 space-y-2 font-mono text-[11px] text-mostaza">{content.bullets.map((bullet) => <li key={bullet}>→ {bullet}</li>)}</ul>
+    <p className="mt-5 border-t border-blanco-20 pt-4 font-mono text-[10px] leading-5 text-blanco-40">Este panel se asigna con tus credenciales; no se puede cambiar desde la interfaz.</p>
+  </div>;
+}
