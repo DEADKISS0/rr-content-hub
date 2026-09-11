@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { ReferenceWithBrief } from '@/components/reference-with-brief';
 import { createClient } from '@/lib/supabase/client';
 import { buildIdeaPack, looksLikeUrl, nextIdeaCode } from '@/lib/workspace-client';
+import { ROLE_LABEL } from '@/lib/flow';
+import { useActiveRole } from '@/lib/role-client';
 
 type FormState = { title: string; type: 'Orgánico' | 'Pauta'; category: string; objective: string; description: string; camera: string; talent: string; edit: string; reference: string };
 const empty: FormState = { title: '', type: 'Orgánico', category: '', objective: '', description: '', camera: '', talent: '', edit: '', reference: '' };
@@ -22,6 +24,7 @@ export function NewIdeaForm({ projectSlug }: { projectSlug: string }) {
   const [saving, setSaving] = useState(false);
   const [projectId, setProjectId] = useState('');
   const [code, setCode] = useState('');
+  const role = useActiveRole();
 
   const contentType = form.type === 'Orgánico' ? 'organic' : 'paid';
   const update = (field: keyof FormState, value: string) => setForm((current) => ({ ...current, [field]: value }));
@@ -67,6 +70,12 @@ export function NewIdeaForm({ projectSlug }: { projectSlug: string }) {
       reference_urls: form.reference.trim() ? [form.reference.trim()] : [],
     }).select('id').single();
     if (error || !data) { setNotice(`No se guardó la idea: ${error?.message ?? 'error desconocido'}.`); setSaving(false); return; }
+    await supabase.from('rr_hub_events').insert({
+      idea_id: data.id,
+      to_status: 'draft',
+      comment: 'Idea creada con referencia, brief automático y guion inicial.',
+      actor_label: `Modo colaborativo · ${ROLE_LABEL[role]}`,
+    });
     router.push(`/${projectSlug}/ideas/${data.id}`);
   }
 
@@ -99,7 +108,7 @@ export function NewIdeaForm({ projectSlug }: { projectSlug: string }) {
     </details>
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
       <button disabled={saving || !referenceValid} className="btn-brutal" type="submit">{saving ? 'GUARDANDO…' : 'CREAR IDEA →'}</button>
-      <span className="font-mono text-[10px] text-blanco-40">{supabase ? `SE GUARDARÁ COMO ${code || 'NUEVA IDEA'} EN EL ESPACIO COMPARTIDO` : 'GUARDADO COMPARTIDO NO DISPONIBLE'}</span>
+      <span className="font-mono text-[10px] text-blanco-40">{supabase ? `SE GUARDARÁ COMO ${code || 'NUEVA IDEA'} · ${ROLE_LABEL[role]}` : 'GUARDADO COMPARTIDO NO DISPONIBLE'}</span>
     </div>
   </form>;
 }

@@ -5,7 +5,6 @@ import { getIdea, getProject } from '@/lib/data';
 import { StatusBadge } from '@/components/status-badge';
 import { IdeaActions } from '@/components/idea-actions';
 import { IdeaCollaboration } from '@/components/idea-collaboration';
-import { RoleView } from '@/components/role-view';
 import { ReferenceWithBrief } from '@/components/reference-with-brief';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { ProductionPipeline } from '@/components/production-pipeline';
@@ -14,9 +13,8 @@ import { statusMeta, productionStep } from '@/lib/flow';
 
 export default async function IdeaDetail({ params }: { params: Promise<{ projectSlug: string; ideaId: string }> }) {
   const { projectSlug, ideaId } = await params;
-  const { project, access } = await getProject(projectSlug); if (!project) notFound();
+  const { project } = await getProject(projectSlug); if (!project) notFound();
   const idea: any = await getIdea(project.id, ideaId); if (!idea) notFound();
-  const role = access?.role_in_project ?? 'owner';
   const raw = idea.reference_url ?? idea.reference_urls?.[0] ?? idea.ref ?? '';
   const meta = statusMeta(idea.status);
   const inProduction = productionStep(idea.status) >= 0;
@@ -72,9 +70,8 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
           <div className="brutal-panel anim-rise">
             <p className="eyebrow">[TU SIGUIENTE ACCIÓN]</p>
             <h2 className="mt-4 font-display text-3xl font-bold text-blanco">QUÉ HACER<br /><span className="text-mostaza">AHORA.</span></h2>
-            <div className="mt-6"><IdeaActions projectSlug={projectSlug} ideaId={ideaId} currentStatus={idea.status} role={role} /></div>
+            <div className="mt-6"><IdeaActions projectSlug={projectSlug} ideaId={ideaId} currentStatus={idea.status} /></div>
           </div>
-          <RoleView role={role} />
         </aside>
       </div>
     </div>
