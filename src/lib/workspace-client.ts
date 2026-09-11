@@ -60,13 +60,13 @@ export async function loadTimeline(ideaId: string): Promise<TimelineEvent[]> {
   if (!supabase) return [];
   const { data } = await supabase
     .from('rr_hub_events')
-    .select('id, to_status, comment, actor_label, created_at, actor:rr_hub_profiles(full_name, email)')
+    .select('id, to_status, comment, actor_label, created_at')
     .eq('idea_id', ideaId)
     .order('created_at', { ascending: false });
   return (data ?? []).map((row: any) => ({
     id: row.id,
     status: row.to_status,
-    actor: row.actor_label || row.actor?.full_name || row.actor?.email || 'RR ALIADOS',
+    actor: row.actor_label || 'RR ALIADOS',
     note: row.comment || 'Sin nota registrada.',
     createdAt: stamp(row.created_at),
   }));
@@ -103,12 +103,12 @@ export async function loadComments(ideaId: string): Promise<IdeaComment[]> {
   if (!supabase) return [];
   const { data } = await supabase
     .from('rr_hub_comments')
-    .select('id, body, role_label, author_label, resolved_at, created_at, author:rr_hub_profiles(full_name, email)')
+    .select('id, body, role_label, author_label, resolved_at, created_at')
     .eq('idea_id', ideaId)
     .order('created_at', { ascending: true });
   return (data ?? []).map((row: any) => ({
     id: row.id,
-    author: row.author_label || row.author?.full_name || row.author?.email || 'RR ALIADOS',
+    author: row.author_label || 'RR ALIADOS',
     role: row.role_label,
     text: row.body,
     createdAt: stamp(row.created_at),

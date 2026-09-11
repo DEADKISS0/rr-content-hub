@@ -101,7 +101,7 @@ export function IdeaCollaboration({ projectSlug, ideaId }: { projectSlug: string
       </div>
       <div className="border-2 border-mostaza bg-mostaza/5 p-5 sm:p-7">
         <p className="mono-label text-mostaza">VERSIONES Y ARCHIVOS</p>
-        <p className="mt-3 max-w-2xl text-sm leading-7 text-blanco-60">Centraliza referencia, guion, crudo y entregables. Cada carga deja una versión en el bucket privado y nunca reemplaza la anterior.</p>
+        <p className="mt-3 max-w-2xl text-sm leading-7 text-blanco-60">Centraliza referencia, guion, crudo y entregables. Cada carga deja una versión y nunca reemplaza la anterior.</p>
         <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,.7fr)]">
           <div>
             <label className="block"><span className="mono-label mb-2 block text-mostaza">// TIPO DE ENTREGA</span><select value={stage} onChange={(event) => setStage(event.target.value as AssetStage)} className="input-brutal">{stageOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
