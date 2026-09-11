@@ -1,8 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
-import { readLocalIdeas, subscribeWorkspace } from '@/lib/workspace-store';
+import { useMemo } from 'react';
 import { StatusBadge } from '@/components/status-badge';
 import { RoleCommandCenter } from '@/components/role-command-center';
 
@@ -13,9 +12,7 @@ const downstream = ['approved', 'in_production', 'editing', 'ready_to_publish', 
 const production = ['in_production', 'editing', 'ready_to_publish'];
 
 export function ProjectDashboard({ project, projectSlug, ideas, role }: { project: Project; projectSlug: string; ideas: Idea[]; role: string }) {
-  const [localIdeas, setLocalIdeas] = useState<Idea[]>([]);
-  useEffect(() => { const sync = () => setLocalIdeas(readLocalIdeas(projectSlug)); sync(); return subscribeWorkspace(projectSlug, sync); }, [projectSlug]);
-  const allIdeas = useMemo(() => [...localIdeas, ...ideas], [ideas, localIdeas]);
+  const allIdeas = useMemo(() => [...ideas].sort((a, b) => (a.code ?? '').localeCompare(b.code ?? '', undefined, { numeric: true })), [ideas]);
   const count = (statuses: string[]) => allIdeas.filter((idea) => statuses.includes(idea.status)).length;
   const metrics = [
     { label: 'IDEAS', value: allIdeas.length, href: `/${projectSlug}/ideas`, detail: 'Banco completo', tone: 'text-blanco' },

@@ -90,9 +90,28 @@ begin
   insert into public.rr_hub_profiles (id, full_name, email)
   values (new.id, coalesce(new.raw_user_meta_data ->> 'full_name', new.raw_user_meta_data ->> 'name'), new.email)
   on conflict (id) do update set full_name = excluded.full_name, email = excluded.email, updated_at = now();
+  if new.email is not null then
+    insert into public.rr_hub_access (user_id, project_id, role_in_project)
+    select new.id, i.project_id, i.role_in_project from public.rr_hub_invites i where lower(i.email) = lower(new.email)
+    on conflict (user_id, project_id) do update set role_in_project = excluded.role_in_project;
+  end if;
   return new;
 end;
 $$;
+
+-- Pre-authorized people who have not signed in yet. The signup trigger turns
+-- a matching invite into a real access row on first Google login.
+create table if not exists public.rr_hub_invites (
+  email text not null,
+  project_id uuid not null references public.rr_hub_projects(id) on delete cascade,
+  role_in_project text not null check (role_in_project in ('owner','creator','camera','model','editor','publisher','media_buyer','client_approver','client_viewer')),
+  created_at timestamptz not null default now(),
+  primary key (email, project_id)
+);
+
+alter table public.rr_hub_invites enable row level security;
+drop policy if exists rr_hub_invites_admin on public.rr_hub_invites;
+create policy rr_hub_invites_admin on public.rr_hub_invites for all using (public.rr_hub_is_admin()) with check (public.rr_hub_is_admin());
 
 drop trigger if exists rr_hub_auth_user_created on auth.users;
 create trigger rr_hub_auth_user_created after insert on auth.users
