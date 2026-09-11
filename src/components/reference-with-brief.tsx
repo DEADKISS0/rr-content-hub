@@ -8,18 +8,21 @@ function platform(url: string) {
   if (url.includes('facebook')) return 'FACEBOOK';
   if (url.includes('tiktok')) return 'TIKTOK';
   if (url.includes('youtube') || url.includes('youtu.be')) return 'YOUTUBE';
+  if (url.includes('drive.google.com')) return 'GOOGLE DRIVE';
   return 'EXTERNA';
 }
 
 function instagramEmbed(url: string) { const clean = url.split('?')[0].replace(/\/$/, ''); return `${clean}/embed/captioned/`; }
 function youtubeEmbed(url: string) { const match = url.match(/(?:youtu\.be\/|v=|embed\/)([\w-]{6,})/); return match ? `https://www.youtube.com/embed/${match[1]}` : null; }
 function tiktokEmbed(url: string) { const match = url.match(/video\/(\d+)/); return match ? `https://www.tiktok.com/embed/v2/${match[1]}` : null; }
+function driveEmbed(url: string) { const match = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|file\/d\/e\/)([\w-]+)/); if (!match) return null; const id = match[1]; return `https://drive.google.com/file/d/${id}/preview`; }
 
 function embedSource(url: string) {
   if (url.includes('instagram.com')) return instagramEmbed(url);
   if (url.includes('youtube.com') || url.includes('youtu.be')) return youtubeEmbed(url);
   if (url.includes('tiktok.com')) return tiktokEmbed(url);
   if (url.includes('facebook.com')) return `https://www.facebook.com/plugins/post.php?href=${encodeURIComponent(url)}&show_text=false&width=500`;
+  if (url.includes('drive.google.com')) return driveEmbed(url);
   return null;
 }
 
