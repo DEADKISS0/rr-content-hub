@@ -1,6 +1,7 @@
 'use client';
 
 import { createClient } from '@/lib/supabase/client';
+import { ROLE_LABEL, type RoleKey } from '@/lib/flow';
 
 /**
  * Client-side workspace operations backed by Supabase.
@@ -59,13 +60,13 @@ export async function loadTimeline(ideaId: string): Promise<TimelineEvent[]> {
   if (!supabase) return [];
   const { data } = await supabase
     .from('rr_hub_events')
-    .select('id, to_status, comment, created_at, actor:rr_hub_profiles(full_name, email)')
+    .select('id, to_status, comment, actor_label, created_at, actor:rr_hub_profiles(full_name, email)')
     .eq('idea_id', ideaId)
     .order('created_at', { ascending: false });
   return (data ?? []).map((row: any) => ({
     id: row.id,
     status: row.to_status,
-    actor: row.actor?.full_name || row.actor?.email || 'RR ALIADOS',
+    actor: row.actor_label || row.actor?.full_name || row.actor?.email || 'RR ALIADOS',
     note: row.comment || 'Sin nota registrada.',
     createdAt: stamp(row.created_at),
   }));
@@ -76,12 +77,10 @@ export async function transitionIdeaStatus(input: {
   fromStatus?: string;
   toStatus: string;
   note: string;
+  role: RoleKey;
 }): Promise<{ error?: string }> {
   const supabase = createClient();
   if (!supabase) return { error: 'Supabase no está configurado en este entorno.' };
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: 'Tu sesión expiró. Vuelve a iniciar sesión para continuar.' };
-
   const { error: updateError } = await supabase
     .from('rr_hub_ideas')
     .update({ status: input.toStatus, updated_at: new Date().toISOString() })
@@ -90,10 +89,10 @@ export async function transitionIdeaStatus(input: {
 
   const { error: eventError } = await supabase.from('rr_hub_events').insert({
     idea_id: input.ideaId,
-    actor_id: user.id,
     from_status: input.fromStatus ?? null,
     to_status: input.toStatus,
     comment: input.note || null,
+    actor_label: `Modo colaborativo · ${ROLE_LABEL[input.role]}`,
   });
   if (eventError) return { error: eventError.message };
   return {};
@@ -104,12 +103,12 @@ export async function loadComments(ideaId: string): Promise<IdeaComment[]> {
   if (!supabase) return [];
   const { data } = await supabase
     .from('rr_hub_comments')
-    .select('id, body, role_label, resolved_at, created_at, author:rr_hub_profiles(full_name, email)')
+    .select('id, body, role_label, author_label, resolved_at, created_at, author:rr_hub_profiles(full_name, email)')
     .eq('idea_id', ideaId)
     .order('created_at', { ascending: true });
   return (data ?? []).map((row: any) => ({
     id: row.id,
-    author: row.author?.full_name || row.author?.email || 'RR ALIADOS',
+    author: row.author_label || row.author?.full_name || row.author?.email || 'RR ALIADOS',
     role: row.role_label,
     text: row.body,
     createdAt: stamp(row.created_at),
@@ -120,11 +119,9 @@ export async function loadComments(ideaId: string): Promise<IdeaComment[]> {
 export async function addComment(input: { ideaId: string; body: string; roleLabel: string }): Promise<{ error?: string }> {
   const supabase = createClient();
   if (!supabase) return { error: 'Supabase no está configurado en este entorno.' };
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: 'Tu sesión expiró. Vuelve a iniciar sesión para continuar.' };
   const { error } = await supabase
     .from('rr_hub_comments')
-    .insert({ idea_id: input.ideaId, author_id: user.id, body: input.body, role_label: input.roleLabel });
+    .insert({ idea_id: input.ideaId, body: input.body, role_label: input.roleLabel, author_label: `Modo colaborativo · ${input.roleLabel}` });
   return error ? { error: error.message } : {};
 }
 
@@ -136,6 +133,20 @@ export async function resolveComment(input: { commentId: string; resolved: boole
     .update({ resolved_at: input.resolved ? new Date().toISOString() : null })
     .eq('id', input.commentId);
   return error ? { error: error.message } : {};
+}
+
+export async function saveIdeaScript(input: { ideaId: string; script: string; role: RoleKey }): Promise<{ error?: string }> {
+  const supabase = createClient();
+  if (!supabase) return { error: 'Supabase no está configurado en este entorno.' };
+  const { error } = await supabase.from('rr_hub_ideas').update({ script_content: input.script, updated_at: new Date().toISOString() }).eq('id', input.ideaId);
+  if (error) return { error: error.message };
+  const { error: eventError } = await supabase.from('rr_hub_events').insert({
+    idea_id: input.ideaId,
+    to_status: 'script_in_progress',
+    comment: 'Guion guardado y disponible para los equipos de producción.',
+    actor_label: `Modo colaborativo · ${ROLE_LABEL[input.role]}`,
+  });
+  return eventError ? { error: eventError.message } : {};
 }
 
 export async function loadAssets(ideaId: string): Promise<IdeaAsset[]> {
@@ -227,4 +238,21 @@ export function looksLikeUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * A deterministic first draft keeps the workspace useful even without an AI
+ * key. It is deliberately editable: a future provider can replace this with
+ * a richer draft without changing the data model or the team workflow.
+ */
+export function buildIdeaPack(input: { title: string; objective: string; description: string; reference: string }) {
+  const title = input.title.trim() || 'la pieza';
+  const objective = input.objective.trim() || 'conectar la pieza con la audiencia';
+  const concept = input.description.trim() || 'la referencia visual seleccionada';
+  return {
+    camera: `Plano de apertura que sitúe ${title}. Sigue la energía de la referencia y prioriza textura, producto y un cierre limpio. Objetivo de cámara: ${objective}.`,
+    talent: `Actitud natural y segura. Vestuario coherente con ${title}; evita gestos sobreactuados. Revisa la referencia antes de rodar.`,
+    edit: `Ritmo directo: abre con el gesto o detalle más fuerte, conserva una idea por plano y cierra con la acción principal. Mantén como guía: ${concept}.`,
+    script: `TÍTULO: ${title}\n\nOBJETIVO\n${objective}\n\n1. GANCHO (0–2 s)\nMuestra el detalle o acción más atractiva de la referencia.\n\n2. DESARROLLO (2–8 s)\nCuenta una sola idea: ${concept}.\n\n3. CIERRE (8–12 s)\nTermina con producto, gesto o mensaje claro que conecte con el objetivo.\n\nREFERENCIA\n${input.reference.trim() || 'Pendiente de enlace visual.'}`,
+  };
 }

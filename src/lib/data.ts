@@ -12,7 +12,9 @@ import { isVisibleProject } from './projects';
  */
 
 type RawIdea = Record<string, unknown>;
-const CLEAN_BOARD_STATUSES = ['pending_approval', 'approved'] as const;
+// A new proposal must be visible to the ideation role before it is sent to a
+// client.  Everything beyond approval is kept in the detailed production flow.
+const CLEAN_BOARD_STATUSES = ['draft', 'pending_approval', 'needs_changes', 'approved'] as const;
 function isCleanBoardIdea(row: RawIdea) {
   const urls = Array.isArray(row.reference_urls) ? row.reference_urls : [];
   return CLEAN_BOARD_STATUSES.includes(row.status as typeof CLEAN_BOARD_STATUSES[number]) && urls.some((url) => typeof url === 'string' && url.trim().length > 0);
@@ -247,13 +249,13 @@ export async function getAuditTimeline(ideaId: string) {
   if (!supabase) return [];
   const { data } = await supabase
     .from('rr_hub_events')
-    .select('id, to_status, comment, created_at, actor:rr_hub_profiles(full_name, email)')
+    .select('id, to_status, comment, actor_label, created_at, actor:rr_hub_profiles(full_name, email)')
     .eq('idea_id', ideaId)
     .order('created_at', { ascending: false });
   return (data ?? []).map((row: any) => ({
     id: row.id as string,
     status: row.to_status as string,
-    actor: (row.actor?.full_name as string) || (row.actor?.email as string) || 'RR ALIADOS',
+    actor: (row.actor_label as string) || (row.actor?.full_name as string) || (row.actor?.email as string) || 'RR ALIADOS',
     note: (row.comment as string) ?? '',
     createdAt: row.created_at as string,
   }));
@@ -264,12 +266,12 @@ export async function getAuditComments(ideaId: string) {
   if (!supabase) return [];
   const { data } = await supabase
     .from('rr_hub_comments')
-    .select('id, body, role_label, resolved_at, created_at, author:rr_hub_profiles(full_name, email)')
+    .select('id, body, role_label, author_label, resolved_at, created_at, author:rr_hub_profiles(full_name, email)')
     .eq('idea_id', ideaId)
     .order('created_at', { ascending: true });
   return (data ?? []).map((row: any) => ({
     id: row.id as string,
-    author: (row.author?.full_name as string) || (row.author?.email as string) || 'RR ALIADOS',
+    author: (row.author_label as string) || (row.author?.full_name as string) || (row.author?.email as string) || 'RR ALIADOS',
     role: row.role_label as string,
     body: row.body as string,
     resolved: Boolean(row.resolved_at),

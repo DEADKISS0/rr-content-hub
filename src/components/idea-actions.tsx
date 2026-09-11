@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { loadTimeline, transitionIdeaStatus, type TimelineEvent } from '@/lib/workspace-client';
-import { STATUS_LABEL, STATUS_META, TONE_CLASS, allowedTransitions, statusMeta, waitingOn, type RoleKey, type WorkflowStatus } from '@/lib/flow';
-import { PUBLIC_MODE } from '@/lib/mode';
+import { STATUS_META, TONE_CLASS, allowedTransitions, statusMeta, waitingOn, type RoleKey, type WorkflowStatus } from '@/lib/flow';
+import { useActiveRole } from '@/lib/role-client';
 
 /**
  * Guided hand-off. The person sees where the piece is, who acts now, and at
@@ -18,11 +18,13 @@ export function IdeaActions({ ideaId, currentStatus = 'pending_approval', role =
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [justChanged, setJustChanged] = useState(false);
+  const selectedRole = useActiveRole();
 
   const refresh = useCallback(() => { loadTimeline(ideaId).then(setHistory); }, [ideaId]);
   useEffect(() => { const timer = window.setTimeout(refresh, 0); return () => window.clearTimeout(timer); }, [refresh]);
 
-  const moves = useMemo(() => allowedTransitions(role as RoleKey, status), [role, status]);
+  const activeRole = selectedRole ?? role as RoleKey;
+  const moves = useMemo(() => allowedTransitions(activeRole, status), [activeRole, status]);
   const waiting = waitingOn(status);
   const meta = statusMeta(status);
   const tone = TONE_CLASS[meta.tone];
@@ -31,7 +33,7 @@ export function IdeaActions({ ideaId, currentStatus = 'pending_approval', role =
   async function run(target: WorkflowStatus, label: string, note: string) {
     if (busy) return; // double-click guard: one in-flight transition at a time
     setBusy(true);
-    const { error } = await transitionIdeaStatus({ ideaId, fromStatus: status, toStatus: target, note: note.trim() || label });
+    const { error } = await transitionIdeaStatus({ ideaId, fromStatus: status, toStatus: target, note: note.trim() || label, role: activeRole });
     setBusy(false);
     if (error) { setNotice(`⚠ No se pudo registrar: ${error}`); return; }
     setStatus(target);
@@ -57,12 +59,7 @@ export function IdeaActions({ ideaId, currentStatus = 'pending_approval', role =
 
     {notice && <div role="status" className="border-2 border-mostaza bg-mostaza/10 p-3 font-mono text-xs leading-5 text-blanco anim-pop">{notice}</div>}
 
-    {PUBLIC_MODE ? (moves.length > 0 && <div className="border-2 border-blanco-20 p-4">
-      <p className="mono-label text-mostaza">[MOVIMIENTOS POSIBLES · MODO PÚBLICO]</p>
-      <ul className="mt-3 space-y-2">{moves.map((move) => <li key={move.to} className="font-mono text-[10px] text-blanco-60">→ {move.label} <span className="text-blanco-40">({STATUS_LABEL[move.to]})</span></li>)}</ul>
-      <p className="mt-3 border-t border-blanco-20 pt-3 font-mono text-[10px] leading-5 text-blanco-40">Solo lectura. Para ejecutar estos cambios hay que entrar con una cuenta autorizada por RR ALIADOS.</p>
-    </div>) : <>
-      {moves.length > 0 ? <>
+    {moves.length > 0 ? <>
         <label className="block"><span className="mono-label mb-2 block text-mostaza">// NOTA PARA EL SIGUIENTE RELEVO (OPCIONAL)</span><textarea value={note} onChange={(event) => setNote(event.target.value)} className="input-brutal min-h-20" placeholder="Contexto, confirmaciones o cambios relevantes…" /></label>
         <div className="grid gap-3">
           {moves.map((move, index) => {
@@ -81,7 +78,6 @@ export function IdeaActions({ ideaId, currentStatus = 'pending_approval', role =
         <p className="mono-label text-mostaza">[SIN ACCIÓN DISPONIBLE]</p>
         <p className="mt-2 text-xs leading-5 text-blanco-60">Esta pieza no tiene un movimiento pendiente desde tu rol. Puedes seguir el hilo y comentar; cuando el estado cambie, aparecerá aquí la acción.</p>
       </div>}
-    </>}
 
     {history.length > 0 && <details className="border-t border-blanco-20 pt-4" open>
       <summary className="cursor-pointer font-mono text-[10px] text-blanco-60">VER TRAZABILIDAD ({history.length})</summary>

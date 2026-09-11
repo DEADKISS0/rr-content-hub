@@ -4,8 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ReferenceWithBrief } from '@/components/reference-with-brief';
 import { createClient } from '@/lib/supabase/client';
-import { looksLikeUrl, nextIdeaCode } from '@/lib/workspace-client';
-import { PUBLIC_MODE } from '@/lib/mode';
+import { buildIdeaPack, looksLikeUrl, nextIdeaCode } from '@/lib/workspace-client';
 
 type FormState = { title: string; type: 'Orgánico' | 'Pauta'; category: string; objective: string; description: string; camera: string; talent: string; edit: string; reference: string };
 const empty: FormState = { title: '', type: 'Orgánico', category: '', objective: '', description: '', camera: '', talent: '', edit: '', reference: '' };
@@ -39,17 +38,17 @@ export function NewIdeaForm({ projectSlug }: { projectSlug: string }) {
   useEffect(() => { const timer = window.setTimeout(refreshCode, 0); return () => window.clearTimeout(timer); }, [refreshCode]);
 
   const referenceValid = looksLikeUrl(form.reference);
+  const generated = buildIdeaPack({ title: form.title, objective: form.objective, description: form.description, reference: form.reference });
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (saving) return;
-    if (PUBLIC_MODE) { setNotice('Modo público de solo lectura: para crear ideas hay que entrar con una cuenta autorizada.'); return; }
     if (!form.title.trim() || !form.objective.trim()) { setNotice('Completa al menos título y objetivo para conservar el contexto de la idea.'); return; }
     if (!referenceValid) { setNotice('La referencia debe ser un enlace válido (https://…). Revísala antes de guardar.'); return; }
     if (!supabase) { setNotice('Supabase no está configurado en este entorno. Avisa al administrador para activar el guardado compartido.'); return; }
     setSaving(true);
     const resolvedProjectId = projectId || (await supabase.from('rr_hub_projects').select('id').eq('slug', projectSlug).maybeSingle()).data?.id;
-    if (!resolvedProjectId) { setNotice('No pudimos encontrar el proyecto autorizado. Vuelve a iniciar sesión o contacta al administrador.'); setSaving(false); return; }
+    if (!resolvedProjectId) { setNotice('No pudimos encontrar Wundeer en la base. Intenta recargar la página.'); setSaving(false); return; }
     const finalCode = code || (await nextIdeaCode(resolvedProjectId, contentType));
     const { data, error } = await supabase.from('rr_hub_ideas').insert({
       project_id: resolvedProjectId,
@@ -61,9 +60,10 @@ export function NewIdeaForm({ projectSlug }: { projectSlug: string }) {
       category: form.category.trim() || 'Sin categoría',
       status: 'draft',
       priority: 'normal',
-      camera_brief: form.camera.trim() || 'Pendiente de definir',
-      talent_brief: form.talent.trim() || 'Pendiente de definir',
-      edit_brief: form.edit.trim() || 'Pendiente de definir',
+      camera_brief: form.camera.trim() || generated.camera,
+      talent_brief: form.talent.trim() || generated.talent,
+      edit_brief: form.edit.trim() || generated.edit,
+      script_content: generated.script,
       reference_urls: form.reference.trim() ? [form.reference.trim()] : [],
     }).select('id').single();
     if (error || !data) { setNotice(`No se guardó la idea: ${error?.message ?? 'error desconocido'}.`); setSaving(false); return; }
@@ -71,8 +71,7 @@ export function NewIdeaForm({ projectSlug }: { projectSlug: string }) {
   }
 
   return <form onSubmit={submit} className="mt-10 space-y-6">
-    {PUBLIC_MODE && <div className="border-2 border-mostaza bg-mostaza/10 px-4 py-3 font-mono text-[10px] leading-5 text-blanco">[MODO PÚBLICO · SOLO LECTURA] Puedes leer todo el contenido, pero crear ideas requiere una cuenta autorizada de RR ALIADOS.</div>}
-    <div className="border-l-2 border-orquidea bg-orquidea/10 px-4 py-3 font-mono text-[10px] leading-5 text-blanco-60">[CAPTURA GUIADA] Primero registra la intención. Los responsables completan el brief técnico después de que la idea avance.</div>
+    <div className="border-l-2 border-orquidea bg-orquidea/10 px-4 py-3 font-mono text-[10px] leading-5 text-blanco-60">[CAPTURA GUIADA] Pega la referencia, escribe título y objetivo. El sistema prepara un primer brief para cámara, modelo, edición y guion; cada rol lo puede afinar después.</div>
     {notice && <p role="alert" className="border-2 border-fucsia bg-fucsia/10 p-3 font-mono text-xs text-blanco anim-pop">{notice}</p>}
 
     <div className="grid gap-6 md:grid-cols-[120px_1fr]">
@@ -91,14 +90,16 @@ export function NewIdeaForm({ projectSlug }: { projectSlug: string }) {
       {!referenceValid && <p role="alert" className="mt-2 border-2 border-fucsia bg-fucsia/10 p-2 font-mono text-[10px] text-blanco">Ese texto no parece un enlace válido. Debe empezar por https://</p>}
     </div>
     {form.reference.trim() && referenceValid && <section aria-live="polite"><p className="mono-label mb-2 text-mostaza">// PREVISUALIZACIÓN AUTOMÁTICA</p><ReferenceWithBrief url={form.reference.trim()} title={form.title || 'Nueva idea'} brief={{ intention: form.objective, camera: form.camera, talent: form.talent, edit: form.edit }} /></section>}
-    <div className="grid gap-6 md:grid-cols-3">
-      <Field label="CÁMARA" value={form.camera} onChange={(value) => update('camera', value)} textarea placeholder="Planos, luz, lente" />
-      <Field label="TALENTO" value={form.talent} onChange={(value) => update('talent', value)} textarea placeholder="Vestuario, actitud" />
-      <Field label="EDICIÓN" value={form.edit} onChange={(value) => update('edit', value)} textarea placeholder="Ritmo, textos, audio" />
-    </div>
+    <details className="border-2 border-blanco-20 p-5" open><summary className="cursor-pointer font-mono text-[10px] text-mostaza">BRIEF AUTOMÁTICO · PUEDES AJUSTARLO ANTES DE GUARDAR</summary>
+      <div className="mt-5 grid gap-6 md:grid-cols-3">
+        <Field label="CÁMARA" value={form.camera} onChange={(value) => update('camera', value)} textarea placeholder={generated.camera} />
+        <Field label="TALENTO / MODELAJE" value={form.talent} onChange={(value) => update('talent', value)} textarea placeholder={generated.talent} />
+        <Field label="EDICIÓN" value={form.edit} onChange={(value) => update('edit', value)} textarea placeholder={generated.edit} />
+      </div>
+    </details>
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
       <button disabled={saving || !referenceValid} className="btn-brutal" type="submit">{saving ? 'GUARDANDO…' : 'CREAR IDEA →'}</button>
-      <span className="font-mono text-[10px] text-blanco-40">{PUBLIC_MODE ? 'SOLO LECTURA: LA CREACIÓN ESTÁ DESACTIVADA' : supabase ? `SE GUARDARÁ COMO ${code || 'NUEVA IDEA'} EN EL PROYECTO COMPARTIDO` : 'GUARDADO COMPARTIDO NO DISPONIBLE'}</span>
+      <span className="font-mono text-[10px] text-blanco-40">{supabase ? `SE GUARDARÁ COMO ${code || 'NUEVA IDEA'} EN EL ESPACIO COMPARTIDO` : 'GUARDADO COMPARTIDO NO DISPONIBLE'}</span>
     </div>
   </form>;
 }
