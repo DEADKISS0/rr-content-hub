@@ -18,9 +18,9 @@ export function NewIdeaForm({ projectSlug }: { projectSlug: string }) {
     if (!form.title.trim() || !form.objective.trim()) { setNotice('Completa al menos título y objetivo para conservar el contexto de la idea.'); return; }
     setSaving(true);
     if (supabase) {
-      const { data: project, error: projectError } = await supabase.from('projects').select('id').eq('slug', projectSlug).single();
+      const { data: project, error: projectError } = await supabase.from('rr_hub_projects').select('id').eq('slug', projectSlug).maybeSingle();
       if (projectError || !project) { setNotice('No pudimos encontrar el proyecto autorizado. Vuelve a iniciar sesión o contacta al administrador.'); setSaving(false); return; }
-      const { data, error } = await supabase.from('content_ideas').insert({ project_id: project.id, title: form.title.trim(), description: form.description.trim() || 'Sin descripción aún.', objective: form.objective.trim(), content_type: form.type === 'Orgánico' ? 'organic' : 'paid', category: form.category.trim() || 'Sin categoría', status: 'draft', priority: 'normal', reference_urls: form.reference.trim() ? [form.reference.trim()] : [] }).select('id').single();
+      const { data, error } = await supabase.from('rr_hub_ideas').insert({ project_id: project.id, title: form.title.trim(), description: form.description.trim() || 'Sin descripción aún.', objective: form.objective.trim(), content_type: form.type === 'Orgánico' ? 'organic' : 'paid', category: form.category.trim() || 'Sin categoría', status: 'draft', priority: 'normal', camera_brief: form.camera.trim() || 'Pendiente de definir', talent_brief: form.talent.trim() || 'Pendiente de definir', edit_brief: form.edit.trim() || 'Pendiente de definir', reference_urls: form.reference.trim() ? [form.reference.trim()] : [] }).select('id').single();
       if (error || !data) { setNotice(`No se guardó la idea compartida: ${error?.message ?? 'error desconocido'}. No se creó un duplicado local.`); setSaving(false); return; }
       window.localStorage.removeItem(key); router.push(`/${projectSlug}/ideas/${data.id}`); return;
     }

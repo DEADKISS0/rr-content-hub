@@ -6,7 +6,7 @@
 2. En Google Cloud, crear OAuth Client (Web application) y añadir la callback que indique Supabase.
 3. Configurar Site URL: `https://rr-content-hub.vercel.app` y Redirect URL: `https://rr-content-hub.vercel.app/auth/callback`.
 4. Guardar `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` como variables de producción en Vercel. La service role key nunca llega al navegador.
-5. Aplicar `supabase/schema.sql` y después `supabase/migrations/20260910_roles_and_workflow.sql`.
+5. Aplicar únicamente `supabase/migrations/20260910_content_hub_isolated.sql`. El proyecto Supabase ya tiene tablas de otro CRM en `public.*`; el Content Hub usa sus propias tablas `rr_hub_*` para no interferir.
 6. Promover la cuenta de Rosas a admin mediante SQL controlado:
    `update public.profiles set global_role = 'admin' where email = '<correo-admin>';`
 7. Desde Admin, asignar cada correo a proyecto y rol. Los usuarios sin acceso verán `Acceso pendiente`.

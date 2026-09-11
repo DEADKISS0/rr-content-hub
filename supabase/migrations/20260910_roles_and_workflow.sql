@@ -13,7 +13,7 @@ create table if not exists public.profiles (
 alter table public.user_project_access
   drop constraint if exists user_project_access_role_in_project_check;
 alter table public.user_project_access
-  add constraint user_project_access_role_in_project_check check (role_in_project in ('owner','creator','camera','model','editor','publisher','media_buyer','client_approver','client_viewer'));
+  add constraint user_project_access_role_in_project_check check (role_in_project in ('admin','viewer','owner','creator','camera','model','editor','publisher','media_buyer','client_approver','client_viewer'));
 
 alter table public.content_ideas
   drop constraint if exists content_ideas_status_check;
@@ -53,7 +53,7 @@ returns boolean language sql stable security definer set search_path = public as
 $$;
 
 alter table public.profiles enable row level security;
-create policy "users read own profile" on public.profiles for select using (id = auth.uid() or public.is_global_admin());
+create policy "users read own profile" on public.profiles for select using ((id = auth.uid()) or public.is_global_admin());
 create policy "admins manage profiles" on public.profiles for all using (public.is_global_admin()) with check (public.is_global_admin());
 create policy "admins manage project access" on public.user_project_access for all using (public.is_global_admin()) with check (public.is_global_admin());
 
