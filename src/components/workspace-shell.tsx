@@ -17,6 +17,7 @@ const NAV: readonly [string, string, string][] = [
   ['DECISIONES', '/aprobaciones', 'Lo que espera respuesta'],
   ['PRODUCCIÓN', '/produccion', 'Rodaje y edición'],
   ['PUBLICACIÓN', '/publicaciones', 'Salidas y pauta'],
+  ['ROADMAP', '/roadmap', 'La ruta al go-live'],
 ];
 const FLOW = [['01', 'IDEA', '/ideas'], ['02', 'GUIÓN', '/ideas'], ['03', 'PRODUCCIÓN', '/produccion'], ['04', 'PUBLICADO', '/publicaciones']] as const;
 
