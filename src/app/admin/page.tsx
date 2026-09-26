@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 
-/** Public mode: the roster now lives in the audit panel, always readable. */
+/** Los accesos viven en /audit/admin, que ahora exige ser administrador. */
 export default function AdminPage() {
   redirect('/wundeer');
 }
