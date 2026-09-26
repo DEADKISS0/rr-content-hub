@@ -370,3 +370,94 @@ export const contentMonths = (() => {
   }
   return groups;
 })();
+
+/* ─────────────────── ANCLAS ISO: DÓNDE ESTAMOS HOY ─────────────────── */
+
+/**
+ * Las fechas de arriba son etiquetas para leer ('08–12 SEP'). Para poder decir
+ * "este sprint está en curso" o "faltan 5 días para el go-live" hace falta el
+ * mismo calendario en ISO. Estas ventanas son la traducción exacta de las
+ * etiquetas de arriba: si cambia una fecha del plan, cambian las dos.
+ */
+export const GO_LIVE_ISO = '2026-10-01';
+export const TRACK_START_ISO = '2026-09-08';
+
+export type TrackWindow = { title: string; startIso: string; endIso: string };
+
+export const devWindows: TrackWindow[] = [
+  { title: 'S1 · LANDING BÁSICA', startIso: '2026-09-08', endIso: '2026-09-12' },
+  { title: 'S2 · ADMIN ROBUSTO + RETAIL SIN LOGIN', startIso: '2026-09-15', endIso: '2026-09-26' },
+  { title: 'S3 · CIERRE Y GO-LIVE', startIso: '2026-09-22', endIso: '2026-10-01' },
+];
+
+export const designWindows: TrackWindow[] = [
+  { title: 'S1 · CIMIENTOS VISUALES, FICHA TÉCNICA Y PREPRENSA', startIso: '2026-09-10', endIso: '2026-09-14' },
+  { title: 'S2 · CREATIVOS DE PAUTA Y CONTENIDO ORGÁNICO BASE', startIso: '2026-09-15', endIso: '2026-09-21' },
+  { title: 'S3 · ASSETS WEB B2C, TESTEO DE PAUTA Y RETARGETING', startIso: '2026-09-22', endIso: '2026-09-27' },
+  { title: 'S4 · AJUSTES DE SALIDA Y ENCENDIDO COMERCIAL', startIso: '2026-09-28', endIso: '2026-09-30' },
+];
+
+export type WindowState = 'cerrado' | 'en-curso' | 'pendiente';
+
+/** La fecha de hoy en ISO, en módulo y no dentro de un componente (React 19). */
+export function todayIso(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+export function daysBetween(fromIso: string, toIso: string): number {
+  return Math.round((Date.parse(`${toIso}T00:00:00Z`) - Date.parse(`${fromIso}T00:00:00Z`)) / 86_400_000);
+}
+
+export function daysUntil(targetIso: string, today: string): number {
+  return daysBetween(today, targetIso);
+}
+
+/** Cuánto lleva avanzado un tramo, de 0 a 100. Sirve para las barras. */
+export function progressPct(startIso: string, endIso: string, today: string): number {
+  const total = daysBetween(startIso, endIso);
+  if (total <= 0) return 100;
+  return Math.max(0, Math.min(100, Math.round((daysBetween(startIso, today) / total) * 100)));
+}
+
+export function windowState(window: TrackWindow, today: string): WindowState {
+  if (today > window.endIso) return 'cerrado';
+  if (today < window.startIso) return 'pendiente';
+  return 'en-curso';
+}
+
+/** Cuántos días lleva un tramo abierto, o cuántos faltan para que empiece. */
+export function windowGap(window: TrackWindow, today: string): string {
+  const state = windowState(window, today);
+  if (state === 'en-curso') return `DÍA ${daysBetween(window.startIso, today) + 1} DE ${daysBetween(window.startIso, window.endIso) + 1}`;
+  if (state === 'pendiente') return `ABRE EN ${daysBetween(today, window.startIso)} DÍAS`;
+  return `CERRADO HACE ${daysBetween(window.endIso, today)} DÍAS`;
+}
+
+/** Estado de una semana de contenido: cierra cuando se entrega la última pieza. */
+export function weekState(week: ContentWeek, today: string): WindowState {
+  const last = week.deliveries[week.deliveries.length - 1]?.iso ?? week.sessionIso;
+  if (today > last) return 'cerrado';
+  if (today < week.sessionIso) return 'pendiente';
+  return 'en-curso';
+}
+
+export function pendingDeliveries(week: ContentWeek, today: string): number {
+  return week.deliveries.filter((delivery) => delivery.iso > today).length;
+}
+
+/** La semana de contenido que toca hoy (o la última si ya pasó el plan). */
+export function currentWeek(today: string): ContentWeek | null {
+  const activa = contentRoadmap.find((week) => weekState(week, today) === 'en-curso');
+  if (activa) return activa;
+  const futuras = contentRoadmap.filter((week) => weekState(week, today) === 'pendiente');
+  if (futuras.length) return futuras[0];
+  return contentRoadmap[contentRoadmap.length - 1] ?? null;
+}
+
+/** Meses ya cerrados, en curso y por empezar del plan de contenido. */
+export function contentProgress(today: string): { done: number; active: number; total: number } {
+  const done = contentRoadmap.filter((week) => weekState(week, today) === 'cerrado').length;
+  const active = contentRoadmap.filter((week) => weekState(week, today) === 'en-curso').length;
+  return { done, active, total: contentRoadmap.length };
+}
