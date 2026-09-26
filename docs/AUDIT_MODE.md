@@ -1,24 +1,32 @@
 # Modo público y auditoría
 
-## Estado actual: MODO PÚBLICO
+## Estado actual: modo público, SOLO LECTURA
 
-El hub está abierto: **cualquiera con el link ve todo**, sin credenciales.
-Funciona igual que la vista del admin, pero en solo lectura.
+El hub está abierto: cualquiera con el link navega Wundeer sin credenciales.
+**No puede escribir.** Ni ideas, ni comentarios, ni eventos, ni archivos.
+
+> ⚠️ **Corrección 2026-09-26.** Este documento decía antes que "solo existen
+> políticas `SELECT` para `anon`" y que el hub era de solo lectura. Era falso:
+> `20260911_wundeer_collaborative_mode.sql` concedió `INSERT` y `UPDATE` a
+> `anon`, y las políticas base de `20260910` son `for all` sin
+> `to authenticated`. Cualquier visitante podía crear ideas y cambiar su
+> estado de aprobación. Verificado contra producción, no inferido.
+> Corregido por `20260926_close_anon_write.sql`.
 
 | Ruta | Qué muestra |
 |---|---|
-| `/` | Entrada al primer proyecto + atajos |
-| `/select-project` | Los tres proyectos |
-| `/wundeer`, `/satiro`, `/boga` | Dashboard, fases y cola de cada proyecto |
-| `/<proyecto>/ideas` | Banco completo de piezas |
-| `/<proyecto>/ideas/<id>` | Ficha: referencia, briefs, hilo, entregas y trazabilidad |
-| `/<proyecto>/aprobaciones · produccion · publicaciones · metricas` | Colas por fase |
-| `/audit` | Índice global + estado de la ventana |
-| `/audit/admin` | Equipo, accesos e invitaciones |
+| `/` | Entrada al proyecto activo |
+| `/select-project` | Selector de proyecto |
+| `/wundeer` | Dashboard, fases y cola de trabajo |
+| `/wundeer/ideas` · `/ideas/<id>` | Banco de piezas y ficha completa |
+| `/wundeer/aprobaciones · produccion · publicaciones · metricas · roadmap` | Colas por fase |
+| `/audit` | Redirige a `/wundeer` |
+| `/audit/admin` | Panel de equipo (solo lectura en modo público) |
+
+`/satiro` y `/boga` existen en Supabase pero `src/lib/projects.ts` solo expone
+`wundeer`, así que devuelven 404. No es un bug.
 
 ## Cómo se apaga y se prende la autenticación
-
-### Interruptor de la app
 
 Una sola variable de entorno:
 
@@ -28,60 +36,91 @@ NEXT_PUBLIC_AUTH_ENABLED=true    # vuelve el login con Google
 ```
 
 - **`false` o sin definir** → todo abierto, solo lectura.
-- **`true`** → `src/lib/supabase/middleware.ts` vuelve a redirigir a `/login`
-  a quien no tenga sesión. Google sigue configurado, así que no hay que tocar
-  nada más.
+- **`true`** → `src/lib/supabase/middleware.ts` redirige a `/login` a quien no
+  tenga sesión. Google ya está configurado, no hay que tocar nada más.
+
+Conviene ponerla explícitamente en Vercel aunque valga `false`: así el estado
+observado es una decisión y no la ausencia de una variable.
 
 ### Interruptor de la base (RLS)
 
-La lectura anónima la habilitan las políticas `*_audit`, que consultan
-`public.rr_hub_audit_enabled()`:
-
 ```sql
--- Abrir (sin caducidad)
+-- Abrir lectura anónima
 update public.rr_hub_audit_settings
-   set enabled = true, expires_at = null, updated_at = now()
+   set enabled = true, expires_at = now() + interval '7 days', updated_at = now()
  where id = true;
 
 -- Cerrar
 update public.rr_hub_audit_settings set enabled = false where id = true;
 ```
 
-Con `enabled = false` la app **sigue abierta** pero anon deja de leer: las
-páginas muestran vacío. Para volver al estado privado hay que apagar **los dos**
-interruptores (env + RLS).
+Ojo con `expires_at = null`: `rr_hub_audit_enabled()` lo interpreta como
+**sin caducidad**. Para una ventana temporal hay que poner una fecha. Así
+estaba desde el 11/09: la ventana de auditoría nunca cerraba.
 
-## Qué pasa al reactivar la autenticación
+## Cómo se apaga y se prende la escritura
 
-1. Poner `NEXT_PUBLIC_AUTH_ENABLED=true` en Vercel y redeplegar.
-2. `update public.rr_hub_audit_settings set enabled = false where id = true;`
-3. Listo: vuelven los roles reales, los botones de escritura y el panel
-   `/admin` de administración de accesos. Nada se perdió.
+La escritura **nunca** depende del interruptor de lectura. Pasa por dos capas:
 
-## Ya nada está borrado ni degradado
+1. **RLS** — `20260926_close_anon_write.sql` no deja ninguna política de
+   escritura para `anon`. Sin sesión no hay INSERT, UPDATE ni DELETE.
+2. **El motor de flujo** — `transitionIdeaStatus()` consulta
+   `allowedTransitions(rol, estado)` antes de escribir. Un request manipulado
+   que salte de `draft` a `published` se rechaza en el cliente, y RLS lo
+   rechaza en el servidor.
 
-- Las escrituras siguen existiendo y están intactas: lo único que cambia en
-  modo público es que la UI las oculta.
-- En modo público los componentes muestran el estado y los movimientos
-  posibles, sin botones de acción.
-- El formulario de nueva idea y el de comentarios avisan que requieren cuenta.
+Para devolver la escritura: poner `NEXT_PUBLIC_AUTH_ENABLED=true`, dar de alta
+a la persona en `rr_hub_access` con su rol, y revertir el punto 1 de
+`20260926_close_anon_write.sql`.
 
-## Seguridad (verificado en vivo)
+## Qué hace cada rol
+
+El rol se lee de `rr_hub_access.role_in_project` en el servidor. Un visitante
+anónimo es `client_viewer`: navega, no ejecuta.
+
+| Rol | Qué mueve |
+|---|---|
+| `owner` | Todo, en cualquier estado |
+| `creator` | Propone, envía al cliente, reenvía ajustes |
+| `camera` / `model` | Arrancan rodaje, marcan el crudo |
+| `editor` | Inicia y termina la edición |
+| `publisher` / `media_buyer` | Aprueban y publican, cierran el flujo |
+| `client_approver` | Aprueba ideas y guiones, pide ajustes |
+| `client_viewer` | Solo lectura |
+
+## Seguridad (verificado contra producción, 2026-09-25)
+
+Estado **antes** de aplicar `20260926_close_anon_write.sql`:
 
 | Prueba anónima | Resultado |
 |---|---|
-| `GET rr_hub_projects` | los 3 proyectos |
-| `GET rr_hub_ideas` | 12 ideas |
-| `GET rr_hub_profiles` | 6 perfiles |
-| `PATCH rr_hub_ideas` | `[]` → bloqueado |
-| `POST rr_hub_comments` | error `42501` (RLS) → bloqueado |
-| `DELETE rr_hub_access` | `[]` → bloqueado |
+| `SELECT` de ideas de Wundeer | permitido (por diseño) |
+| `SELECT` de `rr_hub_profiles` / `access` / `invites` | `[]` — sin datos de equipo |
+| `POST` a ideas, comentarios, eventos, assets | **201 — creaba la fila** |
+| `PATCH` a ideas (status → `approved`) | **200 — escribía y lo confirmaba** |
+| `DELETE` a cualquier tabla `rr_hub_*` | 200 con 0 filas — bloqueado |
 
-Solo existen políticas `SELECT` para `anon`, así que la escritura no es
-posible aunque el modo público esté encendido.
+Después de la migración, los tres primeros pasan a bloquearse.
 
 ## Migraciones
 
-1. `supabase/migrations/20260910_content_hub_isolated.sql` — esquema base.
-2. `supabase/migrations/20260911_global_audit.sql` — interruptor global de
-   auditoría y políticas de lectura anónima.
+En orden, todas idempotentes:
+
+1. `20260910_content_hub_isolated.sql` — esquema base, RLS y bucket.
+2. `20260911_global_audit.sql` — interruptor global de auditoría.
+3. `20260911_wundeer_assets_realtime.sql` — realtime y assets.
+4. `20260911_wundeer_cleanup.sql` — limpieza de datos de prueba.
+5. `20260911_wundeer_collaborative_mode.sql` — modo colaborativo. ⚠️ concedió
+   escritura a `anon`; revertido en el punto 6.
+6. `20260926_close_anon_write.sql` — **cierra la escritura anónima**.
+
+`supabase/_archivo/` contiene esquemas que no aplican: `schema.sql` describe
+tablas `public.*` que nunca existieron y colisionan con el CRM. No lo apliques.
+
+## Aislar el CRM
+
+Este proyecto de Supabase es compartido con otras herramientas de RR, y las
+tablas legacy (`public.profiles`, `public.projects`) **no** tienen RLS: un
+anónimo puede leer emails del equipo y el pipeline comercial. Eso no lo
+arregla este repo. Las dos salidas son poner RLS en esas tablas o mover el hub
+a su propio proyecto Supabase.
