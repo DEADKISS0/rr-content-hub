@@ -1,15 +1,48 @@
--- 20260926_close_anon_write.sql
 -- Cierra la escritura anonima sobre el hub.
 --
--- Contexto: 20260911_wundeer_collaborative_mode.sql concedio INSERT y UPDATE
--- al rol `anon`, de modo que cualquier visitante con el link podia crear ideas,
--- cambiar su estado de aprobacion y estampar comentarios sin credenciales.
--- Este archivo revierte solo la escritura; la lectura publica de Wundeer se
--- conserva a proposito (es el modo en que el hub se entrega hoy).
+-- Por que existe
+-- --------------
+-- El hub se documentaba como "solo lectura" y eso era falso. Dos capas lo
+-- permitian, y ambas habian que cerrarse:
 --
--- Idempotente: se puede reaplicar sin efecto adicional.
+--   1. 20260911_wundeer_collaborative_mode.sql concedio `for insert to anon` y
+--      `for update to anon` sobre ideas, comentarios y eventos, con el unico
+--      filtro de "el proyecto es wundeer".
+--   2. 20260910_content_hub_isolated.sql declaro las politicas base como
+--      `for all` SIN `to authenticated`, asi que `anon` tambien las cumplia
+--      para cualquier proyecto con fila en rr_hub_access.
+--
+-- Verificado contra produccion el 2026-09-25 con la publishable key: un
+-- POST a rr_hub_ideas devolvio 201 y un PATCH devolvio 200 con la fila
+-- actualizada. Cualquiera con el link podia crear piezas y moverlas de estado.
+--
+-- Este archivo cierra las dos capas. La lectura publica de Wundeer se
+-- conserva a proposito: es el producto. Lo que se cierra es la escritura.
+--
+-- Idempotente: todo es drop-if-exists / create-policy. Se puede reaplicar.
 
--- 1. Escritura anonima: fuera.
+-- ---------------------------------------------------------------------------
+-- 1. Lectura anonima: se mantiene exactamente como estaba.
+-- ---------------------------------------------------------------------------
+drop policy if exists rr_hub_wundeer_public_project_read on public.rr_hub_projects;
+create policy rr_hub_wundeer_public_project_read on public.rr_hub_projects
+  for select to anon using (slug = 'wundeer');
+
+drop policy if exists rr_hub_wundeer_public_ideas_read on public.rr_hub_ideas;
+create policy rr_hub_wundeer_public_ideas_read on public.rr_hub_ideas
+  for select to anon using (exists (select 1 from public.rr_hub_projects p where p.id = project_id and p.slug = 'wundeer'));
+
+drop policy if exists rr_hub_wundeer_public_events_read on public.rr_hub_events;
+create policy rr_hub_wundeer_public_events_read on public.rr_hub_events
+  for select to anon using (public.rr_hub_is_wundeer_idea(idea_id));
+
+drop policy if exists rr_hub_wundeer_public_comments_read on public.rr_hub_comments;
+create policy rr_hub_wundeer_public_comments_read on public.rr_hub_comments
+  for select to anon using (public.rr_hub_is_wundeer_idea(idea_id));
+
+-- ---------------------------------------------------------------------------
+-- 2. Escritura anonima: fuera. Esta es la parte que faltaba.
+-- ---------------------------------------------------------------------------
 drop policy if exists rr_hub_wundeer_public_ideas_insert   on public.rr_hub_ideas;
 drop policy if exists rr_hub_wundeer_public_ideas_update   on public.rr_hub_ideas;
 drop policy if exists rr_hub_wundeer_public_events_insert  on public.rr_hub_events;
@@ -19,10 +52,10 @@ drop policy if exists rr_hub_wundeer_public_comments_update on public.rr_hub_com
 drop policy if exists rr_hub_wundeer_public_assets_insert  on public.rr_hub_assets;
 drop policy if exists rr_hub_wundeer_public_assets_update  on public.rr_hub_assets;
 
--- 2. Las politicas base de 20260910 son `for all` sin `to authenticated`,
---    asi que tambien alcanzaban a `anon`. Se reemplazan por pares explicitos
---    de lectura y escritura: lectura para quien tiene acceso, escritura solo
---    para autenticados con rol en el proyecto.
+-- ---------------------------------------------------------------------------
+-- 3. Las `for all` de 20260910 se reemplazan por pares explicitos.
+--    `for all` sin `to authenticated` es lo que hacia la escritura publica.
+-- ---------------------------------------------------------------------------
 drop policy if exists rr_hub_ideas_read   on public.rr_hub_ideas;
 drop policy if exists rr_hub_ideas_update  on public.rr_hub_ideas;
 drop policy if exists rr_hub_ideas_insert  on public.rr_hub_ideas;
@@ -105,18 +138,58 @@ create policy rr_hub_assets_write on public.rr_hub_assets
     join public.rr_hub_access a on a.project_id = i.project_id
     where i.id = rr_hub_assets.idea_id and a.user_id = auth.uid()));
 
--- 3. Storage: la subida anonima se cierra y el bucket deja de ser publico.
---    El bucket puede no existir todavia; los drop son seguros en ese caso.
+-- ---------------------------------------------------------------------------
+-- 4. DELETE no se le da a nadie por RLS. Antes no se concedia y asi se queda;
+--    dejarlo explicito evita que una migracion futura lo abra por descuido.
+-- ---------------------------------------------------------------------------
+revoke delete on public.rr_hub_ideas    from anon, authenticated;
+revoke delete on public.rr_hub_events   from anon, authenticated;
+revoke delete on public.rr_hub_comments from anon, authenticated;
+revoke delete on public.rr_hub_assets   from anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 5. Storage: la subida exige sesion; el bucket sigue siendo legible por
+--    enlace para que un entregable compartido abra sin login.
+-- ---------------------------------------------------------------------------
 drop policy if exists rr_hub_wundeer_public_storage_insert on storage.objects;
-drop policy if exists rr_hub_wundeer_public_storage_read   on storage.objects;
-update storage.buckets set public = false where id = 'rr-content-assets';
+drop policy if exists rr_hub_wundeer_auth_storage_insert   on storage.objects;
+create policy rr_hub_wundeer_auth_storage_insert on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'rr-content-assets' and (name like 'wundeer/%' or public.rr_hub_is_admin()));
 
--- 4. Limpieza de las filas de prueba que dejo la auditoria del 2026-09-25.
-delete from public.rr_hub_comments where body = 'probe-hermes';
-delete from public.rr_hub_ideas where title = 'RR-AUDIT-PROBE-DELETE-ME';
+drop policy if exists rr_hub_wundeer_auth_storage_delete on storage.objects;
+create policy rr_hub_wundeer_auth_storage_delete on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'rr-content-assets' and public.rr_hub_is_admin());
 
--- 5. La ventana de auditoria fue prevista para 7 dias y quedo con
---    expires_at = null (interpretado como "sin caducidad"). Se cierra.
+-- ---------------------------------------------------------------------------
+-- 6. La ventana de auditoria se proviso para 7 dias y quedo con
+--    expires_at = null, que la funcion rr_hub_audit_enabled() lee como
+--    "sin caducidad". Se cierra.
+-- ---------------------------------------------------------------------------
 update public.rr_hub_audit_settings
    set enabled = false, expires_at = now(), updated_at = now()
  where id = true;
+
+-- ---------------------------------------------------------------------------
+-- 7. Limpieza de las filas que dejo la auditoria del 2026-09-25. Se quedan
+--    con el commit, no con la base: asi el paso es auditable.
+-- ---------------------------------------------------------------------------
+delete from public.rr_hub_comments where body = 'probe-hermes';
+delete from public.rr_hub_ideas where title = 'RR-AUDIT-PROBE-DELETE-ME';
+
+-- ---------------------------------------------------------------------------
+-- Verificacion despues de aplicar (todas deben dar 0 filas o 401/42501):
+--
+--   -- escritura anonima bloqueada
+--   select 1 from pg_policies
+--    where schemaname = 'public' and tablename like 'rr_hub_%'
+--      and 'anon' = any(roles) and cmd in ('INSERT','UPDATE','DELETE');
+--
+--   -- solo lectura anonima sigue viva
+--   select tablename, cmd from pg_policies
+--    where schemaname = 'public' and 'anon' = any(roles) order by 1,2;
+--
+--   -- no quedan filas de prueba
+--   select count(*) from public.rr_hub_ideas where title = 'RR-AUDIT-PROBE-DELETE-ME';
+-- ---------------------------------------------------------------------------
