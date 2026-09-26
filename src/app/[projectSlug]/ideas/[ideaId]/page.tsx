@@ -70,7 +70,7 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
               : <Chip icon="check" tone="fucsia">FICHA COMPLETA</Chip>}
           </div>
 
-          <div className={`mt-7 border-l-4 ${tone} bg-blanco-05 px-5 py-4`}>
+          <div data-guia="estado" className={`mt-7 border-l-4 ${tone} bg-blanco-05 px-5 py-4`}>
             <div className="flex items-center gap-3">
               <span className={`flex h-9 w-9 items-center justify-center border-2 ${tone} ${meta.tone === 'mostaza' ? 'text-mostaza' : meta.tone === 'fucsia' ? 'text-fucsia' : meta.tone === 'orquidea' ? 'text-orquidea' : 'text-blanco'}`}>
                 <Icon name={STATUS_ICON[idea.status as WorkflowStatus] ?? 'flag'} size={16} />
@@ -92,13 +92,13 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
               preview delante, el botón caía en y≈736 y un portátil de 720 px de
               alto lo cortaba justo ahí: la única acción de la ficha quedaba bajo
               el pliegue. Lo cazó el recorrido e2e, no una revisión a ojo. */}
-          <div className="brutal-panel anim-rise">
+          <div data-guia="accion" className="brutal-panel anim-rise">
             <p className="eyebrow">[TU SIGUIENTE ACCIÓN]</p>
             <h2 className="mt-3 font-display text-2xl font-bold text-blanco">QUÉ HACER<br /><span className="text-mostaza">AHORA.</span></h2>
             <div className="mt-5"><IdeaActions projectSlug={projectSlug} ideaId={ideaId} currentStatus={idea.status} /></div>
           </div>
 
-          <div>
+          <div data-guia="preview">
             <p className="mono-label mb-3 text-mostaza">// COMO SE VERÁ PUBLICADO</p>
             <PublicationPreview url={raw} code={idea.code} title={idea.title} format={format.icon as IconName} size="lg" />
             <p className="mt-3 font-mono text-[10px] text-blanco-60">
@@ -115,9 +115,13 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
 
       <div className="grid gap-6 lg:grid-cols-[1.25fr_.75fr]">
         <section className="space-y-5">
-          <ReferenceWithBrief url={raw} title={idea.title} brief={{ intention: idea.objective, camera: idea.camera, talent: idea.talent, edit: idea.edit }} />
+          <div data-guia="brief">
+            <ReferenceWithBrief url={raw} title={idea.title} brief={{ intention: idea.objective, camera: idea.camera, talent: idea.talent, edit: idea.edit }} />
+          </div>
           {idea.script_content && <ScriptEditor ideaId={ideaId} initialScript={idea.script_content} />}
-          <EnhancedIdeaCollaboration projectSlug={projectSlug} ideaId={ideaId} />
+          <div data-guia="comentarios">
+            <EnhancedIdeaCollaboration projectSlug={projectSlug} ideaId={ideaId} />
+          </div>
         </section>
 
         <aside className="space-y-5">

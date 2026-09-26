@@ -4,32 +4,40 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import { useState, useSyncExternalStore } from 'react';
+import { GuidedTour } from './guided-tour';
 import { Icon, type IconName } from './ui/icons';
 
 /**
  * Cascarón del proyecto.
  *
- * La barra lateral se puede compactar (queda en `localStorage`, así que la
- * preferencia sobrevive recargas). Compacta = solo íconos, con el nombre de la
- * sección en el tooltip: deja 4.5rem de rail en vez de 18rem de texto.
+ * Simplificado el 2026-09-26 después de medir el tablero: **47 cosas clicables,
+ * 47 etiquetas distintas y 822 palabras** en una pantalla. Qué se hizo:
+ *
+ *  1. La navegación de fases del header se eliminó: repetía la barra lateral y
+ *     los cuatro pasos que la guía del tablero ya muestra con sus conteos.
+ *  2. Cuatro secciones quedan a la vista (tablero, piezas, espera respuesta,
+ *     plan) con nombres en español llano. Rodaje y publicación pasan a "ver
+ *     más": son de uso interno y se llega igual desde la guía de pasos.
+ *  3. La letra subió: las etiquetas de navegación de 12 a 14 px y las ayudas de
+ *     10 a 12 px. Nada clicable queda por debajo de 12 px.
+ *  4. El modo guía (botón flotante "¿CÓMO SE USA?") explica cada botón.
+ *
+ * La barra se puede compactar (queda en `localStorage`, así que la preferencia
+ * sobrevive recargas).
  *
  * El rol no se dibuja a propósito: cualquiera con el link ve el tablero
  * completo, así que la navegación no finge permisos.
  */
-const NAV: readonly { label: string; path: string; help: string; icon: IconName }[] = [
-  { label: 'MAPA', path: '', help: 'Todo el flujo', icon: 'map' },
-  { label: 'PIEZAS', path: '/ideas', help: 'Todo el banco de ideas', icon: 'pieces' },
-  { label: 'DECISIONES', path: '/aprobaciones', help: 'Lo que espera respuesta', icon: 'decisions' },
-  { label: 'PRODUCCIÓN', path: '/produccion', help: 'Rodaje y edición', icon: 'camera' },
-  { label: 'PUBLICACIÓN', path: '/publicaciones', help: 'Salidas y pauta', icon: 'publish' },
-  { label: 'ROADMAP', path: '/roadmap', help: 'La ruta al go-live', icon: 'roadmap' },
+const PRINCIPAL: readonly { label: string; path: string; help: string; icon: IconName }[] = [
+  { label: 'EL TABLERO', path: '', help: 'Todo el trabajo, de un vistazo', icon: 'map' },
+  { label: 'LAS PIEZAS', path: '/ideas', help: 'La lista completa', icon: 'pieces' },
+  { label: 'ESPERA RESPUESTA', path: '/aprobaciones', help: 'Lo que hay que decidir', icon: 'decisions' },
+  { label: 'EL PLAN', path: '/roadmap', help: 'Cuánto falta para el final', icon: 'roadmap' },
 ];
 
-const FLOW: readonly { number: string; label: string; path: string; icon: IconName }[] = [
-  { number: '01', label: 'IDEA', path: '/ideas', icon: 'spark' },
-  { number: '02', label: 'GUIÓN', path: '/ideas', icon: 'pen' },
-  { number: '03', label: 'PRODUCCIÓN', path: '/produccion', icon: 'camera' },
-  { number: '04', label: 'PUBLICADO', path: '/publicaciones', icon: 'publish' },
+const SECUNDARIO: readonly { label: string; path: string; help: string; icon: IconName }[] = [
+  { label: 'EN MARCHA', path: '/produccion', help: 'Rodaje y edición', icon: 'camera' },
+  { label: 'LO PUBLICADO', path: '/publicaciones', help: 'Lo que ya salió y la pauta', icon: 'publish' },
 ];
 
 const STORAGE_KEY = 'rr-hub-aside';
@@ -74,6 +82,29 @@ export function WorkspaceShell({ children, project }: { children: React.ReactNod
     window.dispatchEvent(new Event(STORAGE_EVENT));
   }
 
+  function enlace(item: { label: string; path: string; help: string; icon: IconName }) {
+    const href = `/${slug}${item.path}`;
+    const active = item.path ? pathname.startsWith(href) : pathname === `/${slug}`;
+    return (
+      <Link
+        key={item.label}
+        href={href}
+        title={item.help}
+        onClick={() => setMenuOpen(false)}
+        aria-current={active ? 'page' : undefined}
+        className={`group flex items-center gap-3 border-l-2 py-3 transition-colors ${collapsed ? 'md:justify-center md:px-0' : 'items-start px-3'} ${active ? 'border-fucsia bg-fucsia/10 text-blanco' : 'border-transparent text-blanco-60 hover:border-mostaza hover:bg-blanco-05 hover:text-mostaza'}`}
+      >
+        <span className={`shrink-0 ${collapsed ? '' : 'mt-[3px]'} ${active ? 'text-fucsia' : 'text-blanco-40 group-hover:text-mostaza'}`}>
+          <Icon name={item.icon} size={18} />
+        </span>
+        <span className={`collapse-label min-w-0 ${collapsed ? 'md:hidden' : ''}`}>
+          <strong className="block font-mono text-sm tracking-[0.05em]">{item.label}</strong>
+          <small className="mt-1 block text-xs leading-4 text-blanco-50">{item.help}</small>
+        </span>
+      </Link>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-negro md:flex">
       {menuOpen && (
@@ -81,7 +112,7 @@ export function WorkspaceShell({ children, project }: { children: React.ReactNod
       )}
 
       <aside
-        className={`shell-aside fixed inset-y-0 left-0 z-40 flex flex-col border-r-2 border-blanco bg-negro transition-transform md:sticky md:top-0 md:h-screen md:translate-x-0 ${menuOpen ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'md:w-[4.5rem] p-3' : 'w-72 p-6'}`}
+        className={`shell-aside fixed inset-y-0 left-0 z-40 flex flex-col overflow-y-auto border-r-2 border-blanco bg-negro transition-transform md:sticky md:top-0 md:h-screen md:translate-x-0 ${menuOpen ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'md:w-[4.5rem] p-3' : 'w-72 p-6'}`}
       >
         <div className={`mb-6 flex items-center gap-3 ${collapsed ? 'md:flex-col md:gap-2' : 'justify-between'}`}>
           <Link href={`/${slug}`} title={project.name} className="flex items-center gap-3">
@@ -92,8 +123,8 @@ export function WorkspaceShell({ children, project }: { children: React.ReactNod
             type="button"
             onClick={toggleCollapsed}
             aria-expanded={!collapsed}
-            aria-label={collapsed ? 'Expandir la barra lateral' : 'Compactar la barra lateral'}
-            title={collapsed ? 'Expandir barra lateral' : 'Compactar barra lateral'}
+            aria-label={collapsed ? 'Expandir el menú' : 'Compactar el menú'}
+            title={collapsed ? 'Expandir el menú' : 'Compactar el menú'}
             className="hidden h-8 w-8 shrink-0 items-center justify-center border border-blanco-20 text-blanco-60 transition-colors hover:border-mostaza hover:text-mostaza md:flex"
           >
             <span className={`transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`}>
@@ -102,43 +133,27 @@ export function WorkspaceShell({ children, project }: { children: React.ReactNod
           </button>
         </div>
 
-        <div className={`relative overflow-hidden border-2 border-blanco-20 transition-all ${collapsed ? 'md:hidden' : 'p-4'}`}>
-          <span className="pointer-events-none absolute inset-0 grid-bg opacity-60" aria-hidden="true" />
-          <p className="mono-label relative text-mostaza">PROYECTO ACTIVO</p>
-          <p className="relative mt-2 font-display text-3xl font-bold leading-none text-blanco">{project.name.toUpperCase()}</p>
-          <p className="relative mt-2 font-mono text-[10px] text-blanco-50">{project.client_name}</p>
-        </div>
+        <nav className="mt-2 space-y-1" aria-label="Menú principal">
+          {PRINCIPAL.map(enlace)}
 
-        <nav className="mt-4 space-y-1" aria-label="Navegación">
-          {NAV.map((item) => {
-            const href = `/${slug}${item.path}`;
-            const active = item.path ? pathname.startsWith(href) : pathname === `/${slug}`;
-            return (
-              <Link
-                key={item.label}
-                href={href}
-                title={item.label}
-                onClick={() => setMenuOpen(false)}
-                aria-current={active ? 'page' : undefined}
-                className={`group flex items-center gap-3 border-l-2 py-3 transition-colors ${collapsed ? 'md:justify-center md:px-0' : 'items-start px-3'} ${active ? 'border-fucsia bg-fucsia/10 text-blanco' : 'border-transparent text-blanco-60 hover:border-mostaza hover:bg-blanco-05 hover:text-mostaza'}`}
-              >
-                <span className={`shrink-0 ${collapsed ? '' : 'mt-[2px]'} ${active ? 'text-fucsia' : 'text-blanco-40 group-hover:text-mostaza'}`}>
-                  <Icon name={item.icon} size={16} />
-                </span>
-                <span className={`collapse-label min-w-0 ${collapsed ? 'md:hidden' : ''}`}>
-                  <strong className="block font-mono text-xs tracking-[0.06em]">{item.label}</strong>
-                  <small className="mt-1 block text-[10px] leading-3 text-blanco-50">{item.help}</small>
-                </span>
-              </Link>
-            );
-          })}
+          {/* Rodaje y publicación son de uso interno: quedan a un toque, sin
+              ocupar los cuatro lugares principales. */}
+          {!collapsed && (
+            <details className="group/mas pt-2">
+              <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 px-3 font-mono text-xs text-blanco-50 transition-colors hover:text-mostaza">
+                <Icon name="chevron" size={11} className="transition-transform group-open/mas:rotate-180" />
+                VER MÁS
+              </summary>
+              <div className="mt-1">{SECUNDARIO.map(enlace)}</div>
+            </details>
+          )}
         </nav>
 
         <div className="mt-auto space-y-3 border-t border-blanco-10 pt-5">
           {/* Crear vive en UN solo lugar: el botón del banner, siempre visible.
               Tenerlo también aquí y en la cabecera del tablero daba tres botones
               idénticos en la misma pantalla. */}
-          <p className={`collapse-label font-mono text-[10px] leading-5 text-blanco-50 ${collapsed ? 'md:hidden' : ''}`}>
+          <p className={`collapse-label font-mono text-[11px] leading-5 text-blanco-50 ${collapsed ? 'md:hidden' : ''}`}>
             RR CONTENT HUB · {project.name.toUpperCase()}<br />Datos vivos de Supabase
           </p>
         </div>
@@ -147,39 +162,23 @@ export function WorkspaceShell({ children, project }: { children: React.ReactNod
       <div className="min-w-0 flex-1">
         <header className="sticky top-0 z-20 border-b-2 border-blanco bg-negro/95 backdrop-blur">
           <div className="flex items-center justify-between gap-3 px-5 py-3 md:px-10">
-            <button onClick={() => setMenuOpen(true)} className="inline-flex items-center gap-2 border border-blanco-20 px-2 py-1 font-mono text-[11px] text-mostaza md:hidden">
-              <Icon name="list" size={13} /> MENÚ
+            <button onClick={() => setMenuOpen(true)} className="inline-flex items-center gap-2 border border-blanco-20 px-2 py-1.5 font-mono text-xs text-mostaza md:hidden">
+              <Icon name="list" size={14} /> MENÚ
             </button>
-            <span className="hidden font-mono text-[10px] text-blanco-50 md:block">{project.name.toUpperCase()} // CONTENT OPERATING SYSTEM</span>
-            <div className="flex items-center gap-3">
-              <span className="inline-flex items-center gap-2 font-mono text-[10px] text-mostaza">
-                <span className="h-2 w-2 bg-mostaza anim-pulse" aria-hidden /> ACTIVO
-              </span>
-              <Link href={`/${slug}/ideas/nueva`} className="inline-flex items-center gap-2 border border-mostaza px-2 py-1 font-mono text-[10px] text-mostaza transition-colors hover:bg-mostaza hover:text-negro">
-                <Icon name="plus" size={12} /> <span className="hidden sm:inline">NUEVA PIEZA</span>
-              </Link>
-            </div>
+            <Link href={`/${slug}`} className="hidden font-mono text-xs text-blanco-60 transition-colors hover:text-blanco md:block">
+              {project.name.toUpperCase()} · TODO EL CONTENIDO EN UN LUGAR
+            </Link>
+            {/* Una sola acción en el header: crear. La navegación de fases se
+                eliminó (la guía del tablero ya muestra los cuatro pasos). */}
+            <Link href={`/${slug}/ideas/nueva`} className="btn-brutal inline-flex items-center gap-2">
+              <Icon name="plus" size={14} /> NUEVA PIEZA
+            </Link>
           </div>
-          <nav aria-label="Navegación de fases" className="scroll-thin grid overflow-x-auto border-t border-blanco-10 sm:grid-cols-4">
-            {FLOW.map((step) => {
-              const active = step.path === '/ideas' ? pathname.includes('/ideas') || pathname.includes('/aprobaciones') : pathname.includes(step.path);
-              return (
-                <Link
-                  key={`${step.number}-${step.label}`}
-                  href={`/${slug}${step.path}`}
-                  aria-current={active ? 'step' : undefined}
-                  className={`flex items-center gap-2 border-r border-blanco-10 px-4 py-3 font-mono text-[10px] tracking-[0.06em] transition-colors ${active ? 'bg-mostaza text-negro' : 'text-blanco-50 hover:bg-blanco-05 hover:text-blanco'}`}
-                >
-                  <Icon name={step.icon} size={13} />
-                  <span className="opacity-60">{step.number}</span>
-                  <strong>{step.label}</strong>
-                </Link>
-              );
-            })}
-          </nav>
         </header>
         {children}
       </div>
+
+      <GuidedTour />
     </div>
   );
 }

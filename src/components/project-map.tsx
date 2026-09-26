@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { actGroup, BOARD_COLUMNS, daysSince, statusMeta, type WorkflowStatus } from '@/lib/flow';
 import { BoardControls, type BoardFilters } from './board-controls';
 import { FlowGuide } from './flow-guide';
+import { StartHere } from './start-here';
 import { StatusBadge } from './status-badge';
 import { ActorChip, Chip } from './ui/chips';
 import { EmptyState } from './ui/empty-state';
@@ -66,6 +67,7 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
   const maxColumn = Math.max(1, ...BOARD_COLUMNS.map((column) => visible.filter((idea) => (column.statuses as readonly string[]).includes(idea.status)).length));
 
   const waitingClient = ideas.filter((idea) => actGroup(idea.status as WorkflowStatus) === 'cliente').length;
+  const dirty = filters.query !== '' || filters.phase !== 'all' || filters.act !== 'all';
 
   return (
     <section aria-labelledby="board-title" className="anim-rise">
@@ -78,9 +80,21 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
         <h2 id="board-title" className="section-heading mt-2">TODO EL FLUJO, EN UNA VISTA.</h2>
       </div>
 
+      {/* Lo primero ya no son 25 tarjetas: es lo que necesita respuesta. */}
+      <StartHere ideas={ideas} projectSlug={projectSlug} />
+
       <FlowGuide ideas={ideas} phase={filters.phase} onPhase={(phase) => onChange({ phase, act: 'all' })} />
 
       <BoardControls filters={filters} onChange={onChange} total={ideas.length} shown={visible.length} waiting={waitingClient} />
+
+      {/* El trabajo completo sigue aquí, a una línea de distancia. Si alguien
+          filtra o busca, se abre solo: no hay que hacer dos gestos. */}
+      <details open={dirty || undefined} className="group/todas border-2 border-blanco-20">
+        <summary className="inline-flex w-full cursor-pointer list-none items-center gap-2 px-4 py-3 font-mono text-sm text-blanco-60 transition-colors hover:bg-blanco-05 hover:text-mostaza">
+          <Icon name="chevron" size={13} className="transition-transform group-open/todas:rotate-180" />
+          VER TODAS LAS {ideas.length} PIEZAS Y EL MAPA COMPLETO
+        </summary>
+        <div className="p-4 pt-0">
 
       {filters.view === 'map' ? (
         <div key={`map-${filters.phase}`} className={`view-in grid gap-px border-2 border-blanco bg-blanco-20 ${filters.phase === 'all' ? 'lg:grid-cols-2 xl:grid-cols-4' : 'xl:grid-cols-2'}`}>
@@ -182,6 +196,8 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
           {!visible.length && <div className="p-5"><EmptyState icon="search" title="Nada coincide con la búsqueda." hint="Prueba con otro código (O1, P7), título o categoría." /></div>}
         </div>
       )}
+        </div>
+      </details>
     </section>
   );
 }

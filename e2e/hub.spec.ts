@@ -20,14 +20,24 @@ const PROYECTO = 'wundeer';
 /** Las cuatro pistas del tablero, tal como las ve el usuario. */
 const PISTAS = ['IDEAS', 'GUIONES', 'PRODUCCIÓN', 'PUBLICADO'];
 
+/**
+ * Los recorridos que NO son de la guía la desactivan. La guía se abre sola en
+ * la primera visita (es su razón de ser) y eso mueve el foco y tapa cosas:
+ * estas pruebas miden otras invariantes. La guía tiene sus propias pruebas.
+ */
+async function abrir(page: import('@playwright/test').Page, ruta: string) {
+  await page.addInitScript(() => window.localStorage.setItem('rr-hub-guia-v1', 'visto'));
+  await page.goto(ruta);
+}
+
 test.describe('tablero', () => {
   test('una sola acción para crear y ningún hueco vacío', async ({ page }) => {
-    await page.goto(`/${PROYECTO}`);
+    await abrir(page, `/${PROYECTO}`);
 
     // Una sola puerta para crear: la regla que quitó 13 botones y 2 CTA de más.
     await expect(page.locator('a[href$="/ideas/nueva"]:visible')).toHaveCount(1);
 
-    await expect(page.getByText('TOCA UN PASO PARA FILTRAR')).toBeVisible();
+    await expect(page.getByText('TOCA UN PASO Y VES SOLO ESAS')).toBeVisible();
 
     // El hueco punteado que se veía en 17 de 26 tarjetas ya no existe.
     await expect(page.getByText('SIN MINIATURA · ABRIR')).toHaveCount(0);
@@ -40,7 +50,7 @@ test.describe('tablero', () => {
 
 test.describe('colas', () => {
   test('la cola abre por lo que más lleva parado', async ({ page }) => {
-    await page.goto(`/${PROYECTO}/aprobaciones`);
+    await abrir(page, `/${PROYECTO}/aprobaciones`);
     await expect(page.getByText('PRIMERO LO QUE MÁS LLEVA PARADO')).toBeVisible();
 
     const tarjetas = page.locator('a.idea-card');
@@ -64,7 +74,7 @@ test.describe('colas', () => {
   });
 
   test('las pantallas sin base lo dicen en voz alta', async ({ page }) => {
-    await page.goto(`/${PROYECTO}/metricas`);
+    await abrir(page, `/${PROYECTO}/metricas`);
     // MÉTRICAS cuenta piezas y aclara que el rendimiento no se mide todavía.
     await expect(page.getByText(/no se mide todavía/)).toBeVisible();
 
@@ -76,7 +86,7 @@ test.describe('colas', () => {
 
 test.describe('ficha de pieza', () => {
   test('la acción está arriba y a un visitante no se le ofrece mover la pieza', async ({ page }) => {
-    await page.goto(`/${PROYECTO}/aprobaciones`);
+    await abrir(page, `/${PROYECTO}/aprobaciones`);
     const destino = await page.locator('a.idea-card').first().getAttribute('href');
     expect(destino, 'la cola debería traer al menos una pieza').toBeTruthy();
 
@@ -95,7 +105,7 @@ test.describe('ficha de pieza', () => {
 
 test.describe('roadmap', () => {
   test('las tres pistas no muestran el mismo avance', async ({ page }) => {
-    await page.goto(`/${PROYECTO}/roadmap`);
+    await abrir(page, `/${PROYECTO}/roadmap`);
 
     // Los medidores viven en la navegación de pistas (no en la tarjeta de
     // estado, que muestra días): comprobado contra el DOM real.
@@ -127,5 +137,44 @@ test.describe('portero de acceso', () => {
     const texto = await page.locator('body').innerText();
     expect(texto).not.toMatch(/[\w.]+@[\w.]+\.\w+/);
     expect(texto).not.toContain('US10');
+  });
+});
+
+test.describe('modo guía', () => {
+  test('se abre sola la primera vez y explica el primer botón', async ({ page }) => {
+    await page.goto(`/${PROYECTO}`);
+
+    // Sin nada guardado, la guía arranca sola: es la respuesta a "que siempre
+    // que uno abra le explique botón por botón".
+    await expect(page.getByText(/PASO 1 DE 6/)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: 'ESTE ES EL MENÚ' })).toBeVisible();
+  });
+
+  test('avanza botón por botón y se cierra con Escape', async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.setItem('rr-hub-guia-v1', 'visto'));
+    await page.goto(`/${PROYECTO}`);
+
+    await page.getByRole('button', { name: /Abrir la guía/ }).click();
+    await expect(page.getByText(/PASO 1 DE 6/)).toBeVisible();
+
+    await page.getByRole('button', { name: /SIGUIENTE/ }).click();
+    await expect(page.getByRole('heading', { name: 'ESTE BOTÓN CREA UNA PIEZA' })).toBeVisible();
+    await expect(page.getByText(/PASO 2 DE 6/)).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('heading', { name: 'ESTE BOTÓN CREA UNA PIEZA' })).toHaveCount(0);
+  });
+
+  test('en la ficha explica la acción, el preview y el brief', async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.setItem('rr-hub-guia-v1', 'visto'));
+    await page.goto(`/${PROYECTO}/aprobaciones`);
+    const destino = await page.locator('a.idea-card').first().getAttribute('href');
+
+    await page.goto(destino as string);
+    await page.getByRole('button', { name: /Abrir la guía/ }).click();
+
+    await expect(page.getByRole('heading', { name: 'ESTA ES TU PIEZA' })).toBeVisible();
+    await page.getByRole('button', { name: /SIGUIENTE/ }).click();
+    await expect(page.getByRole('heading', { name: 'LO PRIMERO: QUÉ HACER AHORA' })).toBeVisible();
   });
 });

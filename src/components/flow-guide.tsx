@@ -53,16 +53,16 @@ export function FlowGuide({
         <div className="flex items-center gap-3">
           <span className="text-mostaza"><Icon name="roadmap" size={16} /></span>
           <h2 className="font-display text-lg font-bold text-blanco">ASÍ AVANZA UNA PIEZA</h2>
-          <span className="hidden font-mono text-[10px] text-blanco-50 sm:inline">TOCA UN PASO PARA FILTRAR</span>
+          <span className="hidden font-mono text-xs text-blanco-50 sm:inline">TOCA UN PASO Y VES SOLO ESAS</span>
         </div>
         <button
           type="button"
           onClick={() => setOpen((value) => !value)}
           aria-expanded={open}
-          className="inline-flex items-center gap-1.5 border border-blanco-20 px-2 py-1 font-mono text-[10px] text-blanco-60 transition-colors hover:border-mostaza hover:text-mostaza"
+          className="inline-flex items-center gap-1.5 border border-blanco-20 px-2.5 py-1.5 font-mono text-xs text-blanco-60 transition-colors hover:border-mostaza hover:text-mostaza"
         >
-          <Icon name={open ? 'close' : 'eye'} size={12} />
-          {open ? 'OCULTAR EXPLICACIÓN' : '¿CÓMO FUNCIONA?'}
+          <Icon name={open ? 'close' : 'eye'} size={13} />
+          {open ? 'OCULTAR LA EXPLICACIÓN' : '¿QUÉ SIGNIFICA ESTO?'}
         </button>
       </div>
 
