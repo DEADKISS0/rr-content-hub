@@ -2,21 +2,25 @@
 
 import { useState } from 'react';
 import { Icon, type IconName } from './icons';
-import { IdeaCover } from './cover';
+import { CoverArt, IdeaCover } from './cover';
 
 /**
  * Preview de la publicación.
  *
  * Prioridad de fuentes REALES, sin inventar nada:
- *   1. Archivo/imagen directa que la pieza tenga subida (si algún día existe).
+ *   1. Imagen directa por URL (.jpg/.png/.webp) → se muestra tal cual.
  *   2. Google Drive → miniatura real vía /thumbnail?id=...&sz=w480.
- *   3. Imagen directa por URL (.jpg/.png/.webp) → se muestra tal cual.
- *   4. Instagram / TikTok / link genérico → se dibuja la tarjeta del post con
- *      los datos que SÍ tenemos (código, título, shortcode, red) y se avisa que
- *      la miniatura se ve al abrir. Instagram no expone miniatura sin API
- *      (verificado 2026-09-26: sirve muro de login, 0 og:image, y el endpoint
- *      /media/ ya no redirige al CDN). No se simula una foto que no existe.
- *   5. Si la imagen falla al cargar → cae a la portada procedural.
+ *   3. YouTube → miniatura real del video.
+ *   4. Instagram / TikTok / link genérico → NO existe miniatura pública
+ *      (verificado 2026-09-26: Instagram sirve muro de login, 0 og:image, y el
+ *      endpoint /media/ ya no redirige al CDN). En vez de dejar un hueco vacío
+ *      se compone el post con lo que SÍ sabemos: el arte de marca determinista
+ *      de la pieza, su código, su red y su shortcode. Se avisa en una etiqueta
+ *      discreta de que la miniatura se ve al abrir.
+ *
+ * Regla de diseño: cuando falta la foto, el hueco tiene que seguir pareciendo
+ * una pieza de contenido, no un error. Antes 17 de 26 tarjetas pintaban el
+ * mismo recuadro punteado y la parrilla se leía como vacía.
  */
 export type ReferenceSource = {
   kind: 'drive' | 'image' | 'instagram' | 'tiktok' | 'youtube' | 'link';
@@ -69,13 +73,23 @@ export function referenceSource(raw?: string | null): ReferenceSource | null {
   return { kind: 'link', url, label: 'REFERENCIA', icon: 'link' };
 }
 
-/** Miniatura real cuando el proveedor la expone (Drive y YouTube sí). */
+/** Miniatura real cuando el proveedor la expone (Drive, YouTube e imágenes sí). */
 function realThumb(source: ReferenceSource): string | null {
   if (source.kind === 'image') return source.url;
   if (source.kind === 'drive' && source.id) return `https://drive.google.com/thumbnail?id=${source.id}&sz=w480`;
   if (source.kind === 'youtube' && source.id) return `https://img.youtube.com/vi/${source.id}/hqdefault.jpg`;
   return null;
 }
+
+/** El ícono que anuncia qué clase de pieza se va a ver. */
+const KIND_ICON: Record<ReferenceSource['kind'], IconName> = {
+  drive: 'file',
+  image: 'image',
+  instagram: 'video',
+  tiktok: 'video',
+  youtube: 'video',
+  link: 'link',
+};
 
 const HEIGHTS = { sm: 'h-16', md: 'h-[9.5rem]', lg: 'h-44' } as const;
 
@@ -94,19 +108,22 @@ export function PublicationPreview({
 }) {
   const source = referenceSource(url);
   const [failed, setFailed] = useState(false);
-  const thumb = source ? realThumb(source) : null;
   const heightClass = HEIGHTS[size];
 
   if (!source) {
     return <IdeaCover code={code} title={title} size={size} format={format} />;
   }
 
+  const thumb = realThumb(source);
+  const showReal = Boolean(thumb) && !failed;
+  const compact = size === 'sm';
+
   return (
     <div className={`cover-frame relative w-full overflow-hidden border border-blanco-20 bg-negro ${heightClass}`}>
-      {thumb && !failed ? (
+      {showReal ? (
         // eslint-disable-next-line @next/next/no-img-element -- miniatura externa sin optimizador de Next
         <img
-          src={thumb}
+          src={thumb as string}
           alt={`Referencia de ${code ?? 'la pieza'}: ${title}`}
           loading="lazy"
           referrerPolicy="no-referrer"
@@ -114,14 +131,23 @@ export function PublicationPreview({
           className="preview-art h-full w-full object-cover"
         />
       ) : (
-        <PostFrame source={source} code={code} title={title} noPreview={Boolean(thumb) && failed} />
+        <PostMock source={source} code={code} title={title} compact={compact} />
       )}
 
+      {/* Red de origen: siempre visible, dice de dónde viene la referencia. */}
       <span className="absolute left-2 top-2 inline-flex items-center gap-1 border border-blanco-30 bg-negro/85 px-1.5 py-1 font-mono text-[10px] tracking-[0.08em] text-blanco">
         <Icon name={source.icon} size={11} />
         {source.label}
       </span>
-      <span className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 bg-gradient-to-t from-negro via-negro/60 to-transparent p-2">
+
+      {/* Aviso honesto, pequeño: la miniatura no es pública, se ve al abrir. */}
+      {!showReal && !compact && (
+        <span className="absolute right-2 top-2 border border-mostaza/60 bg-negro/85 px-1.5 py-1 font-mono text-[10px] tracking-[0.06em] text-mostaza">
+          SIN MINIATURA
+        </span>
+      )}
+
+      <span className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 bg-gradient-to-t from-negro via-negro/70 to-transparent p-2">
         <span className="font-mono text-[10px] font-bold tracking-[0.1em] text-blanco">{code ?? 'PIEZA'}</span>
         <span className="inline-flex items-center gap-1 font-mono text-[10px] text-mostaza opacity-0 transition-opacity duration-200 group-hover:opacity-100">
           VER <Icon name="arrow" size={11} />
@@ -131,35 +157,50 @@ export function PublicationPreview({
   );
 }
 
-/** Tarjeta fiel del post cuando no hay miniatura disponible: datos reales, cero foto falsa. */
-function PostFrame({ source, code, title, noPreview = false }: { source: ReferenceSource; code?: string | null; title: string; noPreview?: boolean }) {
+/**
+ * El post compuesto cuando no hay miniatura pública.
+ *
+ * Capa 1: arte de marca determinista de la pieza (mismo código, mismo arte).
+ * Capa 2: velo para que el texto se lea sobre cualquier geometría.
+ * Capa 3: el marco de la red social —avatar, handle, forma de pieza y acciones—,
+ *         para que la tarjeta se lea como contenido y no como un error.
+ */
+function PostMock({ source, code, title, compact = false }: { source: ReferenceSource; code?: string | null; title: string; compact?: boolean }) {
+  const acciones: IconName[] = ['comment', 'upload', 'eye'];
+
   return (
-    <div className="post-frame relative flex h-full w-full flex-col justify-between p-3">
-      <span className="pointer-events-none absolute inset-0 grid-bg opacity-70" aria-hidden />
-      <div className="relative flex items-center gap-2">
-        <span className="flex h-7 w-7 items-center justify-center border border-fucsia bg-fucsia/15 font-mono text-[10px] text-fucsia">RR</span>
-        <span className="min-w-0">
-          <span className="block truncate font-mono text-[10px] text-blanco">{source.handle ? `@${source.handle}` : 'REFERENCIA VISUAL'}</span>
-          <span className="block font-mono text-[10px] text-blanco-50">{source.shortcode ? `/${source.shortcode}` : source.label.toLowerCase()}</span>
-        </span>
+    <div className="absolute inset-0">
+      <CoverArt code={code} title={title} className="absolute inset-0 h-full w-full" />
+      <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-negro/70 via-negro/25 to-negro/85" aria-hidden />
+
+      <div className="relative flex h-full flex-col justify-between p-2">
+        <div className="flex items-center gap-2">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center border border-fucsia bg-fucsia/20 font-mono text-[10px] font-bold text-blanco">RR</span>
+          <span className="min-w-0 leading-tight">
+            <span className="block truncate font-mono text-[10px] text-blanco">
+              {source.handle ? `@${source.handle}` : source.label.toLowerCase()}
+            </span>
+            <span className="block truncate font-mono text-[10px] text-blanco-50">
+              {source.shortcode ? `/${source.shortcode}` : 'referencia visual'}
+            </span>
+          </span>
+        </div>
+
+        {!compact && (
+          <div className="flex items-center justify-center">
+            <span className="flex h-10 w-10 items-center justify-center border-2 border-blanco-30 bg-negro/55 text-blanco">
+              <Icon name={KIND_ICON[source.kind]} size={18} />
+            </span>
+          </div>
+        )}
+
+        {!compact && (
+          <div className="flex items-center gap-3 text-blanco-70">
+            {acciones.map((name) => <Icon key={name} name={name} size={13} />)}
+            <span className="ml-auto truncate font-mono text-[10px] text-blanco-50">{title.slice(0, 22)}</span>
+          </div>
+        )}
       </div>
-
-      <div className="relative mx-auto flex flex-col items-center gap-1">
-        <span className="flex h-12 w-12 items-center justify-center border-2 border-dashed border-mostaza/70 bg-negro/60 text-mostaza">
-          <Icon name={source.kind === 'instagram' ? 'video' : 'eye'} size={20} />
-        </span>
-        <span className="font-mono text-[10px] tracking-[0.08em] text-mostaza">SIN MINIATURA · ABRIR</span>
-      </div>
-
-      <p className="relative line-clamp-2 font-mono text-[10px] leading-4 text-blanco-60">
-        {code ? `${code} · ` : ''}{title}
-      </p>
-
-      {noPreview && (
-        <p className="relative mt-1 border-t border-blanco-20 pt-1 font-mono text-[10px] leading-4 text-mostaza">
-          SIN VISTA PREVIA PÚBLICA · ABRE PARA VERLA
-        </p>
-      )}
     </div>
   );
 }

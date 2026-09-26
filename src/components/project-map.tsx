@@ -66,29 +66,16 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
   const maxColumn = Math.max(1, ...BOARD_COLUMNS.map((column) => visible.filter((idea) => (column.statuses as readonly string[]).includes(idea.status)).length));
 
   const waitingClient = ideas.filter((idea) => actGroup(idea.status as WorkflowStatus) === 'cliente').length;
-  const incomplete = ideas.filter((idea) => briefState(idea).some((state) => !state.done)).length;
 
   return (
     <section aria-labelledby="board-title" className="anim-rise">
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="eyebrow">[MAPA DE OPERACIÓN]</p>
-          <h2 id="board-title" className="section-heading mt-2">TODO EL FLUJO, EN UNA VISTA.</h2>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => onChange({ act: filters.act === 'cliente' ? 'all' : 'cliente', phase: 'all' })}
-            aria-pressed={filters.act === 'cliente'}
-            title="Ver solo lo que espera respuesta del cliente"
-            className={`inline-flex items-center gap-1.5 border px-2 py-1.5 font-mono text-[10px] transition-colors ${filters.act === 'cliente' ? 'border-mostaza bg-mostaza text-negro' : 'border-blanco-20 text-blanco-60 hover:border-mostaza hover:text-mostaza'}`}
-          >
-            <Icon name="clock" size={12} /> {waitingClient} ESPERANDO AL CLIENTE
-          </button>
-          <span title="Piezas a las que les falta brief, guion o referencia" className="inline-flex items-center gap-1.5 border border-blanco-20 px-2 py-1.5 font-mono text-[10px] text-blanco-60">
-            <Icon name="alert" size={12} /> {incomplete} CON INFO FALTANTE
-          </span>
-        </div>
+      {/* Encabezado puro: solo dice qué es esta zona. Los controles y sus
+          conteos viven en UN bloque, la barra de abajo. Antes aquí había un
+          botón de cliente y un contador de info faltante que repetían lo que
+          la barra y cada tarjeta ya dicen. */}
+      <div className="mb-4">
+        <p className="eyebrow">[MAPA DE OPERACIÓN]</p>
+        <h2 id="board-title" className="section-heading mt-2">TODO EL FLUJO, EN UNA VISTA.</h2>
       </div>
 
       <FlowGuide ideas={ideas} phase={filters.phase} onPhase={(phase) => onChange({ phase, act: 'all' })} />

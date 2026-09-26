@@ -135,15 +135,9 @@ export function WorkspaceShell({ children, project }: { children: React.ReactNod
         </nav>
 
         <div className="mt-auto space-y-3 border-t border-blanco-10 pt-5">
-          <Link
-            href={`/${slug}/ideas/nueva`}
-            onClick={() => setMenuOpen(false)}
-            title="Nueva idea"
-            className={`flex items-center justify-center gap-2 border-2 border-mostaza py-3 font-mono text-[11px] text-mostaza transition-colors hover:bg-mostaza hover:text-negro ${collapsed ? 'md:px-0' : 'px-3'}`}
-          >
-            <Icon name="plus" size={13} />
-            <span className={collapsed ? 'md:hidden' : ''}>NUEVA IDEA</span>
-          </Link>
+          {/* Crear vive en UN solo lugar: el botón del banner, siempre visible.
+              Tenerlo también aquí y en la cabecera del tablero daba tres botones
+              idénticos en la misma pantalla. */}
           <p className={`collapse-label font-mono text-[10px] leading-5 text-blanco-50 ${collapsed ? 'md:hidden' : ''}`}>
             RR CONTENT HUB · {project.name.toUpperCase()}<br />Datos vivos de Supabase
           </p>

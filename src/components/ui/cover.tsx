@@ -73,19 +73,27 @@ function Art({ geometry, ink, alt }: { geometry: Geometry; ink: string; alt: str
   }
 }
 
-export function IdeaCover({ code, title, size = 'md', format }: { code?: string | null; title: string; size?: 'sm' | 'md' | 'lg'; format?: IconName }) {
+/** El arte de marca, aislado, para poder usarlo como capa de fondo en otros marcos. */
+export function CoverArt({ code, title, className = 'h-full w-full' }: { code?: string | null; title: string; className?: string }) {
   const seed = hash(`${code ?? ''}${title}`);
   const geometry = GEOMETRIES[seed % GEOMETRIES.length];
   const ink = PALETTE[seed % 3];
   const alt = seed % 2 ? '#fffff3' : '#ded116';
+
+  return (
+    <svg viewBox="0 0 260 180" preserveAspectRatio="none" className={`cover-art ${className}`} aria-hidden="true">
+      <rect width="260" height="180" fill="#070001" />
+      <Art geometry={geometry} ink={ink} alt={alt} />
+    </svg>
+  );
+}
+
+export function IdeaCover({ code, title, size = 'md', format }: { code?: string | null; title: string; size?: 'sm' | 'md' | 'lg'; format?: IconName }) {
   const heightClass = size === 'sm' ? 'h-16' : size === 'lg' ? 'h-44' : 'h-24';
 
   return (
     <div className={`cover-frame relative ${heightClass} w-full overflow-hidden border border-blanco-20 bg-negro`}>
-      <svg viewBox="0 0 260 180" preserveAspectRatio="none" className="cover-art h-full w-full" aria-hidden="true">
-        <rect width="260" height="180" fill="#070001" />
-        <Art geometry={geometry} ink={ink} alt={alt} />
-      </svg>
+      <CoverArt code={code} title={title} />
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-negro via-negro/45 to-transparent" />
       <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-2">
         <span className="font-mono text-[10px] font-bold tracking-[0.1em] text-blanco">{code ?? 'IDEA'}</span>

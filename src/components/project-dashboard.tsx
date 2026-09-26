@@ -43,7 +43,6 @@ export function ProjectDashboard({ project, projectSlug, ideas, role }: { projec
           </div>
           <div className="flex flex-wrap gap-3">
             <Link href={`/${projectSlug}/ideas`} className="btn-brutal inline-flex items-center gap-2">VER TODO <Icon name="arrow" size={14} /></Link>
-            <Link href={`/${projectSlug}/ideas/nueva`} className="btn-brutal-mostaza inline-flex items-center gap-2"><Icon name="plus" size={14} /> NUEVA IDEA</Link>
           </div>
         </header>
 

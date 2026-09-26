@@ -43,8 +43,9 @@ export function FlowGuide({
     count: ideas.filter((idea) => (item.statuses as readonly string[]).includes(idea.status)).length,
   }));
   const total = Math.max(1, ideas.length);
-  const published = counts[counts.length - 1].count;
-  const done = counts.slice(0, -1).reduce((sum, item) => sum + item.count, 0);
+  // El conteo global salió de aquí a propósito: las cuatro tarjetas de paso ya
+  // dicen cuántas piezas hay en cada uno y la barra de control dice el total
+  // filtrado. Repetirlo en tres lugares era parte del ruido.
 
   return (
     <section aria-label="Guía del flujo" className="anim-rise mb-6 border-2 border-blanco">
@@ -52,7 +53,7 @@ export function FlowGuide({
         <div className="flex items-center gap-3">
           <span className="text-mostaza"><Icon name="roadmap" size={16} /></span>
           <h2 className="font-display text-lg font-bold text-blanco">ASÍ AVANZA UNA PIEZA</h2>
-          <span className="hidden font-mono text-[10px] text-blanco-50 sm:inline">CUATRO PASOS · TOCA UNO PARA FILTRAR</span>
+          <span className="hidden font-mono text-[10px] text-blanco-50 sm:inline">TOCA UN PASO PARA FILTRAR</span>
         </div>
         <button
           type="button"
@@ -109,14 +110,6 @@ export function FlowGuide({
           );
         })}
       </ol>
-
-      <div className="border-t border-blanco-20 px-4 py-3">
-        <p className="font-mono text-[10px] text-blanco-60">
-          {published
-            ? `${published} YA SALIERON · ${done} EN CAMINO · ${total} EN TOTAL`
-            : `NINGUNA PUBLICADA TODAVÍA · ${total} PIEZAS EN EL HUB`}
-        </p>
-      </div>
 
       {open && (
         <div className="anim-slide-down border-t-2 border-mostaza bg-mostaza/5 px-4 py-4">

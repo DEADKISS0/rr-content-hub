@@ -34,6 +34,9 @@ export function BoardControls({
   waiting: number;
 }) {
   const dirty = filters.query !== '' || filters.phase !== 'all' || filters.act !== 'all';
+  const activeGroup = filters.act === 'all'
+    ? 'TODOS'
+    : ACT_GROUPS.find((group) => group.key === filters.act)?.label ?? filters.act.toUpperCase();
 
   return (
     <div className="sticky top-[84px] z-20 -mx-5 mb-6 border-y-2 border-blanco bg-negro/95 px-5 py-3 backdrop-blur md:-mx-10 md:px-10">
@@ -87,31 +90,43 @@ export function BoardControls({
         )}
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <span className="mr-1 font-mono text-[10px] text-blanco-50">LE TOCA A:</span>
-        <button
-          type="button"
-          onClick={() => onChange({ act: 'all' })}
-          aria-pressed={filters.act === 'all'}
-          className={`border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.08em] transition-colors ${filters.act === 'all' ? 'border-blanco bg-blanco text-negro' : 'border-blanco-20 text-blanco-60 hover:border-blanco hover:text-blanco'}`}
-        >
-          TODOS
-        </button>
-        {ACT_GROUPS.map((group) => {
-          const active = filters.act === group.key;
-          const isClient = group.key === 'cliente';
-          return (
+      <div className="mt-3">
+        {/* Los seis responsables viven dentro de un desplegable: la barra pasa de
+            siete botones siempre visibles a uno que dice quién está filtrando.
+            Sin estado controlado a propósito — así el navegador maneja el
+            abrir/cerrar y no pelea con React. */}
+        <details className="group/act">
+          <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 border border-blanco-20 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.08em] text-blanco-60 transition-colors hover:border-fucsia hover:text-fucsia">
+            <Icon name="filter" size={11} />
+            QUIÉN ACTÚA: <b className={filters.act === 'all' ? 'text-blanco' : 'text-fucsia'}>{activeGroup}</b>
+            <Icon name="chevron" size={11} className="transition-transform group-open/act:rotate-180" />
+          </summary>
+          <div className="anim-slide-down mt-2 flex flex-wrap items-center gap-1.5">
             <button
-              key={group.key}
               type="button"
-              onClick={() => onChange({ act: active ? 'all' : group.key, phase: 'all' })}
-              aria-pressed={active}
-              className={`border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.08em] transition-colors ${active ? (isClient ? 'border-mostaza bg-mostaza text-negro' : 'border-fucsia bg-fucsia text-blanco') : 'border-blanco-20 text-blanco-60 hover:border-fucsia hover:text-fucsia'}`}
+              onClick={() => onChange({ act: 'all' })}
+              aria-pressed={filters.act === 'all'}
+              className={`border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.08em] transition-colors ${filters.act === 'all' ? 'border-blanco bg-blanco text-negro' : 'border-blanco-20 text-blanco-60 hover:border-blanco hover:text-blanco'}`}
             >
-              {group.label}
+              TODOS
             </button>
-          );
-        })}
+            {ACT_GROUPS.map((group) => {
+              const active = filters.act === group.key;
+              const isClient = group.key === 'cliente';
+              return (
+                <button
+                  key={group.key}
+                  type="button"
+                  onClick={() => onChange({ act: active ? 'all' : group.key, phase: 'all' })}
+                  aria-pressed={active}
+                  className={`border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.08em] transition-colors ${active ? (isClient ? 'border-mostaza bg-mostaza text-negro' : 'border-fucsia bg-fucsia text-blanco') : 'border-blanco-20 text-blanco-60 hover:border-fucsia hover:text-fucsia'}`}
+                >
+                  {group.label}
+                </button>
+              );
+            })}
+          </div>
+        </details>
       </div>
     </div>
   );
