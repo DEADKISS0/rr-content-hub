@@ -108,6 +108,7 @@ export function PublicationPreview({
 }) {
   const source = referenceSource(url);
   const [failed, setFailed] = useState(false);
+  const [loading, setLoading] = useState(true);
   const heightClass = HEIGHTS[size];
 
   if (!source) {
@@ -121,15 +122,21 @@ export function PublicationPreview({
   return (
     <div className={`cover-frame relative w-full overflow-hidden border border-blanco-20 bg-negro ${heightClass}`}>
       {showReal ? (
-        // eslint-disable-next-line @next/next/no-img-element -- miniatura externa sin optimizador de Next
-        <img
-          src={thumb as string}
-          alt={`Referencia de ${code ?? 'la pieza'}: ${title}`}
-          loading="lazy"
-          referrerPolicy="no-referrer"
-          onError={() => setFailed(true)}
-          className="preview-art h-full w-full object-cover"
-        />
+        <>
+          {/* Barrido mientras baja la imagen real: el marco trabaja en vez de
+              quedarse negro. Se apaga en cuanto la miniatura está lista. */}
+          {loading && <span className="shimmer absolute inset-0" aria-hidden />}
+          {/* eslint-disable-next-line @next/next/no-img-element -- miniatura externa sin optimizador de Next */}
+          <img
+            src={thumb as string}
+            alt={`Referencia de ${code ?? 'la pieza'}: ${title}`}
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            onLoad={() => setLoading(false)}
+            onError={() => { setFailed(true); setLoading(false); }}
+            className="preview-art h-full w-full object-cover"
+          />
+        </>
       ) : (
         <PostMock source={source} code={code} title={title} compact={compact} />
       )}
@@ -201,6 +208,9 @@ function PostMock({ source, code, title, compact = false }: { source: ReferenceS
           </div>
         )}
       </div>
+
+      {/* Línea de escaneo: solo aparece al pasar el mouse por el marco. */}
+      <span className="post-scan" aria-hidden />
     </div>
   );
 }

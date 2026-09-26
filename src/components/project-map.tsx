@@ -93,7 +93,9 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
                 <header className="mb-4 border-b border-blanco-20 pb-3">
                   <div className="flex items-start justify-between gap-3">
                     <span className="font-mono text-[10px] text-mostaza">0{originalIndex + 1} / 04</span>
-                    <span className="font-display text-3xl font-bold leading-none text-blanco">{items.length}</span>
+                    {/* key={items.length}: al cambiar el número el span se remonta
+                        y el contador vuelve a entrar en vez de cambiar en silencio. */}
+                    <b key={items.length} className="anim-count font-display text-3xl font-bold leading-none text-blanco">{items.length}</b>
                   </div>
                   <h3 className="mt-2 font-display text-xl font-bold text-blanco">{column.label}</h3>
                   <p className="mt-1 text-[11px] leading-4 text-blanco-60">{column.plain}</p>
@@ -117,7 +119,7 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
                           <div className="flex flex-wrap items-center gap-1.5">
                             <StatusBadge status={idea.status} compact />
                             {idea.priority === 'high' && <Chip icon="bolt" tone="mostaza">ALTA</Chip>}
-                            {days !== null && <Chip icon="clock" tone={days > 14 ? 'fucsia' : 'neutro'} title={`Última actividad hace ${days} días`}>{days}D</Chip>}
+                            {days !== null && <Chip icon="clock" tone={days > 14 ? 'fucsia' : 'neutro'} className={days > 14 ? 'anim-pulse' : ''} title={`Última actividad hace ${days} días`}>{days}D</Chip>}
                             <Chip icon={format.icon} tone="neutro">{format.label}</Chip>
                           </div>
                           <h4 className="font-display text-base font-bold leading-tight text-blanco group-hover:text-mostaza">{idea.title}</h4>

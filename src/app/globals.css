@@ -259,11 +259,37 @@
   /* Barra lateral compacta: el ancho viaja, no salta. */
   .shell-aside { transition: width .3s cubic-bezier(.22,1,.36,1), padding .3s cubic-bezier(.22,1,.36,1); }
   .collapse-label { transition: opacity .18s ease, transform .3s cubic-bezier(.22,1,.36,1); }
+
+  /* Barrido de carga: mientras baja una miniatura real (Drive, imagen, YouTube)
+     el marco respira. Sin esto el hueco queda negro varios cientos de ms y la
+     parrilla parece rota. */
+  .shimmer { position: relative; overflow: hidden; background: rgba(255,255,243,.04); }
+  .shimmer::after {
+    content: ''; position: absolute; inset: 0 auto 0 -45%; width: 40%;
+    background: linear-gradient(100deg, transparent, rgba(255,255,243,.13), transparent);
+    animation: shimmerSweep 1.15s cubic-bezier(.4,0,.6,1) infinite;
+  }
+  @keyframes shimmerSweep { from { left: -45%; } to { left: 105%; } }
+
+  /* Escaneo del preview compuesto: al pasar el mouse, una línea de luz recorre
+     la pieza de arriba a abajo. Es el gesto que dice "esto es una vista previa
+     armada", sin inventar una foto que no existe. */
+  .post-scan {
+    position: absolute; inset: 0; pointer-events: none; transform: translateY(-110%);
+    background: linear-gradient(180deg, transparent 0%, rgba(255,255,243,.18) 48%, transparent 100%);
+  }
+  .cover-frame:hover .post-scan { animation: scanDown .9s cubic-bezier(.22,1,.36,1); }
+  @keyframes scanDown { from { transform: translateY(-110%); } to { transform: translateY(110%); } }
+
+  /* Contador que late al cambiar: el número nuevo entra, no se sustituye mudo. */
+  .anim-count { display: inline-block; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .step-card, .rail-fill, .anim-slide-down, .view-in, .cascade, .anim-pop, .anim-count { animation: none !important; }
   .sheen::after { display: none; }
+  .shimmer::after { display: none; }
+  .cover-frame:hover .post-scan { animation: none; }
   .idea-card:hover .preview-art { transform: none; }
 }
 

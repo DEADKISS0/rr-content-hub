@@ -117,9 +117,13 @@ export function RoadmapView({ today }: { today: string }) {
         })}
       </nav>
 
-      {track === 'dev' && <DevTrack today={today} />}
-      {track === 'design' && <DesignTrack today={today} />}
-      {track === 'content' && <ContentTrack today={today} />}
+      {/* key={track}: al cambiar de pista el panel se remonta y entra con la
+          misma animación que el resto de la app, en vez de cambiar de golpe. */}
+      <div key={track} className="view-in">
+        {track === 'dev' && <DevTrack today={today} />}
+        {track === 'design' && <DesignTrack today={today} />}
+        {track === 'content' && <ContentTrack today={today} />}
+      </div>
     </div>
   </main>;
 }

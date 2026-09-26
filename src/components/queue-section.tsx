@@ -54,9 +54,9 @@ export function QueueSection({ title, eyebrow, description, guide, ideas, projec
           <h1 className="display-title">{title}<br /><em>EN CONTROL.</em></h1>
           <p className="mt-5 max-w-xl text-sm leading-7 text-blanco-70">{description}</p>
           <div className="mt-5 flex flex-wrap gap-2">
-            <Chip icon="pieces" tone="blanco">{sorted.length} EN ESTA COLA</Chip>
-            {oldest > 0 && <Chip icon="clock" tone={oldest > 14 ? 'fucsia' : 'mostaza'}>{oldest} DÍAS LA MÁS VIEJA</Chip>}
-            <Chip icon="alert" tone={incomplete ? 'mostaza' : 'neutro'}>{incomplete} CON INFO FALTANTE</Chip>
+            <Chip icon="pieces" tone="blanco"><b className="anim-count">{sorted.length}</b>&nbsp;EN ESTA COLA</Chip>
+            {oldest > 0 && <Chip icon="clock" tone={oldest > 14 ? 'fucsia' : 'mostaza'} className={oldest > 14 ? 'anim-pulse' : ''}><b className="anim-count">{oldest}</b>&nbsp;DÍAS LA MÁS VIEJA</Chip>}
+            <Chip icon="alert" tone={incomplete ? 'mostaza' : 'neutro'}><b className="anim-count">{incomplete}</b>&nbsp;CON INFO FALTANTE</Chip>
           </div>
         </div>
         <Link href={`/${projectSlug}/ideas`} className="btn-brutal inline-flex items-center gap-2">VER BANCO <Icon name="arrow" size={14} /></Link>
@@ -86,7 +86,7 @@ export function QueueSection({ title, eyebrow, description, guide, ideas, projec
               <div className="flex flex-wrap items-center gap-1.5">
                 <StatusBadge status={idea.status} showStep={showPipeline} />
                 {idea.priority === 'high' && <Chip icon="bolt" tone="mostaza">ALTA</Chip>}
-                {age !== null && <Chip icon="clock" tone={age > 14 ? 'fucsia' : 'neutro'} title={`Última actividad hace ${age} días`}>{age}D</Chip>}
+                {age !== null && <Chip icon="clock" tone={age > 14 ? 'fucsia' : 'neutro'} className={age > 14 ? 'anim-pulse' : ''} title={`Última actividad hace ${age} días`}>{age}D</Chip>}
                 <Chip icon={format.icon} tone="neutro">{format.label}</Chip>
               </div>
               <h2 className="font-display text-xl font-bold leading-tight text-blanco group-hover:text-mostaza">{idea.title}</h2>
