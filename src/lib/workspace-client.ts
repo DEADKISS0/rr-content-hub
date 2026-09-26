@@ -199,6 +199,9 @@ export async function uploadAsset(input: {
     .upload(path, input.file, { upsert: false, contentType: input.file.type || undefined });
   if (uploadError) return { error: uploadError.message };
 
+  // Only record the asset once the bytes are actually there. The other order
+  // left a row pointing at an object that was never uploaded, which then
+  // rendered as a broken image instead of an error.
   const { error: insertError } = await supabase.from('rr_hub_assets').insert({
     idea_id: input.ideaId,
     asset_stage: input.stage,
@@ -215,6 +218,16 @@ export async function signedAssetUrl(path: string): Promise<string | null> {
   if (!supabase || !path || /^https?:\/\//.test(path)) return path || null;
   // Wundeer deliveries are intentionally shared with the public workspace.
   // Use the bucket URL directly instead of creating a misleading expiring URL.
+  //
+  // `getPublicUrl` never fails: it builds a string from the path whether or not
+  // the bucket or the object exists, so a dead asset rendered as a broken image
+  // with no error anywhere. Listing the containing folder is the cheap way to
+  // find out — `download()` would pull the whole file (up to 100 MB) just to
+  // learn that it is there.
+  const folder = path.slice(0, path.lastIndexOf('/') + 1);
+  const file = path.slice(path.lastIndexOf('/') + 1);
+  const { data, error } = await supabase.storage.from(STORAGE_BUCKET).list(folder, { search: file });
+  if (error || !data?.some((entry) => entry.name === file)) return null;
   return supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path).data.publicUrl || null;
 }
 

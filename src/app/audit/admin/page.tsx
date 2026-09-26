@@ -1,5 +1,7 @@
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { getAuditProjects, getAuditRoster, getAuditSettings } from '@/lib/data';
+import { requireAdmin } from '@/lib/admin-guard';
 import { ROLE_LABEL, type RoleKey } from '@/lib/flow';
 
 export const dynamic = 'force-dynamic';
@@ -11,8 +13,18 @@ function date(value: string | null) {
   return new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium' }).format(new Date(value));
 }
 
-/** Read-only administrative audit: team roster, access matrix and pending invites. */
+/**
+ * Read-only administrative audit: team roster, access matrix and pending invites.
+ *
+ * Guarded by `requireAdmin`. The check runs before any query, so an
+ * unauthorised request never reaches the database and never receives a body
+ * that says whether it was logged in — it gets a 404, the same as a route that
+ * does not exist.
+ */
 export default async function AuditAdmin() {
+  const admin = await requireAdmin();
+  if (!admin.allowed) notFound();
+
   const [projects, roster, settings] = await Promise.all([getAuditProjects(), getAuditRoster(), getAuditSettings()]);
   const open = Boolean(settings.enabled);
   const projectName = new Map((projects as any[]).map((project) => [project.id, project.name]));

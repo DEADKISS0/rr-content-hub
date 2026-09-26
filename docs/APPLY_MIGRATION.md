@@ -8,11 +8,12 @@
 |---|---|---|---|
 | 1 | Escritura anónima (PATCH 200, INSERT 201) | `20260926_close_anon_write.sql` | **sin aplicar** |
 | 2 | Lectura anónima del CRM huérfano | `20260927_crm_public_read_lockdown.sql` | **sin aplicar** |
-| 3 | Bucket `rr-content-assets` inexistente | — | sin migración |
-| 4 | `/audit/admin` público | — | sin migración |
+| 3 | Bucket `rr-content-assets` inexistente | `20260926_close_anon_write.sql` bloque 8 | **sin aplicar** (ya no necesita panel) |
+| 4 | `/audit/admin` público | `src/lib/admin-guard.ts` | **código hecho, falta configurar Vercel** |
 
 Aplícalas **en orden**. La 2 no depende de la 1, pero si solo vas a hacer una,
-haz la 1: es la que permite escribir sin credenciales.
+haz la 1: es la que permite escribir sin credenciales. El bucket va dentro de la
+migración 1, así que no es un paso aparte.
 
 ---
 

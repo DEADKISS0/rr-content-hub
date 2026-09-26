@@ -71,13 +71,54 @@ de taparlo con una política que alguien podría reescribir. No borra filas.
 
 ### 3. Bucket `rr-content-assets` no existe
 
-`rr_hub_assets` está vacía y el bucket de Storage no se ha creado. La subida de
-archivos está rota: el código está, el destino no.
+Comprobado en vivo: la API de Storage devuelve `[]`, o sea que **no hay ningún
+bucket**, no solo falta el del hub. `uploadAsset()` fallaba siempre con
+`NoSuchBucket`, y `getPublicUrl()` sobre un bucket inexistente devuelve una URL
+que da 404 en lugar de un error visible.
 
-### 4. `/audit/admin` es público
+**Ya está resuelto en la migración 1** (bloque 8): crea el bucket, público, con
+tope de 100 MB y los tipos MIME que la app ya aceptaba. Va **después** de las
+políticas de storage, y un test comprueba ese orden — al revés, el bucket nace
+sin acceso.
 
-Renderiza EQUIPO, ACCESOS e INVITACIONES sin pedir sesión. Ocultar el enlace no
-es proteger la ruta.
+Dos arreglos de código en `workspace-client.ts` acompañan al bucket:
+
+- El registro en `rr_hub_assets` ya no se escribe antes de confirmar la subida.
+  Antes podía quedar una fila apuntando a un objeto que nunca se subió, que se
+  veía como imagen rota en lugar de un error.
+- `signedAssetUrl()` comprueba que el objeto exista (listando la carpeta, que es
+  barato) en vez de devolver una URL muerta. `getPublicUrl()` nunca falla: solo
+  concatena strings.
+
+### 4. `/audit/admin` — cerrado en código, falta configurar
+
+Renderiza EQUIPO, ACCESOS e INVITACIONES a cualquiera que escriba la URL.
+Ocultar el enlace no protege la ruta.
+
+**Ya arreglado en el código:** `src/lib/admin-guard.ts` exige
+`rr_hub_profiles.global_role = 'admin'` y, si no se cumple, responde **404**, no
+403 — un 403 confirma que la ruta existe y sirve para probar credenciales. La
+comprobación corre antes de cualquier consulta, así que un intento no autorizado
+ni siquiera toca la base. Un rol de proyecto (`role_in_project`) **no** da acceso
+admin: un `client_approver` no puede leer el roster de la empresa.
+
+**Lo que falta, y es decisión tuya:** las tres tablas de acceso
+(`rr_hub_profiles`, `rr_hub_access`, `rr_hub_invites`) están **vacías** en
+producción — comprobado en vivo. No hay ningún admin, y con el control estricto
+nadie podría entrar.
+
+Por eso la guarda tiene un escape: `SUPER_ADMIN_EMAILS` en Vercel (correos
+separados por coma). Solo se aplica **con sesión iniciada** — sin sesión no hay
+contra quién comparar, así que no es una puerta trasera. Configúrala **antes del
+próximo deploy** o te quedas fuera:
+
+```bash
+# Vercel > Settings > Environment Variables, y redeploy:
+SUPER_ADMIN_EMAILS=tu-correo@gmail.com
+```
+
+Requisito adicional: `NEXT_PUBLIC_AUTH_ENABLED=true`. Sin autenticación no hay
+sesiones, y la guarda no tiene contra qué comprobar.
 
 ## Cómo comprobarlo tú mismo
 

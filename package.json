@@ -9,9 +9,10 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "//": "verify corre sin red (estatico + dominio). verify:leak va aparte a proposito: necesita la URL y la anon key de PRODUCCION, y el .env.local apunta al stack local. Detalle en docs/SECURITY.md.",
-    "verify": "npm run verify:states && npm run verify:flow && npm run verify:api && npm run verify:migration && npm run verify:roadmap",
+    "verify": "npm run verify:states && npm run verify:flow && npm run verify:api && npm run verify:admin && npm run verify:migration && npm run verify:roadmap",
     "verify:states": "node scripts/verify-no-hardcoded-states.mjs",
     "verify:api": "node scripts/verify-api.mjs",
+    "verify:admin": "node scripts/verify-admin.mjs",
     "verify:leak": "node scripts/verify-leak.mjs",
     "verify:flow": "node --experimental-strip-types --import ./scripts/alias-loader.mts scripts/verify-flow.mts",
     "verify:migration": "node scripts/verify-migration.mjs",
@@ -22,7 +23,8 @@
     "@supabase/supabase-js": "^2.116.0",
     "next": "16.3.4",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -75,5 +75,25 @@ check('la ultima sentencia termina en punto y coma', /;\s*$/.test(body));
 check('el indice unico de code existe', /create unique index if not exists rr_hub_ideas_code_unique/i.test(sql));
 check('el indice unico exime las filas sin code', /where code is not null/i.test(sql));
 
+// 11. El bucket de assets no existe en produccion — la API de Storage devuelve
+//     `[]`, o sea que no hay NINGUN bucket, no solo falta el del hub. Sin el,
+//     uploadAsset() falla siempre con NoSuchBucket.
+check('la migracion crea el bucket de assets', /insert into storage\.buckets/i.test(sql));
+check('el bucket se llama rr-content-assets', /rr-content-assets/.test(sql));
+check('el bucket limita el tamano de archivo', /file_size_limit/.test(sql));
+check('el bucket restringe los tipos permitidos', /allowed_mime_types/.test(sql));
+// getPublicUrl() no falla nunca, construye la cadena exista o no el objeto, y
+// signedAssetUrl la devuelve tal cual: un asset muerto se ve como imagen rota
+// en vez de como error. Exigir public=true aqui mantiene sincronizado ese
+// comentario del codigo con la base, que es donde se romperia el silencio.
+check('el bucket es publico, como espera signedAssetUrl', /insert into storage\.buckets[\s\S]{0,200}true/.test(sql));
+
+// 12. El bloque del bucket tiene que ir DESPUES de las politicas de storage,
+//     o el bucket nace sin acceso hasta que se apliquen.
+const bucketAt = sql.search(/insert into storage\.buckets/i);
+const lastPolicyAt = Math.max(...[...sql.matchAll(/create policy.*storage/gi)].map((m) => m.index));
+check('el bucket se crea despues de las politicas de storage',
+  bucketAt > lastPolicyAt, `bucket en ${bucketAt}, ultima politica en ${lastPolicyAt}`);
+
 console.log(fails === 0 ? '\nTODO OK' : `\n${fails} FALLO(S)`);
 process.exit(fails === 0 ? 0 : 1);

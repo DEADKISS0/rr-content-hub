@@ -189,7 +189,41 @@ create unique index if not exists rr_hub_ideas_code_unique
 --    group by 1,2,3 having count(*) > 1;
 
 -- ---------------------------------------------------------------------------
--- 7. Limpieza de las filas que dejo la auditoria del 2026-09-25. Se quedan
+-- 8. El bucket de assets no existe. Verificado en produccion: la API de
+--    Storage devuelve `[]`, o sea que NO hay ningun bucket, no solo falta el
+--    del hub. `uploadAsset()` por tanto fallaba siempre con NoSuchBucket, y
+--    `getPublicUrl()` sobre un bucket inexistente devuelve una URL que da 404
+--    en lugar de un error visible.
+--
+--    Se crea publico a proposito: `signedAssetUrl()` devuelve la URL directa
+--    (no una signed URL) porque las entregas de Wundeer se comparten con el
+--    espacio publico. Si algun dia los assets pasan a ser privados, ese
+--    comentario y esta linea tienen que cambiar juntos.
+-- ---------------------------------------------------------------------------
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'rr-content-assets',
+  'rr-content-assets',
+  true,
+  104857600, -- 100 MB
+  array['image/', 'video/', 'application/pdf', 'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+)
+on conflict (id) do update
+  set public = excluded.public,
+      file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
+
+-- Las politicas de storage ya estan en la seccion de policies de este mismo
+-- archivo; si este bloque se aplica antes que ellas, el bucket queda sin acceso
+-- hasta que se apliquen. Por eso el orden de este archivo importa: el bloque
+-- del bucket va DESPUES de las politicas de storage.
+
+-- Verificacion:
+--   select id, public from storage.buckets where id = 'rr-content-assets';
+
+-- ---------------------------------------------------------------------------
+-- 9. Limpieza de las filas que dejo la auditoria del 2026-09-25. Se quedan
 --    con el commit, no con la base: asi el paso es auditable.
 -- ---------------------------------------------------------------------------
 delete from public.rr_hub_comments where body = 'probe-hermes';
