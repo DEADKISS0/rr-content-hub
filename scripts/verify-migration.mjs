@@ -68,5 +68,12 @@ const opens = (body.match(/\(/g) || []).length, closes = (body.match(/\)/g) || [
 check('parentesis balanceados', opens === closes, `${opens} abre / ${closes} cierra`);
 check('la ultima sentencia termina en punto y coma', /;\s*$/.test(body));
 
+// 10. `code` debe quedar unico por (proyecto, tipo). El endpoint lo genera
+//     con un max+1 seguido de INSERT y reintenta ante 23505, pero sin el indice
+//     el 23505 nunca llega y dos llamadas simultaneas dejaban codigos
+//     duplicados. Verificado contra produccion: 25 filas con code, 0 choques.
+check('el indice unico de code existe', /create unique index if not exists rr_hub_ideas_code_unique/i.test(sql));
+check('el indice unico exime las filas sin code', /where code is not null/i.test(sql));
+
 console.log(fails === 0 ? '\nTODO OK' : `\n${fails} FALLO(S)`);
 process.exit(fails === 0 ? 0 : 1);

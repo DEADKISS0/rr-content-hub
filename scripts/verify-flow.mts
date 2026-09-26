@@ -6,7 +6,7 @@
 // reglas en el test es exactamente como un test empieza a mentir.
 import {
   STATUS_ORDER, PHASES, STATUS_OWNERS, TRANSITIONS_FOR_TEST,
-  allowedTransitions, waitingOn,
+  allowedTransitions, waitingOn, nextStatus,
 } from '../src/lib/flow.ts';
 import { QUEUES, BOARD_COLUMNS, inQueue } from '../src/lib/queues.ts';
 
@@ -92,9 +92,21 @@ const queuesCovered = new Set(Object.values(QUEUES).flatMap(q => q.statuses));
 check('cada estado del tablero aparece en alguna cola', boardStates.every(s => queuesCovered.has(s)),
   boardStates.filter(s => !queuesCovered.has(s)).join(', ') || 'todas');
 
-// 9. waitingOn nunca devuelve una cadena vacia.
+// 9. waitingOn nunca devuelve una cadena vacia, y `closed` no espera a nadie.
 const waits = STATUS_ORDER.map(s => waitingOn(s));
 check('waitingOn responde siempre', waits.every(w => typeof w === 'string' && w.length > 0));
+check('una pieza cerrada no espera a nadie', waitingOn('closed').includes('nadie'), waitingOn('closed'));
+check('los estados que esperan al cliente lo dicen', waitingOn('pending_approval') === 'el cliente' && waitingOn('pending_script_review') === 'el cliente');
+
+// 10. nextStatus devuelve el movimiento del equipo, no la primera fila. Antes
+//     devolvia options[0].to, que para pending_approval era `approved`: la rama
+//     mas optimista, que no predice nada.
+check('nextStatus de draft es pending_approval', nextStatus('draft') === 'pending_approval', String(nextStatus('draft')));
+check('nextStatus de closed es null (no hay salida)', nextStatus('closed') === null, String(nextStatus('closed')));
+check('nextStatus nunca devuelve un estado que no existe',
+  STATUS_ORDER.every(s => { const n = nextStatus(s); return n === null || STATUS_ORDER.includes(n); }));
+check('nextStatus de un estado con salida nunca es null',
+  STATUS_ORDER.filter(s => s !== 'closed').every(s => nextStatus(s) !== null));
 
 console.log(fails === 0 ? '\nTODO OK' : `\n${fails} FALLO(S)`);
 process.exit(fails === 0 ? 0 : 1);

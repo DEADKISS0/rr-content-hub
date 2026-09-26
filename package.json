@@ -8,8 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "verify": "npm run verify:states && npm run verify:flow && npm run verify:migration && npm run verify:roadmap",
+    "verify": "npm run verify:states && npm run verify:flow && npm run verify:api && npm run verify:migration && npm run verify:roadmap",
     "verify:states": "node scripts/verify-no-hardcoded-states.mjs",
+    "verify:api": "node scripts/verify-api.mjs",
     "verify:flow": "node --experimental-strip-types --import ./scripts/alias-loader.mts scripts/verify-flow.mts",
     "verify:migration": "node scripts/verify-migration.mjs",
     "verify:roadmap": "node --experimental-strip-types --import ./scripts/alias-loader.mts scripts/verify-roadmap.mts"

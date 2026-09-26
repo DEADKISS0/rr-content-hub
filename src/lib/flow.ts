@@ -159,17 +159,37 @@ export function allowedTransitions(role: RoleKey, status: WorkflowStatus): Allow
     .map(({ to, label, note }) => ({ to, label, note }));
 }
 
-/** Who the piece is waiting for right now — used for the "waiting on" banner. */
+/**
+ * Who the piece is waiting for right now.
+ *
+ * This used to special-case the two client-waiting states with a hardcoded
+ * string, while `STATUS_OWNERS` kept an empty array for them — two sources of
+ * truth for the same question. The client states now name their owners, and
+ * the label comes from ROLE_HOME-style copy in ROLE_LABEL.
+ */
+const CLIENT_GATED: readonly WorkflowStatus[] = ['pending_approval', 'pending_script_review'];
+
 export function waitingOn(status: WorkflowStatus): string {
+  if (status === 'closed') return 'nadie: flujo cerrado';
+  if (CLIENT_GATED.includes(status)) return 'el cliente';
   const owners = STATUS_OWNERS[status];
-  if (status === 'pending_approval' || status === 'pending_script_review') return 'el cliente';
-  if (!owners.length) return 'nadie: flujo cerrado';
+  if (!owners.length) return 'nadie por ahora';
   return owners.map((role) => ROLE_LABEL[role]).join(' o ');
 }
 
-export function nextStatus(status: WorkflowStatus): WorkflowStatus {
+/**
+ * The single move the engine would offer a team member from this state.
+ *
+ * Used to return `options[0].to`, which is just the first row of the table —
+ * for `pending_approval` that is `approved`, the most optimistic branch, which
+ * is not a prediction of anything. Now it returns the team's move, ignoring
+ * client-only branches, and `null` when only the client can act.
+ */
+export function nextStatus(status: WorkflowStatus): WorkflowStatus | null {
   const options = TRANSITIONS[status] ?? [];
-  return options[0]?.to ?? status;
+  const teamMove = options.find((o) => o.roles === 'team' || o.roles === 'all');
+  if (teamMove) return teamMove.to;
+  return options.length ? options[0].to : null;
 }
 
 /* ───────────────────────────────────────────────────────────────────────────

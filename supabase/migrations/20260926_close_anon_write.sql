@@ -172,6 +172,23 @@ update public.rr_hub_audit_settings
  where id = true;
 
 -- ---------------------------------------------------------------------------
+-- 6b. `code` se generaba con un SELECT max+1 seguido de un INSERT, sin ninguna
+--     restriccion que lo hiciera unico: dos llamadas simultaneas leian el mismo
+--     maximo y las dos insertaban, dejando codigos duplicados. La API ahora
+--     reintenta ante 23505, pero eso solo funciona si existe el indice.
+--     Solo afecta a filas con codigo: la idea que creo la auditoria tiene
+--     code = null y esta exenta.
+-- ---------------------------------------------------------------------------
+create unique index if not exists rr_hub_ideas_code_unique
+  on public.rr_hub_ideas (project_id, content_type, code)
+  where code is not null;
+
+-- Verifica que no haya duplicados antes de que el indice falle:
+--   select project_id, content_type, code, count(*)
+--     from public.rr_hub_ideas where code is not null
+--    group by 1,2,3 having count(*) > 1;
+
+-- ---------------------------------------------------------------------------
 -- 7. Limpieza de las filas que dejo la auditoria del 2026-09-25. Se quedan
 --    con el commit, no con la base: asi el paso es auditable.
 -- ---------------------------------------------------------------------------
