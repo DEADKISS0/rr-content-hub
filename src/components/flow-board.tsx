@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { BOARD_COLUMNS, statusMeta } from '@/lib/flow';
+import { statusMeta } from '@/lib/flow';
+import { BOARD_COLUMNS } from '@/lib/queues';
 import { StatusBadge } from './status-badge';
 
 type Idea = { id: string; code?: string; title: string; description?: string; status: string; category?: string };

@@ -2,10 +2,23 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getAuditIdeas, getAuditProject } from '@/lib/data';
 import { PHASES, STATUS_META, statusMeta, phaseIndex, productionStep, type WorkflowStatus } from '@/lib/flow';
+import { QUEUES, READY_FOR_SHOOTING } from '@/lib/queues';
 import { StatusBadge } from '@/components/status-badge';
 import { ProductionPipeline } from '@/components/production-pipeline';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * The four summary tiles. These used to be four inline arrays of status names —
+ * a fourth hand-kept copy of the same data — so they drifted from the queues
+ * the rest of the app used. Every one now derives from QUEUES.
+ */
+const AUDIT_TILES: { label: string; statuses: readonly string[] }[] = [
+  { label: 'POR DECIDIR', statuses: QUEUES.aprobaciones.statuses },
+  { label: 'EN EJECUCIÓN', statuses: QUEUES.produccion.statuses },
+  { label: 'APROBADAS', statuses: READY_FOR_SHOOTING },
+  { label: 'PUBLICADAS', statuses: QUEUES.publicaciones.statuses },
+];
 
 export default async function AuditOverview({ params }: { params: Promise<{ projectSlug: string }> }) {
   const { projectSlug } = await params;
@@ -44,7 +57,7 @@ export default async function AuditOverview({ params }: { params: Promise<{ proj
     </section>
 
     <section className="mb-12 grid gap-px border-2 border-blanco-20 bg-blanco-10 sm:grid-cols-2 lg:grid-cols-4">
-      {[['POR DECIDIR', ['pending_approval', 'needs_changes', 'pending_script_review', 'ready_to_publish']], ['EN EJECUCIÓN', ['script_in_progress', 'script_approved', 'in_production', 'raw_uploaded', 'editing']], ['APROBADAS', ['approved', 'script_approved']], ['PUBLICADAS', ['published', 'closed']]].map(([label, statuses]) => <div key={label as string} className="bg-negro p-5"><p className="font-display text-4xl font-bold text-blanco">{phaseCount(statuses as string[])}</p><p className="mt-2 font-mono text-[10px] text-blanco-60">{label as string}</p></div>)}
+      {AUDIT_TILES.map(({ label, statuses }) => <div key={label} className="bg-negro p-5"><p className="font-display text-4xl font-bold text-blanco">{phaseCount(statuses)}</p><p className="mt-2 font-mono text-[10px] text-blanco-60">{label}</p></div>)}
     </section>
 
     <section className="mb-12">

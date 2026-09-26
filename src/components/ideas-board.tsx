@@ -2,10 +2,19 @@
 
 import { useMemo, useState } from 'react';
 import { FlowBoard } from './flow-board';
+import { QUEUES } from '@/lib/queues';
 
 type Idea = { id: string; title: string; description?: string; content_type: string; category?: string; status: string };
 const filters = [['all', 'TODAS'], ['organic', 'ORGÁNICO'], ['paid', 'PAUTA'], ['pending', 'ESPERAN RESPUESTA']] as const;
-function matches(idea: Idea, filter: string) { if (filter === 'all') return true; if (filter === 'organic' || filter === 'paid') return idea.content_type === filter; if (filter === 'pending') return ['pending_approval', 'pending_script_review', 'ready_to_publish'].includes(idea.status); return true; }
+// "Esperan respuesta" is every state whose transition is a client decision,
+// read from the approvals queue rather than a third hand-kept list.
+const AWAITING_CLIENT = new Set(QUEUES.aprobaciones.statuses as readonly string[]);
+function matches(idea: Idea, filter: string) {
+  if (filter === 'all') return true;
+  if (filter === 'organic' || filter === 'paid') return idea.content_type === filter;
+  if (filter === 'pending') return AWAITING_CLIENT.has(idea.status);
+  return true;
+}
 
 export function IdeasBoard({ ideas, projectSlug }: { ideas: Idea[]; projectSlug: string }) {
   const [filter, setFilter] = useState('all'); const [query, setQuery] = useState('');

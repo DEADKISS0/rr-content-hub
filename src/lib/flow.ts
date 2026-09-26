@@ -60,19 +60,6 @@ export const ROLE_LABEL: Record<RoleKey, string> = {
   publisher: 'PUBLISHER', media_buyer: 'PAUTA', client_approver: 'CLIENTE', client_viewer: 'CLIENTE (LECTURA)',
 };
 
-/** What each role is responsible for, and where its queue lives. */
-export const ROLE_HOME: Record<RoleKey, { queue: string; headline: string; explanation: string }> = {
-  owner: { queue: '/aprobaciones', headline: 'DESTRABA Y ACOMPAÑA', explanation: 'Preparas propuestas, consigues decisiones del cliente y confirmas el siguiente relevo.' },
-  creator: { queue: '/ideas', headline: 'PROPONES Y AJUSTAS', explanation: 'Conviertes referencias en propuestas claras y respondes los ajustes sin perder contexto.' },
-  camera: { queue: '/produccion', headline: 'RUEDAS LO APROBADO', explanation: 'Solo ves piezas con guion aprobado. Sigues el brief y subes el crudo.' },
-  model: { queue: '/produccion', headline: 'EJECUTAS EL TALENTO', explanation: 'Ves vestuario, actitud y referencias de las piezas listas para rodar.' },
-  editor: { queue: '/produccion', headline: 'MONTAJAS Y ENTREGAS', explanation: 'Recibes el crudo centralizado, conservas versiones y entregas un corte para revisión.' },
-  publisher: { queue: '/publicaciones', headline: 'PUBLICAS CON EVIDENCIA', explanation: 'Solo recibes piezas aprobadas. Registras canal, URL y evidencia de salida.' },
-  media_buyer: { queue: '/publicaciones', headline: 'MIDE Y OPTIMIZA', explanation: 'Registras hipótesis, resultados y qué formato conviene repetir.' },
-  client_approver: { queue: '/aprobaciones', headline: 'DECIDES', explanation: 'Ves la propuesta, la referencia y el guion. Apruebas o pides ajustes.' },
-  client_viewer: { queue: '/aprobaciones', headline: 'CONSULTAS', explanation: 'Ves el avance del proyecto sin editar nada.' },
-};
-
 type Transition = { to: WorkflowStatus; label: string; note: string; roles: 'team' | 'client' | 'all'; owners?: RoleKey[] };
 
 /** A status offers few, explicit moves. Roles decide which ones you actually see. */
@@ -124,11 +111,6 @@ const TRANSITIONS: Partial<Record<WorkflowStatus, Transition[]>> = {
     // only way to ever close a piece was the owner escape hatch.
     { to: 'closed', label: 'CERRAR FLUJO', note: 'Pieza cerrada conservando todo su historial.', roles: 'team', owners: ['owner', 'publisher', 'media_buyer'] },
   ],
-};
-
-const ROLE_SIDE: Record<RoleKey, 'team' | 'client'> = {
-  owner: 'team', creator: 'team', camera: 'team', model: 'team', editor: 'team',
-  publisher: 'team', media_buyer: 'team', client_approver: 'client', client_viewer: 'client',
 };
 
 /**
@@ -227,25 +209,6 @@ export function statusMeta(status: string): StatusMeta {
   return STATUS_META[status as WorkflowStatus] ?? { label: status, icon: '•', tone: 'neutro', who: 'RR ALIADOS', blurb: '' };
 }
 
-/** Groups the 13 states into the five hand-offs a person actually filters by. */
-export type ActGroup = 'cliente' | 'camara' | 'editor' | 'publisher' | 'equipo';
-
-export const ACT_GROUPS: { key: ActGroup; label: string }[] = [
-  { key: 'cliente', label: 'CLIENTE' },
-  { key: 'camara', label: 'CÁMARA' },
-  { key: 'editor', label: 'EDITOR' },
-  { key: 'publisher', label: 'PUBLISHER' },
-  { key: 'equipo', label: 'EQUIPO' },
-];
-
-export function actGroup(status: WorkflowStatus): ActGroup {
-  if (status === 'pending_approval' || status === 'pending_script_review') return 'cliente';
-  if (status === 'script_approved' || status === 'in_production') return 'camara';
-  if (status === 'raw_uploaded' || status === 'editing') return 'editor';
-  if (status === 'ready_to_publish' || status === 'published' || status === 'closed') return 'publisher';
-  return 'equipo';
-}
-
 /** Tailwind classes per tone, reused by badges, rails and filters. */
 export const TONE_CLASS: Record<ToneKey, { border: string; bg: string; text: string; dot: string }> = {
   mostaza: { border: 'border-mostaza', bg: 'bg-mostaza/10', text: 'text-mostaza', dot: 'bg-mostaza' },
@@ -267,30 +230,3 @@ export function productionStep(status: WorkflowStatus): number {
   return PRODUCTION_STEPS.findIndex((step) => (step.statuses as readonly string[]).includes(status));
 }
 
-/** One-word status, for dense board cards. */
-export const STATUS_SHORT: Record<WorkflowStatus, string> = {
-  draft: 'Borrador', pending_approval: 'Espera cliente', needs_changes: 'Ajustes',
-  approved: 'Aprobada', script_in_progress: 'Escribiendo guion', pending_script_review: 'Guion por aprobar',
-  script_approved: 'Guion listo', in_production: 'Grabando', raw_uploaded: 'Crudo subido',
-  editing: 'Editando', ready_to_publish: 'Revisión final', published: 'Publicado', closed: 'Cerrado',
-};
-
-export function statusShort(status: string): string {
-  return STATUS_SHORT[status as WorkflowStatus] ?? status;
-}
-
-/**
- * Four columns a person can scan in one look. This is the whole point: instead
- * of thirteen labels and five tabs, the board answers "where is everything?"
- * at a glance.
- */
-export const BOARD_COLUMNS = [
-  { key: 'ideas', label: 'IDEAS', plain: 'Propuesta y decisión del cliente', statuses: ['draft', 'pending_approval', 'needs_changes'] },
-  { key: 'scripts', label: 'GUIONES', plain: 'Escritura y aprobación', statuses: ['approved', 'script_in_progress', 'pending_script_review', 'script_approved'] },
-  { key: 'production', label: 'PRODUCCIÓN', plain: 'Rodaje, edición y revisión final', statuses: ['in_production', 'raw_uploaded', 'editing', 'ready_to_publish'] },
-  { key: 'published', label: 'PUBLICADO', plain: 'Salida y cierre', statuses: ['published', 'closed'] },
-] as const;
-
-export function boardColumn(status: string) {
-  return BOARD_COLUMNS.find((column) => (column.statuses as readonly string[]).includes(status)) ?? BOARD_COLUMNS[0];
-}

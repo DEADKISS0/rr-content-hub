@@ -8,7 +8,7 @@ import {
   STATUS_ORDER, PHASES, STATUS_OWNERS, TRANSITIONS_FOR_TEST,
   allowedTransitions, waitingOn,
 } from '../src/lib/flow.ts';
-import { QUEUES, inQueue } from '../src/lib/queues.ts';
+import { QUEUES, BOARD_COLUMNS, inQueue } from '../src/lib/queues.ts';
 
 let fails = 0;
 const check = (name: string, ok: boolean, detail = '') => {
@@ -63,12 +63,34 @@ check('desde draft solo se va a pending_approval', saltos.every(s => s.endsWith(
 const queueStates = new Set(Object.values(QUEUES).flatMap(q => q.statuses));
 const badQueue = [...queueStates].filter(s => !STATUS_ORDER.includes(s));
 check('las colas solo usan estados validos', badQueue.length === 0, badQueue.join(', ') || 'todos');
+// La invariante que faltaba: ningun estado se queda sin cola. Antes, `draft`,
+// `approved` y `script_in_progress` no aparecian en ninguna — una pieza en
+// elaboracion era invisible fuera del tablero.
+const sinCola = STATUS_ORDER.filter(s => !queueStates.has(s));
+check('TODO estado pertenece al menos a una cola', sinCola.length === 0, sinCola.join(', ') || 'todos');
+// Y cada estado debe estar exactamente en una, salvo la frontera final.
+const enDos = STATUS_ORDER.filter(s =>
+  Object.values(QUEUES).filter(q => q.statuses.includes(s)).length > 1);
+check('ningun estado esta en dos colas salvo la frontera', enDos.every(s => s === 'ready_to_publish'),
+  enDos.join(', ') || 'solo la frontera');
 check('inQueue reconoce un estado de su cola', inQueue('editing', 'produccion') && !inQueue('draft', 'produccion'));
 // `aprobaciones` y `produccion` comparten ready_to_publish a proposito: es la
 // ultima frontera, la ven cliente y produccion.
 const solape = QUEUES.aprobaciones.statuses.filter(s => QUEUES.produccion.statuses.includes(s));
 check('el solape entre colas es solo la frontera final',
   solape.every(s => s === 'ready_to_publish'), solape.join(', ') || 'sin solape');
+
+// 8b. El tablero de 4 columnas y las colas no pueden desincronizarse. El
+//     tablero tenia su propia lista escrita a mano, y por eso un estado nuevo
+//     aparecia en un sitio y no en el otro.
+const boardStates = BOARD_COLUMNS.flatMap(c => c.statuses as readonly string[]);
+check('el tablero tiene 4 columnas', BOARD_COLUMNS.length === 4, `${BOARD_COLUMNS.length}`);
+check('el tablero cubre los 13 estados sin repetir', new Set(boardStates).size === 13, `${new Set(boardStates).size} unicos`);
+const boardMissing = STATUS_ORDER.filter(s => !boardStates.includes(s));
+check('el tablero incluye todo estado del motor', boardMissing.length === 0, boardMissing.join(', ') || 'todos');
+const queuesCovered = new Set(Object.values(QUEUES).flatMap(q => q.statuses));
+check('cada estado del tablero aparece en alguna cola', boardStates.every(s => queuesCovered.has(s)),
+  boardStates.filter(s => !queuesCovered.has(s)).join(', ') || 'todas');
 
 // 9. waitingOn nunca devuelve una cadena vacia.
 const waits = STATUS_ORDER.map(s => waitingOn(s));
