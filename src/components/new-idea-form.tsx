@@ -72,24 +72,38 @@ export function NewIdeaForm({ projectSlug }: { projectSlug: string }) {
     setSaving(true);
     const resolvedProjectId = projectId || (await supabase.from('rr_hub_projects').select('id').eq('slug', projectSlug).maybeSingle()).data?.id;
     if (!resolvedProjectId) { setNotice('No pudimos encontrar el proyecto en la base. Intenta recargar la página.'); setSaving(false); return; }
-    const finalCode = code || (await nextIdeaCode(resolvedProjectId, contentType));
-    const { data, error } = await supabase.from('rr_hub_ideas').insert({
-      project_id: resolvedProjectId,
-      code: finalCode,
-      title: form.title.trim(),
-      description: form.description.trim() || 'Sin descripción aún.',
-      objective: form.objective.trim(),
-      content_type: contentType,
-      category: form.category.trim() || 'Sin categoría',
-      status: 'draft',
-      priority: 'normal',
-      camera_brief: form.camera.trim() || generated.camera,
-      talent_brief: form.talent.trim() || generated.talent,
-      edit_brief: form.edit.trim() || generated.edit,
-      script_content: generated.script,
-      reference_urls: form.reference.trim() ? [form.reference.trim()] : [],
-    }).select('id').single();
-    if (error || !data) { setNotice(`No se guardó la idea: ${error?.message ?? 'error desconocido'}.`); setSaving(false); return; }
+    // El código se calcula con max+1: si dos personas crean a la vez, la segunda
+    // choca con el índice único y recibe 23505. En ese caso se recalcula y se
+    // reintenta una vez, en vez de perder lo que la persona escribió.
+    let finalCode = code || (await nextIdeaCode(resolvedProjectId, contentType));
+    let inserted: { id: string } | null = null;
+    let insertError: { code?: string; message?: string } | null = null;
+    for (let attempt = 0; attempt < 2 && !inserted; attempt += 1) {
+      const { data, error } = await supabase.from('rr_hub_ideas').insert({
+        project_id: resolvedProjectId,
+        code: finalCode,
+        title: form.title.trim(),
+        description: form.description.trim() || 'Sin descripción aún.',
+        objective: form.objective.trim(),
+        content_type: contentType,
+        category: form.category.trim() || 'Sin categoría',
+        status: 'draft',
+        priority: 'normal',
+        camera_brief: form.camera.trim() || generated.camera,
+        talent_brief: form.talent.trim() || generated.talent,
+        edit_brief: form.edit.trim() || generated.edit,
+        script_content: generated.script,
+        reference_urls: form.reference.trim() ? [form.reference.trim()] : [],
+      }).select('id').single();
+      inserted = data;
+      insertError = error;
+      if (error?.code === '23505') {
+        setNotice('Otra pieza recibió ese código al mismo tiempo. Reintentando con el siguiente…');
+        finalCode = await nextIdeaCode(resolvedProjectId, contentType);
+      }
+    }
+    if (insertError || !inserted) { setNotice(`No se guardó la idea: ${insertError?.message ?? 'error desconocido'}.`); setSaving(false); return; }
+    const data = inserted;
     await supabase.from('rr_hub_events').insert({
       idea_id: data.id,
       to_status: 'draft',

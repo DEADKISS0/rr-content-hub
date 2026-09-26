@@ -74,16 +74,31 @@ export async function POST(request: NextRequest) {
 
   const { data: project, error: projectError } = await setup.supabase.from('rr_hub_projects').select('id').eq('slug', 'wundeer').single();
   if (projectError || !project) return error('Wundeer no existe en la base.', 404);
-  const { data: codes } = await setup.supabase.from('rr_hub_ideas').select('code').eq('project_id', project.id).eq('content_type', contentType);
-  const prefix = contentType === 'organic' ? 'O' : 'P';
-  const next = (codes ?? []).reduce((max, row) => Math.max(max, Number(String(row.code ?? '').replace(/^\D+/, '')) || 0), 0) + 1;
-  const code = `${prefix}${next}`;
-  const { data: idea, error: insertError } = await setup.supabase.from('rr_hub_ideas').insert({
+
+  /**
+   * El código se calcula con max+1, así que dos llamadas simultáneas leerían el
+   * mismo máximo. Desde que existe el índice único parcial
+   * (`rr_hub_ideas_code_unique`) la segunda falla con 23505 en vez de escribir
+   * un código duplicado: aquí se reintenta una vez recalculando el máximo.
+   */
+  const codeFor = async () => {
+    const { data: codes } = await setup.supabase.from('rr_hub_ideas').select('code').eq('project_id', project.id).eq('content_type', contentType);
+    const prefix = contentType === 'organic' ? 'O' : 'P';
+    const next = (codes ?? []).reduce((max, row) => Math.max(max, Number(String(row.code ?? '').replace(/^\D+/, '')) || 0), 0) + 1;
+    return `${prefix}${next}`;
+  };
+
+  const insertWith = (code: string) => setup.supabase.from('rr_hub_ideas').insert({
     project_id: project.id, code, title,
     description: body.description?.trim() || 'Sin descripción aún.', objective: body.objective?.trim() || '',
     content_type: contentType, category: body.category?.trim() || 'General', reference_urls: references,
     status: 'draft', priority: body.priority === 'high' ? 'high' : 'normal',
   }).select('id, code, title, status').single();
+
+  let { data: idea, error: insertError } = await insertWith(await codeFor());
+  if (insertError?.code === '23505') {
+    ({ data: idea, error: insertError } = await insertWith(await codeFor()));
+  }
   if (insertError || !idea) return error(insertError?.message || 'No se pudo crear la idea.', 400);
   await setup.supabase.from('rr_hub_events').insert({
     idea_id: idea.id, to_status: 'draft', comment: 'Idea creada mediante la API de automatización.', actor_label: 'Automatización API',
