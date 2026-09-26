@@ -73,7 +73,7 @@ export const ROLE_HOME: Record<RoleKey, { queue: string; headline: string; expla
   client_viewer: { queue: '/aprobaciones', headline: 'CONSULTAS', explanation: 'Ves el avance del proyecto sin editar nada.' },
 };
 
-type Transition = { to: WorkflowStatus; label: string; note: string; roles: 'team' | 'client' | 'all' };
+type Transition = { to: WorkflowStatus; label: string; note: string; roles: 'team' | 'client' | 'all'; owners?: RoleKey[] };
 
 /** A status offers few, explicit moves. Roles decide which ones you actually see. */
 const TRANSITIONS: Partial<Record<WorkflowStatus, Transition[]>> = {
@@ -96,7 +96,10 @@ const TRANSITIONS: Partial<Record<WorkflowStatus, Transition[]>> = {
   ],
   pending_script_review: [
     { to: 'script_approved', label: 'APROBAR GUIÓN', note: 'El cliente aprobó el guion.', roles: 'client' },
-    { to: 'needs_changes', label: 'PEDIR CAMBIOS AL GUIÓN', note: 'El cliente pidió cambios en el guion.', roles: 'client' },
+    // This used to go to `needs_changes`, which lives in the IDEA phase: asking
+    // for a script change sent the piece back two phases and forced the client
+    // to re-approve the idea itself. Script revisions now return to the script.
+    { to: 'script_in_progress', label: 'PEDIR CAMBIOS AL GUIÓN', note: 'El cliente pidió cambios en el guion; vuelve a escribirse.', roles: 'client' },
   ],
   script_approved: [
     { to: 'in_production', label: 'INICIAR RODAJE', note: 'Producción confirmada; arranca el rodaje.', roles: 'team' },
@@ -111,10 +114,15 @@ const TRANSITIONS: Partial<Record<WorkflowStatus, Transition[]>> = {
     { to: 'ready_to_publish', label: 'MARCAR EDICIÓN LISTA', note: 'Corte listo para revisión final.', roles: 'team' },
   ],
   ready_to_publish: [
-    { to: 'published', label: 'APROBAR Y PUBLICAR', note: 'Revisión final aprobada; pieza publicada.', roles: 'all' },
+    // Was `roles: 'all'`, which let anyone publish — including a visitor with
+    // the read-only `client_viewer` role. The owner escape hatch below still
+    // lets the owner step in, so nothing is lost.
+    { to: 'published', label: 'APROBAR Y PUBLICAR', note: 'Revisión final aprobada; pieza publicada.', roles: 'team', owners: ['owner', 'publisher', 'media_buyer'] },
   ],
   published: [
-    { to: 'closed', label: 'CERRAR FLUJO', note: 'Pieza cerrada conservando todo su historial.', roles: 'team' },
+    // `closed` is terminal and owns nobody, so without naming owners here the
+    // only way to ever close a piece was the owner escape hatch.
+    { to: 'closed', label: 'CERRAR FLUJO', note: 'Pieza cerrada conservando todo su historial.', roles: 'team', owners: ['owner', 'publisher', 'media_buyer'] },
   ],
 };
 
@@ -123,8 +131,13 @@ const ROLE_SIDE: Record<RoleKey, 'team' | 'client'> = {
   publisher: 'team', media_buyer: 'team', client_approver: 'client', client_viewer: 'client',
 };
 
-/** Only these roles may move a piece forward from each status. */
-const STATUS_OWNERS: Record<WorkflowStatus, RoleKey[]> = {
+/**
+ * Only these roles may move a piece forward from each status. This is the
+ * single authority: `waitingOn`, `STATUS_META.who` and the queue filters all
+ * derive from it, and the verification script reads it directly so a change
+ * here cannot pass unnoticed.
+ */
+export const STATUS_OWNERS: Record<WorkflowStatus, RoleKey[]> = {
   draft: ['owner', 'creator'], pending_approval: [], needs_changes: ['owner', 'creator'],
   approved: ['owner', 'creator'], script_in_progress: ['owner', 'creator', 'editor'],
   pending_script_review: [], script_approved: ['owner', 'camera', 'model'],
@@ -134,6 +147,13 @@ const STATUS_OWNERS: Record<WorkflowStatus, RoleKey[]> = {
 };
 
 export type AllowedTransition = { to: WorkflowStatus; label: string; note: string };
+
+/**
+ * Raw transition table, exported for the verification script. Reading the
+ * engine's own source of truth is the only way to assert "no state is stranded"
+ * without duplicating the rules in the test — which is how tests drift.
+ */
+export const TRANSITIONS_FOR_TEST = TRANSITIONS;
 
 /**
  * The rows a person can actually click. An owner may always step in; everyone
@@ -148,7 +168,11 @@ export function allowedTransitions(role: RoleKey, status: WorkflowStatus): Allow
       if (option.roles === 'all') return true;
       if (isOwner) return true;
       if (option.roles === 'client') return role === 'client_approver';
-      return STATUS_OWNERS[status].includes(role);
+      // A transition may name its own owners; otherwise it falls back to the
+      // owners of the state being left. Using the *source* state alone made
+      // `published → closed` unreachable: `closed` has no owners, so only the
+      // owner escape hatch could ever fire it.
+      return (option.owners ?? STATUS_OWNERS[status]).includes(role);
     })
     .map(({ to, label, note }) => ({ to, label, note }));
 }

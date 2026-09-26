@@ -6,17 +6,19 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "verify": "npm run verify:flow && npm run verify:migration && npm run verify:roadmap",
+    "verify:flow": "node --experimental-strip-types --import ./scripts/alias-loader.mts scripts/verify-flow.mts",
+    "verify:migration": "node scripts/verify-migration.mjs",
+    "verify:roadmap": "node --experimental-strip-types --import ./scripts/alias-loader.mts scripts/verify-roadmap.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.116.0",
-    "@tanstack/react-query": "^5.102.8",
-    "lucide-react": "^1.44.0",
     "next": "16.3.4",
     "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "zustand": "^5.0.15"
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
