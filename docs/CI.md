@@ -12,16 +12,21 @@ Esto es el portero que faltaba.
 
 ```bash
 npm test                 # 35 tests, 3 archivos — lógica pura, sin base de datos
+npm run verify           # 7 suites estáticas del dominio (124 comprobaciones, sin red)
 npx tsc --noEmit         # tipos
 npm run lint             # eslint
 npm run build            # el build real de Next
 npm run test:e2e         # 6 recorridos de lectura en un navegador real (necesita dev vivo)
-npm run verify           # test + tipos + lint en un solo comando
+npm run verify:all       # todo lo anterior menos el e2e, en un solo comando
 ```
 
-`.github/workflows/ci.yml` hace los cuatro primeros pasos en cada push a `main` y en cada
-PR. El build corre con variables de Supabase **de mentira**: CI nunca toca datos reales, y
-las páginas que consultan caen a su estado vacío.
+`.github/workflows/ci.yml` corre `npm ci` → tipos → tests → las 7 suites estáticas → lint →
+build en cada push a `main` y en cada PR. El build corre con variables de Supabase **de
+mentira**: CI nunca toca datos reales, y las páginas que consultan caen a su estado vacío.
+
+Las 7 suites estáticas **sí van en CI** porque no leen `.env.local` (comprobado: moviendo el
+archivo aparte dan 124 PASS igual). La única que necesita la URL y la llave de producción es
+`verify:leak`, que va aparte a propósito.
 
 ## Qué está cubierto (y por qué eso y no otra cosa)
 
@@ -30,7 +35,7 @@ las páginas que consultan caen a su estado vacío.
 | `src/lib/flow.test.ts` | Cada estado vive en **una sola** columna y **una sola** fase (una pieza nunca puede caer en la cola de otra fase); el cliente no puede mover un borrador; todo movimiento ofrecido está explicado; `daysSince` no inventa fechas. |
 | `src/lib/reference.test.ts` | Qué referencias dan miniatura real (Drive, YouTube, imagen directa) y cuáles **no** (Instagram, TikTok): los enlaces que rompían los previews. |
 | `src/lib/roadmap.test.ts` | Cuentas de días, avance 0–100 sin salirse del rango, y el estado cerrado / en curso / pendiente de cada tramo del plan. |
-| `e2e/hub.spec.ts` | Las invariantes **visibles**: una sola acción para crear en el tablero, la cola ordenada por antigüedad, la acción de la ficha dentro del primer pantallazo, las tres pistas del roadmap con avance distinto, los avisos honestos de las pantallas sin base y el panel de administración sin fuga de correos. |
+| `e2e/hub.spec.ts` | Las invariantes **visibles**: una sola acción para crear en el tablero, la cola ordenada por antigüedad, que a un visitante **sin sesión no se le ofrezca** mover la pieza (el rol lo decide el servidor), las tres pistas del roadmap con avance distinto, los avisos honestos de las pantallas sin base y que el panel de administración **no exista** (404) para quien no tiene sesión. |
 
 `reference.ts` se extrajo del componente justamente para poder testearlo: la regla vive en
 `lib/`, el componente solo pinta.

@@ -34,6 +34,12 @@ jobs:
       - name: Tests
         run: npm test
 
+      - name: Portero de dominio (7 suites estáticas)
+        # Sin red: comprueban las invariantes del producto (una sola acción por
+        # superficie, estados que salen de @/lib/queues, escrituras al servidor,
+        # la migración, el roadmap). Corren en 4 segundos y no tocan la base.
+        run: npm run verify
+
       - name: Lint
         run: npm run lint
 
