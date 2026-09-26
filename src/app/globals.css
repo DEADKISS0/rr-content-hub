@@ -91,11 +91,8 @@
   .breadcrumb a:hover { color: var(--mostaza); }
   .idea-row { display: flex; align-items: center; gap: 1.35rem; border-block: 1px solid rgba(255,255,243,.16); padding: 1.35rem .5rem; }
   .idea-row:hover { border-color: var(--fucsia); background: rgba(190,7,109,.08); }
-  .status { border: 1px solid currentColor; padding: .23rem .4rem; font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .05em; }
-  .status-pending_approval, .status-needs_changes { color: var(--orquidea); }
-  .status-approved, .status-ready_to_publish { color: var(--mostaza); }
-  .status-published { color: var(--blanco); background: var(--fucsia); }
-  .status-rejected { color: var(--fucsia); }
+  /* Aquí vivían .status y .status-* (9 px, bajo el mínimo de marca) que ninguna
+     pantalla usaba: CSS muerto retirado. Los estados se pintan con StatusBadge. */
 
   /* ── Transiciones v2 ──────────────────────────────────────────────────
      Nada aparece de golpe: cada cambio de estado, comentario o ficha se
@@ -286,7 +283,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .step-card, .rail-fill, .anim-slide-down, .view-in, .cascade, .anim-pop, .anim-count { animation: none !important; }
+  .step-card, .rail-fill, .anim-slide-down, .view-in, .cascade, .anim-pop, .anim-count, .anim-pulse { animation: none !important; }
   .sheen::after { display: none; }
   .shimmer::after { display: none; }
   .cover-frame:hover .post-scan { animation: none; }
