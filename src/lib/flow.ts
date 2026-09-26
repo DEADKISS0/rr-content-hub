@@ -16,6 +16,17 @@ export type RoleKey =
   | 'owner' | 'creator' | 'camera' | 'model' | 'editor'
   | 'publisher' | 'media_buyer' | 'client_approver' | 'client_viewer';
 
+/** Runtime guard for a role that arrived from the database or the browser. */
+export const ROLE_KEYS: readonly RoleKey[] = [
+  'owner', 'creator', 'camera', 'model', 'editor',
+  'publisher', 'media_buyer', 'client_approver', 'client_viewer',
+] as const;
+
+/** Narrows an untrusted string to a real role; anything else becomes a viewer. */
+export function toRoleKey(value?: string | null): RoleKey {
+  return ROLE_KEYS.includes(value as RoleKey) ? (value as RoleKey) : 'client_viewer';
+}
+
 export const STATUS_ORDER: WorkflowStatus[] = [
   'draft', 'pending_approval', 'needs_changes', 'approved',
   'script_in_progress', 'pending_script_review', 'script_approved',
@@ -49,20 +60,7 @@ export const ROLE_LABEL: Record<RoleKey, string> = {
   publisher: 'PUBLISHER', media_buyer: 'PAUTA', client_approver: 'CLIENTE', client_viewer: 'CLIENTE (LECTURA)',
 };
 
-/** What each role is responsible for, and where its queue lives. */
-export const ROLE_HOME: Record<RoleKey, { queue: string; headline: string; explanation: string }> = {
-  owner: { queue: '/aprobaciones', headline: 'DESTRABA Y ACOMPAÑA', explanation: 'Preparas propuestas, consigues decisiones del cliente y confirmas el siguiente relevo.' },
-  creator: { queue: '/ideas', headline: 'PROPONES Y AJUSTAS', explanation: 'Conviertes referencias en propuestas claras y respondes los ajustes sin perder contexto.' },
-  camera: { queue: '/produccion', headline: 'RUEDAS LO APROBADO', explanation: 'Solo ves piezas con guion aprobado. Sigues el brief y subes el crudo.' },
-  model: { queue: '/produccion', headline: 'EJECUTAS EL TALENTO', explanation: 'Ves vestuario, actitud y referencias de las piezas listas para rodar.' },
-  editor: { queue: '/produccion', headline: 'MONTAJAS Y ENTREGAS', explanation: 'Recibes el crudo centralizado, conservas versiones y entregas un corte para revisión.' },
-  publisher: { queue: '/publicaciones', headline: 'PUBLICAS CON EVIDENCIA', explanation: 'Solo recibes piezas aprobadas. Registras canal, URL y evidencia de salida.' },
-  media_buyer: { queue: '/publicaciones', headline: 'MIDE Y OPTIMIZA', explanation: 'Registras hipótesis, resultados y qué formato conviene repetir.' },
-  client_approver: { queue: '/aprobaciones', headline: 'DECIDES', explanation: 'Ves la propuesta, la referencia y el guion. Apruebas o pides ajustes.' },
-  client_viewer: { queue: '/aprobaciones', headline: 'CONSULTAS', explanation: 'Ves el avance del proyecto sin editar nada.' },
-};
-
-type Transition = { to: WorkflowStatus; label: string; note: string; roles: 'team' | 'client' | 'all' };
+type Transition = { to: WorkflowStatus; label: string; note: string; roles: 'team' | 'client' | 'all'; owners?: RoleKey[] };
 
 /** A status offers few, explicit moves. Roles decide which ones you actually see. */
 const TRANSITIONS: Partial<Record<WorkflowStatus, Transition[]>> = {
@@ -85,7 +83,10 @@ const TRANSITIONS: Partial<Record<WorkflowStatus, Transition[]>> = {
   ],
   pending_script_review: [
     { to: 'script_approved', label: 'APROBAR GUIÓN', note: 'El cliente aprobó el guion.', roles: 'client' },
-    { to: 'needs_changes', label: 'PEDIR CAMBIOS AL GUIÓN', note: 'El cliente pidió cambios en el guion.', roles: 'client' },
+    // This used to go to `needs_changes`, which lives in the IDEA phase: asking
+    // for a script change sent the piece back two phases and forced the client
+    // to re-approve the idea itself. Script revisions now return to the script.
+    { to: 'script_in_progress', label: 'PEDIR CAMBIOS AL GUIÓN', note: 'El cliente pidió cambios en el guion; vuelve a escribirse.', roles: 'client' },
   ],
   script_approved: [
     { to: 'in_production', label: 'INICIAR RODAJE', note: 'Producción confirmada; arranca el rodaje.', roles: 'team' },
@@ -100,20 +101,25 @@ const TRANSITIONS: Partial<Record<WorkflowStatus, Transition[]>> = {
     { to: 'ready_to_publish', label: 'MARCAR EDICIÓN LISTA', note: 'Corte listo para revisión final.', roles: 'team' },
   ],
   ready_to_publish: [
-    { to: 'published', label: 'APROBAR Y PUBLICAR', note: 'Revisión final aprobada; pieza publicada.', roles: 'all' },
+    // Was `roles: 'all'`, which let anyone publish — including a visitor with
+    // the read-only `client_viewer` role. The owner escape hatch below still
+    // lets the owner step in, so nothing is lost.
+    { to: 'published', label: 'APROBAR Y PUBLICAR', note: 'Revisión final aprobada; pieza publicada.', roles: 'team', owners: ['owner', 'publisher', 'media_buyer'] },
   ],
   published: [
-    { to: 'closed', label: 'CERRAR FLUJO', note: 'Pieza cerrada conservando todo su historial.', roles: 'team' },
+    // `closed` is terminal and owns nobody, so without naming owners here the
+    // only way to ever close a piece was the owner escape hatch.
+    { to: 'closed', label: 'CERRAR FLUJO', note: 'Pieza cerrada conservando todo su historial.', roles: 'team', owners: ['owner', 'publisher', 'media_buyer'] },
   ],
 };
 
-const ROLE_SIDE: Record<RoleKey, 'team' | 'client'> = {
-  owner: 'team', creator: 'team', camera: 'team', model: 'team', editor: 'team',
-  publisher: 'team', media_buyer: 'team', client_approver: 'client', client_viewer: 'client',
-};
-
-/** Only these roles may move a piece forward from each status. */
-const STATUS_OWNERS: Record<WorkflowStatus, RoleKey[]> = {
+/**
+ * Only these roles may move a piece forward from each status. This is the
+ * single authority: `waitingOn`, `STATUS_META.who` and the queue filters all
+ * derive from it, and the verification script reads it directly so a change
+ * here cannot pass unnoticed.
+ */
+export const STATUS_OWNERS: Record<WorkflowStatus, RoleKey[]> = {
   draft: ['owner', 'creator'], pending_approval: [], needs_changes: ['owner', 'creator'],
   approved: ['owner', 'creator'], script_in_progress: ['owner', 'creator', 'editor'],
   pending_script_review: [], script_approved: ['owner', 'camera', 'model'],
@@ -123,6 +129,13 @@ const STATUS_OWNERS: Record<WorkflowStatus, RoleKey[]> = {
 };
 
 export type AllowedTransition = { to: WorkflowStatus; label: string; note: string };
+
+/**
+ * Raw transition table, exported for the verification script. Reading the
+ * engine's own source of truth is the only way to assert "no state is stranded"
+ * without duplicating the rules in the test — which is how tests drift.
+ */
+export const TRANSITIONS_FOR_TEST = TRANSITIONS;
 
 /**
  * The rows a person can actually click. An owner may always step in; everyone
@@ -137,22 +150,46 @@ export function allowedTransitions(role: RoleKey, status: WorkflowStatus): Allow
       if (option.roles === 'all') return true;
       if (isOwner) return true;
       if (option.roles === 'client') return role === 'client_approver';
-      return STATUS_OWNERS[status].includes(role);
+      // A transition may name its own owners; otherwise it falls back to the
+      // owners of the state being left. Using the *source* state alone made
+      // `published → closed` unreachable: `closed` has no owners, so only the
+      // owner escape hatch could ever fire it.
+      return (option.owners ?? STATUS_OWNERS[status]).includes(role);
     })
     .map(({ to, label, note }) => ({ to, label, note }));
 }
 
-/** Who the piece is waiting for right now — used for the "waiting on" banner. */
+/**
+ * Who the piece is waiting for right now.
+ *
+ * This used to special-case the two client-waiting states with a hardcoded
+ * string, while `STATUS_OWNERS` kept an empty array for them — two sources of
+ * truth for the same question. The client states now name their owners, and
+ * the label comes from ROLE_HOME-style copy in ROLE_LABEL.
+ */
+const CLIENT_GATED: readonly WorkflowStatus[] = ['pending_approval', 'pending_script_review'];
+
 export function waitingOn(status: WorkflowStatus): string {
+  if (status === 'closed') return 'nadie: flujo cerrado';
+  if (CLIENT_GATED.includes(status)) return 'el cliente';
   const owners = STATUS_OWNERS[status];
-  if (status === 'pending_approval' || status === 'pending_script_review') return 'el cliente';
-  if (!owners.length) return 'nadie: flujo cerrado';
+  if (!owners.length) return 'nadie por ahora';
   return owners.map((role) => ROLE_LABEL[role]).join(' o ');
 }
 
-export function nextStatus(status: WorkflowStatus): WorkflowStatus {
+/**
+ * The single move the engine would offer a team member from this state.
+ *
+ * Used to return `options[0].to`, which is just the first row of the table —
+ * for `pending_approval` that is `approved`, the most optimistic branch, which
+ * is not a prediction of anything. Now it returns the team's move, ignoring
+ * client-only branches, and `null` when only the client can act.
+ */
+export function nextStatus(status: WorkflowStatus): WorkflowStatus | null {
   const options = TRANSITIONS[status] ?? [];
-  return options[0]?.to ?? status;
+  const teamMove = options.find((o) => o.roles === 'team' || o.roles === 'all');
+  if (teamMove) return teamMove.to;
+  return options.length ? options[0].to : null;
 }
 
 /* ───────────────────────────────────────────────────────────────────────────
@@ -192,7 +229,9 @@ export function statusMeta(status: string): StatusMeta {
   return STATUS_META[status as WorkflowStatus] ?? { label: status, icon: '•', tone: 'neutro', who: 'RR ALIADOS', blurb: '' };
 }
 
-/** Groups the 13 states into the five hand-offs a person actually filters by. */
+/** Groups the 13 states into the five hand-offs a person actually filters by.
+ *  La línea desplegada las había borrado por «código muerto»: lo eran allí, pero
+ *  el tablero y su filtro de responsable las usan. Al fusionar, vuelven. */
 export type ActGroup = 'cliente' | 'camara' | 'editor' | 'publisher' | 'equipo';
 
 export const ACT_GROUPS: { key: ActGroup; label: string }[] = [

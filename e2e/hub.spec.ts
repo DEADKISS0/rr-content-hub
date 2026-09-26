@@ -65,24 +65,31 @@ test.describe('colas', () => {
 
   test('las pantallas sin base lo dicen en voz alta', async ({ page }) => {
     await page.goto(`/${PROYECTO}/metricas`);
-    await expect(page.getByText('MEDICIÓN TODAVÍA SIN BASE')).toBeVisible();
+    // MÉTRICAS cuenta piezas y aclara que el rendimiento no se mide todavía.
+    await expect(page.getByText(/no se mide todavía/)).toBeVisible();
 
     await page.goto(`/${PROYECTO}/publicaciones`);
-    await expect(page.getByText('MISMA PANTALLA QUE MÉTRICAS')).toBeVisible();
+    // La cola de salida existe; la fecha y el enlace de publicación, no.
+    await expect(page.getByText('FALTA LA BASE PARA PROGRAMAR')).toBeVisible();
   });
 });
 
 test.describe('ficha de pieza', () => {
-  test('la acción primaria está en el primer pantallazo', async ({ page }) => {
+  test('la acción está arriba y a un visitante no se le ofrece mover la pieza', async ({ page }) => {
     await page.goto(`/${PROYECTO}/aprobaciones`);
     const destino = await page.locator('a.idea-card').first().getAttribute('href');
     expect(destino, 'la cola debería traer al menos una pieza').toBeTruthy();
 
     await page.goto(destino as string);
 
-    // Antes la acción vivía al final de la página, a dos pantallas de scroll.
-    const accion = page.locator('main button.btn-brutal').first();
-    await expect(accion).toBeInViewport();
+    // El panel de acción va en el primer pantallazo (antes vivía al final).
+    await expect(page.getByText(/TU SIGUIENTE ACCIÓN/)).toBeInViewport();
+
+    // Y el rol lo decide el servidor: sin sesión no hay transición que ofrecer.
+    // Esto protege de que alguien vuelva a cablear `activeRole = 'owner'` en el
+    // navegador, que es lo que hacía mi línea antes del merge.
+    await expect(page.getByRole('button', { name: /APROBAR IDEA|SOLICITAR AJUSTES|ARCHIVAR PROPUESTA/ })).toHaveCount(0);
+    await expect(page.getByText('SIN ACCIÓN DISPONIBLE')).toBeVisible();
   });
 });
 
@@ -109,13 +116,14 @@ test.describe('roadmap', () => {
 });
 
 test.describe('portero de acceso', () => {
-  test('el panel de administración no filtra datos del equipo sin sesión', async ({ page }) => {
-    await page.goto('/audit/admin');
+  test('el panel de administración no existe para quien no tiene sesión', async ({ page }) => {
+    const respuesta = await page.goto('/audit/admin');
 
-    // Sirve la página de guarda, no el panel.
-    await expect(page.getByText(/RESTRINGIDO/)).toBeVisible();
+    // La línea desplegada responde 404 sin sesión: ni confirma que la ruta existe.
+    // Es más fuerte que la página de guarda que tenía mi línea, así que el test
+    // fija el comportamiento nuevo, no el mío.
+    expect(respuesta?.status()).toBe(404);
 
-    // Y en el texto servido no hay ni un solo correo (ni rol, ni id de DashWeb).
     const texto = await page.locator('body').innerText();
     expect(texto).not.toMatch(/[\w.]+@[\w.]+\.\w+/);
     expect(texto).not.toContain('US10');

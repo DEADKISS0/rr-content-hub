@@ -1,24 +1,25 @@
-// `server-only` rompe el build si este módulo termina dentro de un bundle de
-// cliente. Una guarda que se filtra al navegador es peor que no tener guarda.
+// `server-only` throws if this module is ever pulled into a client bundle —
+// a guard that leaks is worse than no guard. Next provides it; the explicit
+// dependency just pins the version alongside the rest.
 import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 
 /**
- * Guarda de las rutas administrativas.
+ * Gate for administrative routes.
  *
- * Por qué existe: `/audit/admin` renderizaba la lista completa de correos, su
- * rol global y las invitaciones pendientes a quien pidiera la URL. Ocultar el
- * enlace no es un control: la ruta se alcanza escribiéndola.
+ * Why this exists: `/audit/admin` rendered the whole roster — every email,
+ * their global role and every pending invitation — to anyone who asked for the
+ * URL. Hiding the link is not a control; the route was reachable.
  *
- * La regla es conservadora a propósito: administrador es quien tiene
- * `rr_hub_profiles.global_role = 'admin'` y nadie más. Un rol de proyecto (owner
- * incluido) no otorga administración.
+ * The rule is deliberately conservative: an administrator is somebody whose
+ * `rr_hub_profiles.global_role` is `admin`, and nobody else. Project roles do
+ * not grant admin. A viewer is never enough.
  *
- * La salida de emergencia importa tanto como la comprobación:
- * `SUPER_ADMIN_EMAILS` permite seguir entrando cuando la tabla está vacía — que
- * es el estado real de producción hoy (las tres tablas de acceso están vacías,
- * así que una guarda puramente de base dejaría a todo el mundo fuera y la única
- * forma de volver sería por SQL). Se configura en Vercel, nunca en el repo.
+ * The escape hatch matters as much as the check. `SUPER_ADMIN_EMAILS` lets a
+ * human keep working when the table is empty — which is exactly the state
+ * production is in right now (all three access tables are empty, so a strict
+ * database-only check would lock everyone out with no way back in but SQL).
+ * Configure it in Vercel, never in the repo.
  */
 const SUPER_ADMIN_EMAILS = (process.env.SUPER_ADMIN_EMAILS ?? '')
   .split(',')
@@ -30,9 +31,9 @@ export type AdminVerdict =
   | { allowed: false; reason: 'no-session' | 'auth-disabled' | 'not-admin' };
 
 /**
- * Nunca lanza y nunca cuenta el motivo al visitante: una página que responde
- * "estás dentro pero no eres admin" le da a un desconocido una pista para
- * probar credenciales.
+ * Never throws and never leaks why. A page that tells an anonymous visitor
+ * "you are logged in but not an admin" is giving them a probe to test
+ * credentials with.
  */
 export async function requireAdmin(): Promise<AdminVerdict> {
   const email = await currentEmail();
@@ -53,15 +54,9 @@ export async function requireAdmin(): Promise<AdminVerdict> {
   return { allowed: true, via: 'database', email };
 }
 
-/** ¿Hay correo de sesión? Sin sesión no hay nada que comprobar. */
 async function currentEmail(): Promise<string | null> {
   const supabase = await createClient();
   if (!supabase) return null;
   const { data } = await supabase.auth.getUser();
   return data.user?.email?.toLowerCase() ?? null;
-}
-
-/** ¿Está configurada la salida de emergencia? Lo usa el panel para avisar. */
-export function superAdminsConfigured(): boolean {
-  return SUPER_ADMIN_EMAILS.length > 0;
 }

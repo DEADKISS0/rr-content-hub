@@ -74,7 +74,7 @@ export function IdeaCollaboration({ projectSlug, ideaId }: { projectSlug: string
   }
 
   async function toggleResolved(comment: IdeaComment) {
-    const { error } = await resolveComment({ commentId: comment.id, resolved: !comment.resolved });
+    const { error } = await resolveComment({ commentId: comment.id, ideaId, resolved: !comment.resolved });
     if (error) { setNotice(`No se pudo actualizar el comentario: ${error}`); return; }
     refresh();
   }

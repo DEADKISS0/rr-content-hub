@@ -40,5 +40,5 @@ export const demoIdeas: Idea[] = [
 ];
 
 export function getDemoProject(slug: string) { return demoProjects.find((p) => p.slug === slug); }
-export function getDemoIdeas() { return demoIdeas; }
+
 export function getDemoIdea(id: string) { return demoIdeas.find((idea) => idea.id === id); }

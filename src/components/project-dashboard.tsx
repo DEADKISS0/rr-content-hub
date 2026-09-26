@@ -3,10 +3,14 @@ import { ProjectMap, type BoardIdea } from '@/components/project-map';
 import { Chip, Initials } from '@/components/ui/chips';
 import { Icon } from '@/components/ui/icons';
 import { ROLE_LABEL, statusMeta, type RoleKey } from '@/lib/flow';
+import { QUEUES } from '@/lib/queues';
 
 type Project = { name: string; client_name: string; description?: string | null };
 
-const WAITING_STATUSES = ['pending_approval', 'needs_changes', 'pending_script_review', 'ready_to_publish'];
+// «Trabado» es exactamente lo que espera una decisión: la cola de aprobaciones.
+// Sale de QUEUES (que a su vez deriva del motor de flujo) porque la regla del
+// repo es que ninguna pantalla vuelva a escribir una lista de estados a mano.
+const WAITING_STATUSES: readonly string[] = QUEUES.aprobaciones.statuses;
 
 /**
  * Pantalla principal de un proyecto.

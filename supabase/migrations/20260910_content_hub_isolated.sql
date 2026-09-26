@@ -224,4 +224,6 @@ from auth.users u
 where u.email is not null
 on conflict (id) do nothing;
 
-update public.rr_hub_profiles set global_role = 'admin' where email = 'santiago1209andres@gmail.com';
+-- El admin global se promueve por correo, no por id. Sustituye el valor por
+-- el correo real antes de aplicar; el placeholder evita commitear PII.
+update public.rr_hub_profiles set global_role = 'admin' where email = 'TU-ADMIN@ejemplo.com';

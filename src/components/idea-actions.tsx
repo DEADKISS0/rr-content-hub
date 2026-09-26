@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { loadTimeline, transitionIdeaStatus, type TimelineEvent } from '@/lib/workspace-client';
-import { STATUS_META, allowedTransitions, statusMeta, waitingOn, type WorkflowStatus } from '@/lib/flow';
+import { STATUS_META, TONE_CLASS, allowedTransitions, statusMeta, waitingOn, ROLE_KEYS, type RoleKey, type WorkflowStatus } from '@/lib/flow';
+import { PUBLIC_MODE } from '@/lib/mode';
 import { createClient } from '@/lib/supabase/client';
 
 /**
@@ -11,12 +12,13 @@ import { createClient } from '@/lib/supabase/client';
  * (ENVIAR A CLIENTE, no "siguiente") and, on click, the note previews what
  * happens next so nobody presses blind.
  */
-export function IdeaActions({ ideaId, currentStatus = 'pending_approval' }: { projectSlug: string; ideaId: string; currentStatus?: string; role?: string }) {
+export function IdeaActions({ ideaId, currentStatus = 'pending_approval', role = 'client_viewer' }: { projectSlug: string; ideaId: string; currentStatus?: string; role?: string }) {
   const [status, setStatus] = useState<WorkflowStatus>(currentStatus as WorkflowStatus);
   const [history, setHistory] = useState<TimelineEvent[]>([]);
   const [note, setNote] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const [justChanged, setJustChanged] = useState(false);
 
   const refresh = useCallback(() => { loadTimeline(ideaId).then(setHistory); }, [ideaId]);
   useEffect(() => { const timer = window.setTimeout(refresh, 0); return () => window.clearTimeout(timer); }, [refresh]);
@@ -34,8 +36,16 @@ export function IdeaActions({ ideaId, currentStatus = 'pending_approval' }: { pr
     return () => { supabase.removeChannel(channel); };
   }, [ideaId, refresh]);
 
-  const activeRole = 'owner' as const;
-  const moves = useMemo(() => allowedTransitions(activeRole, status), [status]);
+  // The role comes from the server (rr_hub_access), never from the browser.
+  // `client_viewer` is the safe default: a visitor who is not signed in can
+  // read the piece but no transition is offered to them.
+  const activeRole = (ROLE_KEYS.includes(role as RoleKey) ? role : 'client_viewer') as RoleKey;
+  const moves = useMemo(() => allowedTransitions(activeRole, status), [activeRole, status]);
+  const readOnly = PUBLIC_MODE || activeRole === 'client_viewer';
+  const waiting = waitingOn(status);
+  const meta = statusMeta(status);
+  const tone = TONE_CLASS[meta.tone];
+  const done = status === 'closed';
 
   async function run(target: WorkflowStatus, label: string, note: string) {
     if (busy) return; // double-click guard: one in-flight transition at a time
@@ -45,14 +55,28 @@ export function IdeaActions({ ideaId, currentStatus = 'pending_approval' }: { pr
     if (error) { setNotice(`⚠ No se pudo registrar: ${error}`); return; }
     setStatus(target);
     setNote('');
+    setJustChanged(true);
+    window.setTimeout(() => setJustChanged(false), 2000);
     setNotice(`✓ ${label}. Ahora le toca a ${waitingOn(target)}.`);
     refresh();
   }
 
+  const nextStep = moves[0] ? statusMeta(moves[0].to) : null;
+
   return <div className="space-y-4" aria-live="polite">
+    <div className={`border-l-4 ${tone.border} ${tone.bg} p-5 ${justChanged ? 'anim-highlight' : ''}`}>
+      <p className="mono-label text-mostaza">[DÓNDE ESTÁ ESTA PIEZA]</p>
+      <div className="mt-3 flex items-center gap-3">
+        <span className={`text-2xl ${tone.text}`} aria-hidden>{meta.icon}</span>
+        <h3 className={`font-display text-2xl font-bold ${tone.text}`}>{meta.label}</h3>
+      </div>
+      <p className="mt-3 text-sm leading-6 text-blanco-60">{meta.blurb}</p>
+      {!done && <p className="mt-3 border-t border-blanco-20 pt-3 text-sm leading-6 text-blanco-60">Ahora le toca a <strong className="text-mostaza">{waiting}</strong>.</p>}
+    </div>
+
     {notice && <div role="status" className="border-2 border-mostaza bg-mostaza/10 p-3 font-mono text-xs leading-5 text-blanco anim-pop">{notice}</div>}
 
-    {moves.length > 0 ? <>
+    {moves.length > 0 && !readOnly ? <>
         <label className="block"><span className="mono-label mb-2 block text-mostaza">// NOTA PARA EL SIGUIENTE RELEVO (OPCIONAL)</span><textarea value={note} onChange={(event) => setNote(event.target.value)} className="input-brutal min-h-20" placeholder="Contexto, confirmaciones o cambios relevantes…" /></label>
         <div className="grid gap-3">
           {moves.map((move, index) => {
@@ -63,6 +87,10 @@ export function IdeaActions({ ideaId, currentStatus = 'pending_approval' }: { pr
             </button>;
           })}
         </div>
+        {nextStep && <div className="border-2 border-blanco-20 p-4">
+          <p className="mono-label text-mostaza">[DESPUÉS DE ESTO]</p>
+          <p className="mt-2 text-xs leading-5 text-blanco-60">La pieza queda en <strong className="text-blanco">{nextStep.label}</strong> y el siguiente relevo es <strong className="text-blanco">{nextStep.who}</strong>. {nextStep.blurb}</p>
+        </div>}
       </> : <div className="border-2 border-dashed border-blanco-20 p-4">
         <p className="mono-label text-mostaza">[SIN ACCIÓN DISPONIBLE]</p>
         <p className="mt-2 text-xs leading-5 text-blanco-60">Esta pieza no tiene un movimiento pendiente en este estado. Puedes seguir el hilo y comentar; cuando el estado cambie, aparecerá aquí la acción.</p>

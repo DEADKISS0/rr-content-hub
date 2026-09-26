@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { DEMO_MODE, SupabaseNotConfiguredError } from './demo-mode';
 import { demoIdeas, demoProjects, getDemoIdea, getDemoProject } from './demo-data';
 import { isVisibleProject } from './projects';
 
@@ -7,13 +8,40 @@ import { isVisibleProject } from './projects';
  *
  * The hub lives in the same Supabase project as other RR tools, so every table
  * it owns is prefixed `rr_hub_`. These helpers never read the legacy CRM tables.
- * When Supabase env vars are absent the app falls back to demo data so the UI
- * stays reviewable without credentials.
+ *
+ * Missing Supabase config used to degrade to demo fixtures. It no longer does:
+ * a missing database is a configuration error, and answering it with invented
+ * content plus an `admin` role hid real outages. Set `NEXT_PUBLIC_HUB_DEMO=true`
+ * to work on the UI without credentials.
  */
+
+/**
+ * Called where a missing database used to silently return demo content. In demo
+ * mode it yields `null` so the caller's `if (!supabase)` branch still runs; in
+ * anything else it throws, because a wrong answer hidden behind a 200 is worse
+ * than a visible failure.
+ *
+ * Returns `true` (not `null`) so `if (requireSupabase()) return fixtures` reads
+ * correctly and TypeScript narrows `supabase` to non-null past the guard.
+ */
+function requireSupabase(): true {
+  if (DEMO_MODE) return true;
+  throw new SupabaseNotConfiguredError();
+}
 
 type RawIdea = Record<string, unknown>;
 
-/** Maps an `rr_hub_ideas` row onto the field names the UI already consumes. */
+/**
+ * This was the single worst bug in the app: `getIdeas` filtered to four
+ * ideation states AND required a non-empty `reference_urls`, but nothing in the
+ * write path ever guaranteed a reference. A piece saved without one became
+ * invisible the moment it was stored — and because the same filter gated the
+ * read, the production and publication queues (which look for `editing`,
+ * `published`, …) could never return anything at all.
+ *
+ * Reads are now unfiltered: the workflow engine (`flow.ts`) is the authority on
+ * which states exist, and each queue page already filters for itself.
+ */
 function mapIdea(row: RawIdea) {
   const urls = Array.isArray(row.reference_urls) ? (row.reference_urls as string[]) : [];
   return {
@@ -28,7 +56,6 @@ function mapIdea(row: RawIdea) {
     priority: row.priority as 'high' | 'normal',
     creator: 'RR ALIADOS',
     created_at: row.created_at as string,
-    updated_at: (row.updated_at as string) ?? (row.created_at as string),
     reference_url: urls[0] ?? (row.reference_url as string) ?? '',
     reference_urls: urls,
     camera: (row.camera_brief as string) ?? '',
@@ -41,10 +68,9 @@ function mapIdea(row: RawIdea) {
 export async function getCurrentUser() {
   const supabase = await createClient();
   if (!supabase) {
-    return {
-      user: { id: 'demo-user', email: 'demo@rraliados.co', user_metadata: { full_name: 'Modo demo' } },
-      supabase: null,
-    };
+    // Previously this invented a signed-in demo user. In production that meant
+    // an anonymous visitor was handed an identity instead of none.
+    return { user: null, supabase: null };
   }
   const { data: { user } } = await supabase.auth.getUser();
   return { user, supabase };
@@ -53,7 +79,10 @@ export async function getCurrentUser() {
 export async function getProject(slug: string) {
   if (!isVisibleProject(slug)) return { project: null, access: null, supabase: null };
   const supabase = await createClient();
-  if (!supabase) return { project: getDemoProject(slug), access: { role_in_project: 'admin' }, supabase: null };
+  if (!supabase) {
+    // Was `admin` — the role that bypasses every transition rule in flow.ts.
+    return { project: null, access: null, supabase: null };
+  }
 
   const { data: project } = await supabase
     .from('rr_hub_projects')
@@ -63,8 +92,10 @@ export async function getProject(slug: string) {
   if (!project) return { project: null, access: null, supabase };
 
   const { data: { user } } = await supabase.auth.getUser();
-  // Public mode: without a session every project stays browsable under an owner view.
-  if (!user) return { project, access: { role_in_project: 'owner' }, supabase };
+  // Public mode: an anonymous visitor may browse Wundeer, but browsing is not
+  // ownership. This used to return `owner`, which is the one role that bypasses
+  // every transition rule in flow.ts — it handed write controls to the public.
+  if (!user) return { project, access: { role_in_project: 'client_viewer' }, supabase };
 
   const { data: access } = await supabase
     .from('rr_hub_access')
@@ -89,7 +120,8 @@ export async function getProject(slug: string) {
 export async function getProjects() {
   const supabase = await createClient();
   if (!supabase) {
-    return { projects: demoProjects.filter((project) => isVisibleProject(project.slug)).map((project) => ({ ...project, role_in_project: 'admin' })), supabase: null };
+    // No `admin` role for a missing database. See requireSupabase().
+    return { projects: [], supabase: null };
   }
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -131,24 +163,20 @@ export async function getProjects() {
 
 export async function getIdeas(projectId: string) {
   const supabase = await createClient();
-  if (!supabase) return demoIdeas;
+  if (!supabase) { requireSupabase(); return demoIdeas; }
+
   const { data } = await supabase
     .from('rr_hub_ideas')
-    .select('id, code, title, description, objective, content_type, category, status, priority, created_at, updated_at, reference_urls, camera_brief, talent_brief, edit_brief, script_content, script_drive_url')
+    .select('id, code, title, description, objective, content_type, category, status, priority, created_at, reference_urls, camera_brief, talent_brief, edit_brief, script_content')
     .eq('project_id', projectId)
     .order('created_at', { ascending: false });
 
-  // Sin filtro por estado ni por referencia: el tablero es el mapa de TODA la
-  // operación. Antes se recortaba a 4 estados y a piezas con link, así que las
-  // columnas de producción y publicación salían siempre vacías aunque la base
-  // tuviera piezas ahí (verificado 2026-09-26: 1 en rodaje, 2 en edición,
-  // 1 lista para publicar, 1 cerrada, todas invisibles en el mapa).
   return (data ?? []).map(mapIdea);
 }
 
 export async function getIdea(projectId: string, id: string) {
   const supabase = await createClient();
-  if (!supabase) return getDemoIdea(id);
+  if (!supabase) { requireSupabase(); return getDemoIdea(id); }
 
   const { data } = await supabase
     .from('rr_hub_ideas')
@@ -157,8 +185,6 @@ export async function getIdea(projectId: string, id: string) {
     .eq('id', id)
     .maybeSingle();
 
-  // Una pieza en rodaje o publicada también se abre desde el mapa: aquí no se
-  // exige referencia ni estado "de idea".
   return data ? mapIdea(data) : null;
 }
 
@@ -181,7 +207,7 @@ export async function getAuditSettings() {
 /** Every project, for the global audit index. RLS gates this, not a column filter. */
 export async function getAuditProjects() {
   const supabase = await createClient();
-  if (!supabase) return demoProjects.filter((project) => isVisibleProject(project.slug));
+  if (!supabase) { requireSupabase(); return []; }
   const { data } = await supabase
     .from('rr_hub_projects')
     .select('id, name, slug, client_name, description, brand_primary_color')
@@ -204,7 +230,7 @@ export async function getAuditRoster() {
 export async function getAuditProject(slug: string) {
   if (!isVisibleProject(slug)) return null;
   const supabase = await createClient();
-  if (!supabase) return getDemoProject(slug) ?? null;
+  if (!supabase) { requireSupabase(); return null; }
   const { data } = await supabase
     .from('rr_hub_projects')
     .select('id, name, slug, client_name, description, brand_primary_color, public_audit')
@@ -215,19 +241,18 @@ export async function getAuditProject(slug: string) {
 
 export async function getAuditIdeas(projectId: string) {
   const supabase = await createClient();
-  if (!supabase) return demoIdeas;
+  if (!supabase) { requireSupabase(); return demoIdeas; }
   const { data } = await supabase
     .from('rr_hub_ideas')
-    .select('id, code, title, description, objective, content_type, category, status, priority, created_at, updated_at, reference_urls, script_content')
+    .select('id, code, title, description, objective, content_type, category, status, priority, created_at, updated_at, reference_urls, camera_brief, talent_brief, edit_brief, script_content')
     .eq('project_id', projectId)
     .order('code', { ascending: true });
-  // La auditoría promete "se ve todo": no se filtra por estado ni por tener link.
   return (data ?? []).map(mapIdea);
 }
 
 export async function getAuditIdea(projectId: string, id: string) {
   const supabase = await createClient();
-  if (!supabase) return getDemoIdea(id);
+  if (!supabase) { requireSupabase(); return getDemoIdea(id); }
   const { data } = await supabase
     .from('rr_hub_ideas')
     .select('*')

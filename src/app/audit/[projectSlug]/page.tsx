@@ -1,14 +1,24 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getAuditIdeas, getAuditProject } from '@/lib/data';
-import { BOARD_COLUMNS, PHASES, STATUS_META, statusMeta, phaseIndex, productionStep, type WorkflowStatus } from '@/lib/flow';
+import { PHASES, STATUS_META, statusMeta, phaseIndex, productionStep, type WorkflowStatus } from '@/lib/flow';
+import { QUEUES, READY_FOR_SHOOTING } from '@/lib/queues';
 import { StatusBadge } from '@/components/status-badge';
 import { ProductionPipeline } from '@/components/production-pipeline';
-import { PublicationPreview } from '@/components/ui/preview';
-import { formatOf } from '@/components/ui/cover';
-import type { IconName } from '@/components/ui/icons';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * The four summary tiles. These used to be four inline arrays of status names —
+ * a fourth hand-kept copy of the same data — so they drifted from the queues
+ * the rest of the app used. Every one now derives from QUEUES.
+ */
+const AUDIT_TILES: { label: string; statuses: readonly string[] }[] = [
+  { label: 'POR DECIDIR', statuses: QUEUES.aprobaciones.statuses },
+  { label: 'EN EJECUCIÓN', statuses: QUEUES.produccion.statuses },
+  { label: 'APROBADAS', statuses: READY_FOR_SHOOTING },
+  { label: 'PUBLICADAS', statuses: QUEUES.publicaciones.statuses },
+];
 
 export default async function AuditOverview({ params }: { params: Promise<{ projectSlug: string }> }) {
   const { projectSlug } = await params;
@@ -37,10 +47,7 @@ export default async function AuditOverview({ params }: { params: Promise<{ proj
     </section>
 
     <section aria-label="Fases del flujo" className="mb-12">
-      <p className="eyebrow mb-2">[FLUJO EN CINCO FASES]</p>
-      <p className="mb-5 font-mono text-[10px] leading-5 text-blanco-60">
-        Son las cinco fases internas del trabajo. El tablero las agrupa en {BOARD_COLUMNS.length} columnas ({BOARD_COLUMNS.map((column) => column.label).join(' · ')}).
-      </p>
+      <p className="eyebrow mb-5">[FLUJO EN CINCO FASES]</p>
       <ol className="grid gap-px border-2 border-blanco bg-blanco sm:grid-cols-2 lg:grid-cols-5">
         {PHASES.map((phase, index) => <li key={phase.key} className="bg-negro p-5">
           <div className="flex items-center justify-between"><span className="mono-label text-mostaza">{String(index + 1).padStart(2, '0')} · {phase.label}</span><span className="font-display text-3xl font-bold text-blanco">{phaseCount(phase.statuses)}</span></div>
@@ -50,7 +57,7 @@ export default async function AuditOverview({ params }: { params: Promise<{ proj
     </section>
 
     <section className="mb-12 grid gap-px border-2 border-blanco-20 bg-blanco-10 sm:grid-cols-2 lg:grid-cols-4">
-      {[['POR DECIDIR', ['pending_approval', 'needs_changes', 'pending_script_review', 'ready_to_publish']], ['EN EJECUCIÓN', ['script_in_progress', 'script_approved', 'in_production', 'raw_uploaded', 'editing']], ['APROBADAS', ['approved', 'script_approved']], ['PUBLICADAS', ['published', 'closed']]].map(([label, statuses]) => <div key={label as string} className="bg-negro p-5"><p className="font-display text-4xl font-bold text-blanco">{phaseCount(statuses as string[])}</p><p className="mt-2 font-mono text-[10px] text-blanco-60">{label as string}</p></div>)}
+      {AUDIT_TILES.map(({ label, statuses }) => <div key={label} className="bg-negro p-5"><p className="font-display text-4xl font-bold text-blanco">{phaseCount(statuses)}</p><p className="mt-2 font-mono text-[10px] text-blanco-60">{label}</p></div>)}
     </section>
 
     <section className="mb-12">
@@ -71,10 +78,7 @@ export default async function AuditOverview({ params }: { params: Promise<{ proj
         <span className="font-mono text-[10px] text-blanco-40">{sorted.length} REGISTROS</span>
       </div>
       <div className="stagger grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {sorted.map((idea: any) => <Link key={idea.id} href={`/audit/${projectSlug}/ideas/${idea.id}`} className="brutal-panel group overflow-hidden">
-          <div className="-mx-6 -mt-6 mb-5">
-            <PublicationPreview url={idea.reference_url ?? idea.reference_urls?.[0] ?? ''} code={idea.code} title={idea.title} format={formatOf(idea.category, idea.content_type).icon as IconName} size="sm" />
-          </div>
+        {sorted.map((idea: any) => <Link key={idea.id} href={`/audit/${projectSlug}/ideas/${idea.id}`} className="brutal-panel group">
           <div className="mb-5 flex flex-wrap items-start justify-between gap-3"><span className="mono-label text-mostaza">[{idea.code} · {idea.content_type === 'organic' ? 'ORGÁNICO' : 'PAUTA'}]</span><StatusBadge status={idea.status} showStep /></div>
           <h3 className="font-display text-2xl font-bold text-blanco group-hover:text-fucsia">{idea.title}</h3>
           <p className="mt-3 line-clamp-3 text-sm leading-6 text-blanco-60">{idea.description}</p>

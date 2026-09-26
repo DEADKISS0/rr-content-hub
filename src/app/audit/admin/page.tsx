@@ -1,6 +1,7 @@
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { getAuditProjects, getAuditRoster, getAuditSettings } from '@/lib/data';
-import { requireAdmin, superAdminsConfigured } from '@/lib/admin-guard';
+import { requireAdmin } from '@/lib/admin-guard';
 import { ROLE_LABEL, type RoleKey } from '@/lib/flow';
 
 export const dynamic = 'force-dynamic';
@@ -15,26 +16,14 @@ function date(value: string | null) {
 /**
  * Read-only administrative audit: team roster, access matrix and pending invites.
  *
- * Está detrás de `requireAdmin()`: antes cualquiera que escribiera la URL veía
- * la lista de correos y roles. La comprobación va ANTES de consultar nada, y al
- * visitante no se le cuenta por qué se le niega.
+ * Guarded by `requireAdmin`. The check runs before any query, so an
+ * unauthorised request never reaches the database and never receives a body
+ * that says whether it was logged in — it gets a 404, the same as a route that
+ * does not exist.
  */
 export default async function AuditAdmin() {
-  const verdict = await requireAdmin();
-  if (!verdict.allowed) {
-    console.warn(`[audit/admin] acceso denegado (${verdict.reason})`);
-    return <div className="mx-auto grid min-h-[70vh] max-w-2xl place-items-center px-5 py-16">
-      <div className="w-full border-2 border-mostaza p-8 anim-rise">
-        <p className="eyebrow">[AUDITORÍA · PANEL ADMINISTRATIVO]</p>
-        <h1 className="mt-4 font-display text-4xl font-bold text-blanco">PANEL RESTRINGIDO.</h1>
-        <p className="mt-5 font-mono text-[10px] leading-6 text-blanco-60">
-          ESTA VISTA MUESTRA CORREOS, ROLES Y ACCESOS DEL EQUIPO, ASÍ QUE NO ES PÚBLICA.<br />
-          PIDE ACCESO AL ADMINISTRADOR DE RR ALIADOS.
-        </p>
-        <Link href="/audit/wundeer" className="btn-brutal mt-8 inline-flex items-center gap-2">VOLVER AL PANORAMA</Link>
-      </div>
-    </div>;
-  }
+  const admin = await requireAdmin();
+  if (!admin.allowed) notFound();
 
   const [projects, roster, settings] = await Promise.all([getAuditProjects(), getAuditRoster(), getAuditSettings()]);
   const open = Boolean(settings.enabled);
@@ -55,8 +44,6 @@ export default async function AuditAdmin() {
       <h1 className="display-title">EQUIPO Y<br/><em>ACCESOS.</em></h1>
       <p className="mt-5 max-w-2xl text-sm leading-7 text-blanco-60">Quién existe, con qué rol global, qué proyecto tiene asignado y qué invitaciones siguen pendientes de primer ingreso. Nada de esto se puede modificar desde aquí.</p>
       {!open && <p className="mt-5 border-2 border-mostaza px-4 py-3 font-mono text-[10px] text-mostaza">LA VENTANA DE AUDITORÍA ESTÁ CERRADA. LOS DATOS PUEDEN NO ESTAR DISPONIBLES.</p>}
-      {verdict.via === 'super-admin-env' && <p className="mt-3 border-2 border-orquidea px-4 py-3 font-mono text-[10px] text-orquidea">ENTRASTE POR SUPER_ADMIN_EMAILS, NO POR LA BASE DE DATOS.</p>}
-      {!superAdminsConfigured() && <p className="mt-3 border-2 border-fucsia px-4 py-3 font-mono text-[10px] text-fucsia">SUPER_ADMIN_EMAILS NO ESTÁ CONFIGURADA EN ESTE ENTORNO: SI <span className="text-blanco">rr_hub_profiles</span> QUEDA VACÍA, NADIE PODRÁ ENTRAR AQUÍ.</p>}
     </header>
 
     <section className="mb-12">

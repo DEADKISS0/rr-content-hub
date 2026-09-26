@@ -35,7 +35,7 @@
 - [x] Proyectos sembrados: `wundeer`, `satiro`, `boga`.
 - [x] Google OAuth habilitado (302 real hacia `accounts.google.com`); redirect `https://rr-content-hub.vercel.app/auth/callback` agregada preservando las URLs previas.
 - [x] `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SITE_URL` y `NEXT_PUBLIC_STORAGE_BUCKET` cargadas en Vercel (production/preview/development).
-- [x] Perfiles sembrados para las 5 cuentas existentes y `santiago1209andres@gmail.com` promovida a `admin`.
+- [x] Perfiles sembrados para las 5 cuentas existentes y la cuenta admin promovida a `admin` (correo en la migración de bootstrap, no en el repo).
 
 > La migración `20260910_roles_and_workflow.sql` quedó descartada (tocaba tablas `public.profiles`/`user_project_access` del CRM) y se movió a `supabase/_archivo/`. No aplicarla.
 
