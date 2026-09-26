@@ -12,13 +12,6 @@ import { isVisibleProject } from './projects';
  */
 
 type RawIdea = Record<string, unknown>;
-// A new proposal must be visible to the ideation role before it is sent to a
-// client.  Everything beyond approval is kept in the detailed production flow.
-const CLEAN_BOARD_STATUSES = ['draft', 'pending_approval', 'needs_changes', 'approved'] as const;
-function isCleanBoardIdea(row: RawIdea) {
-  const urls = Array.isArray(row.reference_urls) ? row.reference_urls : [];
-  return CLEAN_BOARD_STATUSES.includes(row.status as typeof CLEAN_BOARD_STATUSES[number]) && urls.some((url) => typeof url === 'string' && url.trim().length > 0);
-}
 
 /** Maps an `rr_hub_ideas` row onto the field names the UI already consumes. */
 function mapIdea(row: RawIdea) {
@@ -35,6 +28,7 @@ function mapIdea(row: RawIdea) {
     priority: row.priority as 'high' | 'normal',
     creator: 'RR ALIADOS',
     created_at: row.created_at as string,
+    updated_at: (row.updated_at as string) ?? (row.created_at as string),
     reference_url: urls[0] ?? (row.reference_url as string) ?? '',
     reference_urls: urls,
     camera: (row.camera_brief as string) ?? '',
@@ -138,14 +132,18 @@ export async function getProjects() {
 export async function getIdeas(projectId: string) {
   const supabase = await createClient();
   if (!supabase) return demoIdeas;
-
   const { data } = await supabase
     .from('rr_hub_ideas')
-    .select('id, code, title, description, objective, content_type, category, status, priority, created_at, reference_urls, camera_brief, talent_brief, edit_brief, script_content')
+    .select('id, code, title, description, objective, content_type, category, status, priority, created_at, updated_at, reference_urls, camera_brief, talent_brief, edit_brief, script_content, script_drive_url')
     .eq('project_id', projectId)
     .order('created_at', { ascending: false });
 
-  return (data ?? []).filter(isCleanBoardIdea).map(mapIdea);
+  // Sin filtro por estado ni por referencia: el tablero es el mapa de TODA la
+  // operación. Antes se recortaba a 4 estados y a piezas con link, así que las
+  // columnas de producción y publicación salían siempre vacías aunque la base
+  // tuviera piezas ahí (verificado 2026-09-26: 1 en rodaje, 2 en edición,
+  // 1 lista para publicar, 1 cerrada, todas invisibles en el mapa).
+  return (data ?? []).map(mapIdea);
 }
 
 export async function getIdea(projectId: string, id: string) {
@@ -159,7 +157,9 @@ export async function getIdea(projectId: string, id: string) {
     .eq('id', id)
     .maybeSingle();
 
-  return data && isCleanBoardIdea(data) ? mapIdea(data) : null;
+  // Una pieza en rodaje o publicada también se abre desde el mapa: aquí no se
+  // exige referencia ni estado "de idea".
+  return data ? mapIdea(data) : null;
 }
 
 /**
@@ -218,10 +218,11 @@ export async function getAuditIdeas(projectId: string) {
   if (!supabase) return demoIdeas;
   const { data } = await supabase
     .from('rr_hub_ideas')
-    .select('id, code, title, description, objective, content_type, category, status, priority, created_at, updated_at, reference_urls, camera_brief, talent_brief, edit_brief, script_content')
+    .select('id, code, title, description, objective, content_type, category, status, priority, created_at, updated_at, reference_urls, script_content')
     .eq('project_id', projectId)
     .order('code', { ascending: true });
-  return (data ?? []).filter(isCleanBoardIdea).map(mapIdea);
+  // La auditoría promete "se ve todo": no se filtra por estado ni por tener link.
+  return (data ?? []).map(mapIdea);
 }
 
 export async function getAuditIdea(projectId: string, id: string) {
@@ -233,7 +234,7 @@ export async function getAuditIdea(projectId: string, id: string) {
     .eq('project_id', projectId)
     .eq('id', id)
     .maybeSingle();
-  return data && isCleanBoardIdea(data) ? mapIdea(data) : null;
+  return data ? mapIdea(data) : null;
 }
 
 /** Counts per status for the audit summary, computed server-side. */
