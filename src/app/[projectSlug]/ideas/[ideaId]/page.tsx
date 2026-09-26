@@ -88,21 +88,22 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
         </div>
 
         <div className="space-y-5">
+          {/* La acción va PRIMERO en esta columna, antes del preview. Con el
+              preview delante, el botón caía en y≈736 y un portátil de 720 px de
+              alto lo cortaba justo ahí: la única acción de la ficha quedaba bajo
+              el pliegue. Lo cazó el recorrido e2e, no una revisión a ojo. */}
+          <div className="brutal-panel anim-rise">
+            <p className="eyebrow">[TU SIGUIENTE ACCIÓN]</p>
+            <h2 className="mt-3 font-display text-2xl font-bold text-blanco">QUÉ HACER<br /><span className="text-mostaza">AHORA.</span></h2>
+            <div className="mt-5"><IdeaActions projectSlug={projectSlug} ideaId={ideaId} currentStatus={idea.status} /></div>
+          </div>
+
           <div>
             <p className="mono-label mb-3 text-mostaza">// COMO SE VERÁ PUBLICADO</p>
             <PublicationPreview url={raw} code={idea.code} title={idea.title} format={format.icon as IconName} size="lg" />
             <p className="mt-3 font-mono text-[10px] text-blanco-60">
               {raw ? 'VISTA PREVIA DE LA REFERENCIA REAL' : 'SIN REFERENCIA TODAVÍA'}
             </p>
-          </div>
-
-          {/* La acción va aquí, en el primer pantallazo y al lado de la pieza.
-              Antes vivía al final de la columna derecha, dos pantallas más abajo:
-              la única acción de la ficha era lo último que se veía. */}
-          <div className="brutal-panel anim-rise">
-            <p className="eyebrow">[TU SIGUIENTE ACCIÓN]</p>
-            <h2 className="mt-3 font-display text-2xl font-bold text-blanco">QUÉ HACER<br /><span className="text-mostaza">AHORA.</span></h2>
-            <div className="mt-5"><IdeaActions projectSlug={projectSlug} ideaId={ideaId} currentStatus={idea.status} /></div>
           </div>
         </div>
       </div>
