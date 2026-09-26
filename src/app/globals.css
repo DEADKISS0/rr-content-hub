@@ -10,6 +10,9 @@
   --color-blanco-20: rgba(255,255,243,.2);
   --color-blanco-40: rgba(255,255,243,.4);
   --color-blanco-60: rgba(255,255,243,.6);
+  --color-blanco-70: rgba(255,255,243,.72);
+  --color-blanco-50: rgba(255,255,243,.5);
+  --color-blanco-30: rgba(255,255,243,.3);
   --color-blanco-05: rgba(255,255,243,.05);
   --shadow-brutal: 4px 4px 0 #be076d;
   --shadow-brutal-lg: 8px 8px 0 #be076d;
@@ -160,3 +163,111 @@
   .input-brutal { min-height: 46px; }
 }
 @media (min-width: 768px) { .mobile-nav-backdrop { display: none; } }
+
+/* ── Capa v3: assets, interacción y legibilidad ──────────────────────────────
+   La v2 arregló el flujo; la v3 pone el ojo. Tres reglas que se repiten:
+   1. Todo lo clicable reacciona al puntero Y al foco de teclado.
+   2. Los textos mono suben a 10–11px con más contraste (antes 9px al 40%).
+   3. Ningún asset decorativo cuesta una petición: las portadas son SVG. */
+@layer components {
+  /* Foco visible en todo el hub, con el fucsia de marca. */
+  :focus-visible { outline: 2px solid var(--mostaza); outline-offset: 2px; }
+
+  .mono-label, .eyebrow, .font-mono { letter-spacing: .08em; }
+  .mono-label { font-size: 11px; }
+  .eyebrow { font-size: 11px; }
+
+  /* Portada procedural: se mueve apenas, lo justo para sentirse viva. */
+  .cover-frame { background: var(--negro); }
+  .cover-art { transition: transform .5s cubic-bezier(.22,1,.36,1), filter .3s ease; transform-origin: 50% 40%; }
+  .group:hover .cover-art, .idea-card:hover .cover-art { transform: scale(1.06) rotate(-.6deg); filter: brightness(1.15); }
+  .group:hover .cover-frame, .idea-card:hover .cover-frame { border-color: var(--fucsia); }
+
+  /* Tarjeta de KPI: se puede pulsar, así que lo dice. */
+  .kpi-card { border-top: 2px solid transparent; }
+  .kpi-card:hover { border-top-color: var(--fucsia); }
+  .kpi-card:disabled { opacity: 1; }
+
+  /* Tarjetas del tablero: levante suave y sombra dura de marca. */
+  .idea-card:hover { box-shadow: 6px 6px 0 rgba(190,7,109,.35); }
+  .idea-row { border-block: 1px solid rgba(255,255,243,.14); }
+  .idea-row:hover { border-color: var(--fucsia); background: rgba(190,7,109,.1); }
+
+  /* Scroll fino y oscuro en los carriles que lo necesitan. */
+  .scroll-thin { scrollbar-width: thin; scrollbar-color: var(--fucsia) transparent; }
+  .scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+  .scroll-thin::-webkit-scrollbar-thumb { background: var(--fucsia); }
+  .scroll-thin::-webkit-scrollbar-track { background: rgba(255,255,243,.06); }
+
+  /* Fondo de retícula: da textura sin imágenes y sin peso. */
+  .grid-bg {
+    background-image: linear-gradient(rgba(255,255,243,.045) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(255,255,243,.045) 1px, transparent 1px);
+    background-size: 44px 44px;
+  }
+
+  /* Contador animado al cambiar de filtro: el número llama la atención. */
+  .anim-count { animation: countPop .45s cubic-bezier(.34,1.56,.64,1) both; }
+  @keyframes countPop { from { transform: translateY(6px) scale(.94); opacity: 0; } to { transform: none; opacity: 1; } }
+
+  /* Punto "activo" que late. Reemplaza al emoji de estado del header. */
+  .anim-pulse { animation: softPulse 2.4s ease-in-out infinite; }
+  @keyframes softPulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+
+  /* ── Capa v4: previews reales, guía por pasos y movimiento ────────────────
+     Regla: el movimiento explica algo (de dónde viene, qué cambió, qué sigue).
+     Nunca adorno infinito. Todo cae bajo prefers-reduced-motion. */
+
+  /* Preview real (Drive / imagen directa) — misma respiración que la portada. */
+  .preview-art { transition: transform .5s cubic-bezier(.22,1,.36,1), filter .3s ease; }
+  .idea-card:hover .preview-art { transform: scale(1.04); filter: saturate(1.1); }
+
+  /* Tarjeta-mock del post cuando no hay miniatura: trama diagonal + halo, para
+     que se lea como "referencia sin vista previa" y no como imagen rota. */
+  .post-frame {
+    background:
+      repeating-linear-gradient(135deg, rgba(255,255,243,.045) 0 6px, transparent 6px 12px),
+      radial-gradient(120% 90% at 18% 8%, rgba(190,7,109,.30), transparent 62%),
+      var(--negro);
+  }
+
+  /* Guía por pasos */
+  .step-card { animation: stepIn .5s cubic-bezier(.22,1,.36,1) both; }
+  @keyframes stepIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  .step-card:hover .rail-track .rail-fill { filter: brightness(1.25); }
+  .rail-track { display: block; height: 4px; width: 100%; background: rgba(255,255,243,.12); overflow: hidden; }
+  .rail-fill { display: block; height: 100%; background: linear-gradient(90deg, var(--fucsia), var(--mostaza)); animation: railGrow .7s cubic-bezier(.22,1,.36,1) both; }
+  @keyframes railGrow { from { transform: translateX(-100%); } to { transform: none; } }
+
+  /* Panel de explicación: se despliega, no aparece de golpe. */
+  .anim-slide-down { animation: slideDown .32s cubic-bezier(.22,1,.36,1) both; }
+  @keyframes slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+
+  /* Cambio de vista (mapa ↔ lista): la rejilla entra escalonada. */
+  .view-in { animation: viewIn .38s cubic-bezier(.22,1,.36,1) both; }
+  @keyframes viewIn { from { opacity: 0; transform: translateY(12px) scale(.995); } to { opacity: 1; transform: none; } }
+
+  /* Cascada de tarjetas: cada una entra un pelo después de la anterior. */
+  .cascade { animation: cardIn .45s cubic-bezier(.22,1,.36,1) both; animation-delay: var(--delay, 0ms); }
+  @keyframes cardIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+  /* Barrido suave al pasar el mouse por una tarjeta del tablero. */
+  .sheen { position: relative; overflow: hidden; }
+  .sheen::after { content: ''; position: absolute; inset: 0 auto 0 -60%; width: 45%; background: linear-gradient(100deg, transparent, rgba(255,255,243,.07), transparent); transform: skewX(-12deg); transition: left .55s cubic-bezier(.22,1,.36,1); pointer-events: none; }
+  .sheen:hover::after { left: 115%; }
+
+  /* Barra lateral compacta: el ancho viaja, no salta. */
+  .shell-aside { transition: width .3s cubic-bezier(.22,1,.36,1), padding .3s cubic-bezier(.22,1,.36,1); }
+  .collapse-label { transition: opacity .18s ease, transform .3s cubic-bezier(.22,1,.36,1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .step-card, .rail-fill, .anim-slide-down, .view-in, .cascade, .anim-pop, .anim-count { animation: none !important; }
+  .sheen::after { display: none; }
+  .idea-card:hover .preview-art { transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cover-art { transition: none !important; }
+  .anim-count { animation: none !important; }
+}

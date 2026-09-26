@@ -162,11 +162,11 @@ export function nextStatus(status: WorkflowStatus): WorkflowStatus {
  * responsable) para que nadie dependa solo del color: si alguien no distingue
  * mostaza de fucsia, el ícono y el texto siguen contando la historia.
  *
- * Tonos B.U.C.M.:
- *   mostaza  → espera al CLIENTE (atención, decisión pendiente)
- *   fucsia   → está en PRODUCCIÓN (rodaje, edición, publicación)
- *   orquidea → está en REVISIÓN interna (alguien del equipo debe actuar)
- *   neutro   → borrador, publicado o cerrado
+ * Tonos B.U.C.M. — un tono = un significado, sin excepciones:
+ *   mostaza  → la pelota está en el CLIENTE (decisión pendiente de fuera)
+ *   fucsia   → está en PRODUCCIÓN (rodaje, edición, salida)
+ *   orquidea → el EQUIPO tiene que actuar (escritura, montaje, revisión interna)
+ *   neutro   → borrador, publicado o cerrado (sin acción pendiente)
  * ─────────────────────────────────────────────────────────────────────────── */
 export type ToneKey = 'neutro' | 'mostaza' | 'fucsia' | 'orquidea';
 
@@ -176,15 +176,15 @@ export const STATUS_META: Record<WorkflowStatus, StatusMeta> = {
   draft: { label: 'BORRADOR', icon: '✎', tone: 'neutro', who: 'CREATIVA', blurb: 'Aún se está escribiendo; todavía no viaja al cliente.' },
   pending_approval: { label: 'ESPERA CLIENTE', icon: '⏱', tone: 'mostaza', who: 'CLIENTE', blurb: 'La propuesta está en manos del cliente para su decisión.' },
   needs_changes: { label: 'AJUSTES PEDIDOS', icon: '↺', tone: 'fucsia', who: 'CREATIVA', blurb: 'El cliente pidió cambios; la pelota vuelve al equipo.' },
-  approved: { label: 'IDEA APROBADA', icon: '✓', tone: 'mostaza', who: 'CREATIVA', blurb: 'Dirección aprobada. Arranca la escritura del guion.' },
+  approved: { label: 'IDEA APROBADA', icon: '✓', tone: 'orquidea', who: 'CREATIVA', blurb: 'Dirección aprobada. Arranca la escritura del guion.' },
   script_in_progress: { label: 'GUIÓN EN CURSO', icon: '✍', tone: 'orquidea', who: 'CREATIVA', blurb: 'Se está escribiendo el guion de la pieza.' },
   pending_script_review: { label: 'GUIÓN POR APROBAR', icon: '⏱', tone: 'mostaza', who: 'CLIENTE', blurb: 'El guion espera la validación del cliente.' },
-  script_approved: { label: 'GUIÓN APROBADO', icon: '✓', tone: 'mostaza', who: 'CÁMARA', blurb: 'Listo para rodar. El equipo de cámara ya tiene su brief.' },
+  script_approved: { label: 'GUIÓN APROBADO', icon: '✓', tone: 'fucsia', who: 'CÁMARA', blurb: 'Listo para rodar. El equipo de cámara ya tiene su brief.' },
   in_production: { label: 'GRABANDO', icon: '🎬', tone: 'fucsia', who: 'CÁMARA', blurb: 'Rodaje en curso; el crudo todavía no está cargado.' },
   raw_uploaded: { label: 'CRUDO SUBIDO', icon: '⬆', tone: 'orquidea', who: 'EDITOR', blurb: 'El material crudo está cargado y listo para montaje.' },
   editing: { label: 'EDITANDO', icon: '✏', tone: 'fucsia', who: 'EDITOR', blurb: 'Montaje en curso sobre el crudo.' },
   ready_to_publish: { label: 'REVISIÓN FINAL', icon: '◎', tone: 'orquidea', who: 'OWNER · PUBLISHER', blurb: 'Corte listo; falta la última aprobación antes de salir.' },
-  published: { label: 'PUBLICADO', icon: '✓✓', tone: 'fucsia', who: 'PUBLISHER', blurb: 'La pieza ya salió con su evidencia registrada.' },
+  published: { label: 'PUBLICADO', icon: '✓✓', tone: 'neutro', who: 'PUBLISHER', blurb: 'La pieza ya salió con su evidencia registrada.' },
   closed: { label: 'CERRADO', icon: '⊗', tone: 'neutro', who: '—', blurb: 'Flujo terminado; se conserva todo el historial.' },
 };
 
@@ -258,4 +258,16 @@ export const BOARD_COLUMNS = [
 
 export function boardColumn(status: string) {
   return BOARD_COLUMNS.find((column) => (column.statuses as readonly string[]).includes(status)) ?? BOARD_COLUMNS[0];
+}
+
+/**
+ * Días desde la última actividad de una pieza. Vive aquí (y no dentro de un
+ * componente) porque React 19 marca `Date.now()` en el render de un componente
+ * como impuro; calculado en el módulo de flujo es una función normal.
+ */
+export function daysSince(iso?: string | null): number | null {
+  if (!iso) return null;
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return null;
+  return Math.max(0, Math.floor((Date.now() - then) / 86_400_000));
 }
