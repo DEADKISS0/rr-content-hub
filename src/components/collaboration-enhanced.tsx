@@ -108,7 +108,7 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId }: EnhancedIdeaC
     setNotice('✓ Comentario publicado en el hilo compartido.');
     // Enfocar el textarea después de enviar para facilitar edición rápida
     setTimeout(() => {
-      const textarea = document.querySelector('.input-brutal');
+      const textarea = document.querySelector<HTMLTextAreaElement>('.input-brutal');
       if (textarea) {
         textarea.focus();
         textarea.select();
@@ -288,7 +288,7 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId }: EnhancedIdeaC
             className="mt-2 border border-mostaza bg-mostaza/10 p-1 font-mono text-[9px] leading-4 text-blanco"
           >
             {notice}
-          )
+          </p>
         )}
       </div>
       
@@ -308,12 +308,12 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId }: EnhancedIdeaC
               </div>
               <span className="text-blanco-40 text-[9px]">{stageLabel(asset.stage)} · {asset.createdAt}</span>
             </button>
-          )}
+          ))}
           
           {assets.length === 0 && (
             <p className="text-center text-[9px] text-blanco-40">
               AÚN NO HAY ARCHIVOS. CARGA EL GUION, EL CRUDO O UNA VERSIÓN PARA INICIAR EL HISTORIAL.
-            }
+            </p>
           )}
         </div>
       </div>
