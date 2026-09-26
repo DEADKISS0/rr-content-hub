@@ -1,0 +1,41 @@
+name: CI
+
+# Por qué existe: el commit 08b7cd9 se pusheó con JSX roto y dejó CUATRO deploys
+# de producción en ERROR sin que nadie lo notara. Este workflow es el portero:
+# si el tipo, un test, el lint o el build fallan, el PR no se mergea.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    env:
+      # Valores de mentira: el build no debe tocar datos reales en CI. Con esto
+      # el cliente de Supabase se construye y las páginas que consultan datos
+      # caen a su estado vacío en vez de tumbar el job.
+      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Tipos
+        run: npx tsc --noEmit
+
+      - name: Tests
+        run: npm test
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
