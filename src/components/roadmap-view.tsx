@@ -88,10 +88,10 @@ function ContentTrack() {
             <ol className="mt-4 space-y-2">
               {week.pieces.map((piece, index) => <li key={piece.topic} className="flex gap-3 border-l-2 border-orquidea pl-3">
                 <span className="w-7 shrink-0 font-mono text-[10px] text-orquidea">C{index + 1}</span>
-                <div className="min-w-0"><span className="font-mono text-[9px] uppercase tracking-wide text-fucsia">{PILLAR_LABEL[piece.pillar]}</span><p className="text-sm leading-6 text-blanco-60">{piece.topic}</p></div>
+                <div className="min-w-0"><span className="font-mono text-[10px] uppercase tracking-wide text-fucsia">{PILLAR_LABEL[piece.pillar]}</span><p className="text-sm leading-6 text-blanco-60">{piece.topic}</p></div>
               </li>)}
             </ol>
-            <p className="mt-4 border-t border-blanco-10 pt-3 font-mono text-[9px] leading-5 text-blanco-40">{week.deliveries.map((delivery) => `C${delivery.n} → ${delivery.day}`).join(' · ')}</p>
+            <p className="mt-4 border-t border-blanco-10 pt-3 font-mono text-[10px] leading-5 text-blanco-60">{week.deliveries.map((delivery) => `C${delivery.n} → ${delivery.day}`).join(' · ')}</p>
           </div>)}
         </div>
       </li>)}

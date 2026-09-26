@@ -5,14 +5,17 @@ import {
   addComment,
   loadAssets,
   loadComments,
+  loadTimeline,
   resolveComment,
   signedAssetUrl,
   uploadAsset,
   type AssetStage,
   type IdeaAsset,
   type IdeaComment,
+  type TimelineEvent,
 } from '@/lib/workspace-client';
 import { createClient } from '@/lib/supabase/client';
+import { statusMeta } from '@/lib/flow';
 
 const stageOptions: Array<{ value: AssetStage; label: string }> = [
   { value: 'reference_brief', label: 'REFERENCIA / BRIEF' },
@@ -47,12 +50,17 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId }: EnhancedIdeaC
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
-  const [activeWriters, setActiveWriters] = useState<string[]>([]);
+  const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
 
   const refresh = useCallback(async () => {
-    const [nextComments, nextAssets] = await Promise.all([loadComments(ideaId), loadAssets(ideaId)]);
+    const [nextComments, nextAssets, nextTimeline] = await Promise.all([
+      loadComments(ideaId),
+      loadAssets(ideaId),
+      loadTimeline(ideaId),
+    ]);
     setComments(nextComments);
     setAssets(nextAssets);
+    setTimeline(nextTimeline);
   }, [ideaId]);
 
   useEffect(() => {
@@ -68,29 +76,15 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId }: EnhancedIdeaC
     const channel = supabase.channel(`wundeer-collaboration-${ideaId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rr_hub_comments', filter: `idea_id=eq.${ideaId}` }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rr_hub_assets', filter: `idea_id=eq.${ideaId}` }, refresh)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'rr_hub_events', filter: `idea_id=eq.${ideaId}` }, refresh)
       .subscribe();
     
     return () => { supabase.removeChannel(channel); };
   }, [ideaId, refresh]);
 
-  // Simulación simple de actividad (sin WebSocket complejo)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (Math.random() > 0.7) {
-        setActiveWriters(prev => {
-          const newWriters = [...prev];
-          if (Math.random() > 0.5 && newWriters.length < 3) {
-            newWriters.push(`Usuario_${Math.floor(Math.random() * 100)}`);
-          } else if (newWriters.length > 0) {
-            newWriters.shift();
-          }
-          return newWriters;
-        });
-      }
-    }, 8000);
-    
-    return () => clearInterval(interval);
-  }, []);
+  // Sin simulación de "usuarios escribiendo": si no hay movimiento real, no se
+  // muestra nada. El movimiento sale de rr_hub_events (quién cambió qué estado
+  // y cuándo), no de un Math.random().
 
   const visible = useMemo(() => comments.filter((comment) => showResolved || !comment.resolved), [comments, showResolved]);
 
@@ -146,12 +140,16 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId }: EnhancedIdeaC
     else setNotice('No se pudo generar el enlace del archivo.');
   }
 
-  return <section className="mt-8 border-t-2 border-blanco pt-8 relative" aria-labelledby="collaboration-title">
-    {/* Indicador de actividad */}
-    {activeWriters.length > 0 && (
-      <div className="mb-3 flex items-center gap-2 px-2 py-1 bg-mostaza/10 text-mostaza text-[9px] font-mono rounded">
-        <span className="inline-flex h-1.5 w-1.5 rounded-full animate-pulse bg-mostaza" />
-        <span>{activeWriters.length} persona(s) editando ahora...</span>
+  const lastMove = timeline[0];
+
+  return <section className="mt-8 border-t-2 border-blanco pt-8" aria-labelledby="collaboration-title">
+    {/* Movimiento real, no simulado: sale de rr_hub_events. */}
+    {lastMove && (
+      <div className="mb-4 flex flex-wrap items-center gap-3 border-2 border-mostaza bg-mostaza/10 px-3 py-2">
+        <span className="inline-flex h-2 w-2 shrink-0 bg-mostaza anim-pulse" aria-hidden />
+        <span className="font-mono text-[10px] text-mostaza">ÚLTIMO MOVIMIENTO · {lastMove.createdAt}</span>
+        <span className="font-mono text-[10px] text-blanco">{lastMove.actor} → {statusMeta(lastMove.status).label.toUpperCase()}</span>
+        {timeline.length > 1 && <span className="font-mono text-[10px] text-blanco-50">· {timeline.length} MOVIMIENTOS REGISTRADOS</span>}
       </div>
     )}
 
@@ -165,12 +163,12 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId }: EnhancedIdeaC
       </span>
     </div>
 
-    <p className="mb-3 border-2 border-mostaza bg-mostaza/10 p-2 font-mono text-[9px] leading-5 text-blanco anim-fade">
+    <p className="mb-3 border-2 border-mostaza bg-mostaza/10 p-2 font-mono text-[10px] leading-5 text-blanco anim-fade">
       [ESPACIO COLABORATIVO] Todo cambio queda guardado en la base y visible para todos desde cualquier dispositivo.
     </p>
 
     {/* Panel de comentarios */}
-    <div className="border-2 border-blanco bg-blanco-05 p-4 sm:p-6 rounded">
+    <div className="border-2 border-blanco bg-blanco-05 p-4 sm:p-6">
       <div className="mb-4 flex items-center justify-between">
         <span className="mono-label text-mostaza">HILO DE DECISIONES</span>
         {comments.length > 0 && (
@@ -225,8 +223,8 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId }: EnhancedIdeaC
             placeholder="Escribe una decisión, duda o ajuste..."
           />
           {busy && (
-            <div className="absolute inset-0 flex items-center justify-center bg-blanco/50">
-              <div className="animate-spin rounded-full h-6 w-6 border-2 border-blanco border-t-transparent"></div>
+            <div className="absolute inset-0 flex items-center justify-center bg-negro/70">
+              <span className="font-mono text-[10px] text-mostaza anim-pulse">PUBLICANDO…</span>
             </div>
           )}
         </div>
@@ -242,7 +240,7 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId }: EnhancedIdeaC
     </div>
 
     {/* Panel de archivos simplificado */}
-    <div className="mt-5 border-t border-blanco-10 pt-5 rounded">
+    <div className="mt-5 border-t border-blanco-10 pt-5">
       <p className="mono-label text-mostaza">VERSIONES Y ARCHIVOS</p>
       <p className="mt-2 text-sm leading-6 text-blanco-60">
         Centraliza referencia, guion, crudo y entregables. Cada carga deja una versión y nunca reemplaza la anterior.
@@ -277,7 +275,7 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId }: EnhancedIdeaC
           <span className="font-display text-lg font-bold text-mostaza">
             {busy ? 'SUBIENDO…' : `+ CARGAR ${stageLabel(stage)}`}
           </span>
-          <span className="mt-1 font-mono text-[9px] text-blanco-40">
+          <span className="mt-1 font-mono text-[10px] text-blanco-40">
             PDF · VIDEO · IMAGEN · GUIÓN
           </span>
         </label>
@@ -285,7 +283,7 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId }: EnhancedIdeaC
         {notice && (
           <p 
             role="status" 
-            className="mt-2 border border-mostaza bg-mostaza/10 p-1 font-mono text-[9px] leading-4 text-blanco"
+            className="mt-2 border border-mostaza bg-mostaza/10 p-1 font-mono text-[10px] leading-4 text-blanco"
           >
             {notice}
           </p>
@@ -300,18 +298,18 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId }: EnhancedIdeaC
             <button 
               key={asset.id} 
               onClick={() => openAsset(asset)} 
-              className="block w-full text-left font-mono text-[9px] text-blanco-60 hover:text-mostaza transition-colors duration-150"
+              className="block w-full text-left font-mono text-[10px] text-blanco-60 hover:text-mostaza transition-colors duration-150"
             >
               <div className="flex items-center justify-between gap-1 mb-0.5">
                 <span className="truncate text-blanco-60">{asset.kind} // {asset.name}</span>
                 <span className="text-mostaza">{asset.version}</span>
               </div>
-              <span className="text-blanco-40 text-[9px]">{stageLabel(asset.stage)} · {asset.createdAt}</span>
+              <span className="text-blanco-40 text-[10px]">{stageLabel(asset.stage)} · {asset.createdAt}</span>
             </button>
           ))}
           
           {assets.length === 0 && (
-            <p className="text-center text-[9px] text-blanco-40">
+            <p className="text-center text-[10px] text-blanco-40">
               AÚN NO HAY ARCHIVOS. CARGA EL GUION, EL CRUDO O UNA VERSIÓN PARA INICIAR EL HISTORIAL.
             </p>
           )}
