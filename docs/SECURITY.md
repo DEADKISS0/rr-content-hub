@@ -23,8 +23,21 @@ repositorio, ya en producción tras cada push.
   `X-Content-Type-Options`, `Referrer-Policy` y `Permissions-Policy`.
 - **El navegador no decide permisos.** `idea-actions.tsx` recibía `activeRole`
   hardcodeado a `owner`; ahora recibe el rol del servidor y usa
-  `client_viewer` por defecto. `transitionIdeaStatus` valida la transición
-  contra `allowedTransitions` **en el servidor** antes de escribir.
+  `client_viewer` por defecto.
+- **Ninguna escritura sale del navegador.** Las seis mutaciones del workspace
+  (transición, guion, comentario, resolver comentario, asset, crear idea)
+  escribían directo a Supabase con la anon key. `transitionIdeaStatus` incluso
+  documentaba que "un request a mano no puede saltarse estados" — y sí podía:
+  la validación estaba en el código que el atacante no tiene que ejecutar.
+  Ahora todo pasa por `api/workspace/[action]`, que lee el rol de
+  `rr_hub_access` para el usuario de la sesión, relee el estado real de la base
+  antes de transicionar, y pone el autor del comentario. El upload a Storage sí
+  sigue desde el navegador, a propósito: lleva el token de sesión, y son las
+  políticas de `storage.objects` las que deciden.
+- **No existe forma de conceder roles desde la app.** `access-admin.tsx` era el
+  único que escribía en `rr_hub_access`/`rr_hub_invites`, lo hacía desde el
+  cliente y no lo renderizaba ninguna página. Se borró. Los roles se dan por
+  SQL, que es el punto.
 - **Guardar un guion no inventa un evento.** `saveIdeaScript` insertaba un
   `script_in_progress` en cada guardado, así que el timeline mentía.
 - **Sin datos de demostración por accidente.** Una variable de entorno
