@@ -1,4 +1,22 @@
-# Cómo aplicar la migración que cierra la escritura anónima
+# Cómo aplicar las migraciones pendientes
+
+> Resumen del estado en [`SECURITY.md`](./SECURITY.md). Hay **dos**
+> migraciones escritas y verificadas estáticamente, ninguna aplicada, y dos
+> problemas más que no tienen migración.
+
+| # | Qué resuelve | Archivo | Estado |
+|---|---|---|---|
+| 1 | Escritura anónima (PATCH 200, INSERT 201) | `20260926_close_anon_write.sql` | **sin aplicar** |
+| 2 | Lectura anónima del CRM huérfano | `20260927_crm_public_read_lockdown.sql` | **sin aplicar** |
+| 3 | Bucket `rr-content-assets` inexistente | — | sin migración |
+| 4 | `/audit/admin` público | — | sin migración |
+
+Aplícalas **en orden**. La 2 no depende de la 1, pero si solo vas a hacer una,
+haz la 1: es la que permite escribir sin credenciales.
+
+---
+
+# Migración 1 — cierre de escritura anónima
 
 ## Qué hace
 
@@ -90,3 +108,91 @@ Esta migración está fechada `20260926` y va después de `20260925_anon_write_l
 que quedó absorbida aquí. Aplícala una sola vez, a esta. El archivo de la 20260925
 ya no está en el repo: su contenido y el de esta están fusionados, sin políticas
 duplicadas.
+
+---
+
+# Migración 2 — cierre de lectura del CRM huérfano
+
+## Qué hace
+
+`public.profiles` y `public.projects` son de un CRM compartido con otros
+productos que quedó en este proyecto de Supabase. Nadie las consulta: cero
+referencias en `src/`, y la búsqueda en `rr-aliados`, `rr-sync`,
+`rr-precontratos`, `dev/*`, `snap` y `src` tampoco devuelve nada. El único
+cliente con esta URL es `~/.config/rr-commander`, y su `.env` no las usa.
+
+Pero siguen legibles sin sesión, con la publishable key que va en el bundle del
+navegador. Son 30 campos, entre ellos `email`, `name`, `avatar_url` y el
+pipeline comercial (`valor_total`, `valor_pagado`, `valor_potencial`,
+`servicios`, `estado`).
+
+Hace `revoke all on table ... from anon` para las dos: apaga el privilegio
+heredado del rol en vez de taparlo con una política RLS que alguien podría
+reescribir. **No borra ni una fila** — los datos quedan ahí por si aparece un
+consumidor legítimo, solo dejan de ser legibles por cualquiera.
+
+El primer bloque es un inventario: registra qué ve un anónimo *antes* del
+cambio, en el log del servidor. Es lo que hace la migración reversible si
+aparece un consumidor que no encontramos.
+
+## Por qué también la tienes que aplicar tú
+
+Mismo motivo que la migración 1: hace falta acceso total a la base.
+
+## Pasos
+
+1. Panel de Supabase → SQL Editor → **New query**.
+2. Pegar el contenido de `supabase/migrations/20260927_crm_public_read_lockdown.sql`.
+3. Run. No debería dar error.
+4. Comprobar:
+
+```sql
+-- Debe dar false:
+select has_table_privilege('anon', 'public.profiles', 'select');
+select has_table_privilege('anon', 'public.projects', 'select');
+
+-- Wundeer debe seguir legible (true):
+select has_table_privilege('anon', 'public.rr_hub_ideas', 'select');
+
+-- El service_role no se toca (true):
+select has_table_privilege('service_role', 'public.profiles', 'select');
+```
+
+Y desde fuera, sin credenciales:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co \
+SUPABASE_ANON_KEY=<anon key> npm run verify:leak
+# esperado: "ok profiles", "ok projects", y TODO OK al final
+```
+
+Si alguna vez sale `?? no se pudo comprobar`, la sonda no llegó a ejecutarse:
+eso no es un "todo bien", revisa la URL y la key.
+
+## Si algo deja de funcionar
+
+No hace falta revertir nada. El servicio que falle registrará el error de
+permisos; basta con buscar la consulta en el log. Y si de verdad hace falta
+devolver acceso a una de las dos tablas, se re-otorga con una política
+explícita y documentada, no devolviendo el privilegio a `anon` entero.
+
+---
+
+# Los otros dos problemas (sin migración)
+
+## 3. El bucket `rr-content-assets` no existe
+
+`rr_hub_assets` está vacía y el bucket de Storage no se ha creado. La subida de
+archivos está rota: el código está, el destino no. Crear el bucket se hace desde
+el panel (Storage → New bucket) o por API con la service key. Necesita además
+las políticas de Storage que ya están escritas en la migración 1.
+
+## 4. `/audit/admin` es público
+
+Renderiza EQUIPO, ACCESOS e INVITACIONES sin pedir sesión. Ocultar el enlace no
+protege la ruta. El arreglo natural es una guarda de rol en
+`src/app/audit/admin/page.tsx` reutilizando la comprobación de
+`rr_hub_access` que ya existe en el resto de la app. No lo he hecho porque
+depende de que haya al menos un `owner` dado de alta: si lo cierro antes de eso,
+la única forma de volver a entrar sería por SQL.
+
