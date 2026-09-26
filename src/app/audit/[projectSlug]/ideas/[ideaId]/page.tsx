@@ -6,6 +6,11 @@ import { PHASES, STATUS_LABEL, allowedTransitions, phaseIndex, waitingOn, type W
 import { ReferenceWithBrief } from '@/components/reference-with-brief';
 import { StatusBadge } from '@/components/status-badge';
 import { Breadcrumbs } from '@/components/breadcrumbs';
+import { Chip } from '@/components/ui/chips';
+import { formatOf } from '@/components/ui/cover';
+import { BriefRail, briefState } from '@/components/ui/meter';
+import { PublicationPreview } from '@/components/ui/preview';
+import type { IconName } from '@/components/ui/icons';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +36,14 @@ export default async function AuditIdeaDetail({ params }: { params: Promise<{ pr
   const currentPhase = phaseIndex(status);
   const raw = idea.reference_url ?? idea.reference_urls?.[0] ?? '';
   const nextMoves = allowedTransitions('owner', status);
+  const states = briefState({
+    camera_brief: idea.camera,
+    talent_brief: idea.talent,
+    edit_brief: idea.edit,
+    script_content: idea.script_content,
+    reference_urls: raw ? [raw] : [],
+  });
+  const missing = states.filter((state) => !state.done);
 
   return <div className="mx-auto max-w-6xl px-4 py-8 sm:px-5 md:px-10 md:py-10">
     <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-blanco-10 pb-5">
@@ -49,10 +62,21 @@ export default async function AuditIdeaDetail({ params }: { params: Promise<{ pr
       </ol>
     </section>
 
-    <header className="mb-8 border-b border-blanco-10 pb-8">
-      <p className="eyebrow">{idea.code} · {idea.content_type === 'organic' ? 'ORGÁNICO' : 'PAUTA'} · {idea.category}</p>
-      <h1 className="display-title max-w-5xl">{idea.title}</h1>
-      <p className="mt-6 max-w-2xl text-base leading-7 text-blanco-60">{idea.description}</p>
+    <header className="mb-8 grid gap-8 border-b border-blanco-10 pb-8 lg:grid-cols-[1.35fr_1fr]">
+      <div>
+        <p className="eyebrow">{idea.code} · {idea.content_type === 'organic' ? 'ORGÁNICO' : 'PAUTA'} · {idea.category}</p>
+        <h1 className="display-title max-w-5xl">{idea.title}</h1>
+        <p className="mt-6 max-w-2xl text-base leading-7 text-blanco-60">{idea.description}</p>
+        <div className="mt-6 flex flex-wrap items-center gap-2">
+          <Chip icon={formatOf(idea.category, idea.content_type).icon as IconName} tone="blanco">{formatOf(idea.category, idea.content_type).label}</Chip>
+          <Chip icon="pieces" tone="neutro">{idea.category ?? 'SIN CATEGORÍA'}</Chip>
+          <Chip icon="eye" tone="mostaza">SOLO LECTURA</Chip>
+        </div>
+      </div>
+      <div>
+        <p className="mono-label mb-3 text-mostaza">// COMO SE VERÁ PUBLICADO</p>
+        <PublicationPreview url={raw} code={idea.code} title={idea.title} format={formatOf(idea.category, idea.content_type).icon as IconName} size="lg" />
+      </div>
     </header>
 
     <div className="grid gap-6 lg:grid-cols-[1.25fr_.75fr]">
@@ -87,6 +111,14 @@ export default async function AuditIdeaDetail({ params }: { params: Promise<{ pr
           <p className="eyebrow">[QUIÉN ACTÚA AHORA]</p>
           <h2 className="mt-3 font-display text-2xl font-bold text-blanco">ESPERANDO A<br/><span className="text-mostaza">{waitingOn(status).toUpperCase()}</span></h2>
           {nextMoves.length > 0 && <div className="mt-5 border-t border-blanco-20 pt-4"><p className="mono-label text-blanco-40">SIGUIENTES PASOS POSIBLES</p><ul className="mt-3 space-y-2">{nextMoves.map((move) => <li key={move.to} className="font-mono text-[10px] text-blanco-60">→ {move.label}</li>)}</ul></div>}
+        </div>
+
+        <div className="brutal-panel">
+          <p className="eyebrow">[COMPLETITUD DE LA FICHA]</p>
+          <p className="mt-2 font-mono text-[10px] leading-5 text-blanco-60">
+            {missing.length ? `Faltan ${missing.length} de 5 datos para que la pieza esté lista.` : 'Los cinco datos están completos.'}
+          </p>
+          <div className="mt-4"><BriefRail states={states} /></div>
         </div>
 
         <div className="brutal-panel">
