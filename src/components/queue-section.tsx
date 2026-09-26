@@ -24,9 +24,11 @@ function ageOf(idea: any): number | null {
  * completitud de la información y responsable. Así una pieza se reconoce igual
  * en el tablero, en la lista y en su cola — sin reaprender nada por pantalla.
  */
-export function QueueSection({ title, eyebrow, description, guide, ideas, projectSlug, empty, showPipeline = false }: {
+export function QueueSection({ title, eyebrow, description, guide, ideas, projectSlug, empty, showPipeline = false, notice }: {
   title: string; eyebrow: string; description: string; owner: string; guide: string;
   ideas: any[]; projectSlug: string; empty: string; showPipeline?: boolean;
+  /** Aviso honesto cuando esta pantalla depende de algo que todavía no existe. */
+  notice?: { title: string; body: string };
 }) {
   /**
    * Orden por urgencia, no por código: lo que más lleva parado va arriba.
@@ -70,6 +72,14 @@ export function QueueSection({ title, eyebrow, description, guide, ideas, projec
         </div>
       </section>
 
+      {notice && <section className="anim-rise mb-8 flex items-start gap-3 border-2 border-orquidea bg-orquidea/10 p-5">
+        <span className="mt-[2px] text-orquidea"><Icon name="alert" size={16} /></span>
+        <div>
+          <p className="mono-label text-orquidea">{notice.title}</p>
+          <p className="mt-2 text-sm leading-6 text-blanco-70">{notice.body}</p>
+        </div>
+      </section>}
+
       <div className="mb-5 flex items-end justify-between border-b border-blanco-10 pb-3">
         <p className="eyebrow">[PIEZAS EN ESTA FASE]</p>
         <span className="font-mono text-[10px] text-blanco-50">PRIMERO LO QUE MÁS LLEVA PARADO</span>
@@ -94,7 +104,9 @@ export function QueueSection({ title, eyebrow, description, guide, ideas, projec
               {showPipeline && <ProductionPipeline status={idea.status} compact />}
               <BriefRail states={briefState(idea)} />
               <div className="flex items-center justify-between gap-3 border-t border-blanco-10 pt-3">
-                <ActorChip who={meta.who} prefix="AQUÍ ACTÚA" />
+                {meta.who === '—'
+                  ? <Chip icon="check" tone="neutro">CERRADA · NADIE ESPERA</Chip>
+                  : <ActorChip who={meta.who} prefix="AQUÍ ACTÚA" />}
                 <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap font-mono text-[10px] text-fucsia">
                   ABRIR <Icon name="arrow" size={12} className="transition-transform group-hover:translate-x-0.5" />
                 </span>
