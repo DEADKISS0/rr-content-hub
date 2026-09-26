@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getIdea, getProject } from '@/lib/data';
 import { StatusBadge, STATUS_ICON } from '@/components/status-badge';
@@ -88,14 +87,22 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
           </div>
         </div>
 
-        <div>
-          <p className="mono-label mb-3 text-mostaza">// COMO SE VERÁ PUBLICADO</p>
-          <PublicationPreview url={raw} code={idea.code} title={idea.title} format={format.icon as IconName} size="lg" />
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-            <span className="font-mono text-[10px] text-blanco-60">
+        <div className="space-y-5">
+          <div>
+            <p className="mono-label mb-3 text-mostaza">// COMO SE VERÁ PUBLICADO</p>
+            <PublicationPreview url={raw} code={idea.code} title={idea.title} format={format.icon as IconName} size="lg" />
+            <p className="mt-3 font-mono text-[10px] text-blanco-60">
               {raw ? 'VISTA PREVIA DE LA REFERENCIA REAL' : 'SIN REFERENCIA TODAVÍA'}
-            </span>
-            {raw && <Link href={raw} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-mono text-[10px] text-fucsia underline">ABRIR ORIGINAL <Icon name="arrow" size={11} /></Link>}
+            </p>
+          </div>
+
+          {/* La acción va aquí, en el primer pantallazo y al lado de la pieza.
+              Antes vivía al final de la columna derecha, dos pantallas más abajo:
+              la única acción de la ficha era lo último que se veía. */}
+          <div className="brutal-panel anim-rise">
+            <p className="eyebrow">[TU SIGUIENTE ACCIÓN]</p>
+            <h2 className="mt-3 font-display text-2xl font-bold text-blanco">QUÉ HACER<br /><span className="text-mostaza">AHORA.</span></h2>
+            <div className="mt-5"><IdeaActions projectSlug={projectSlug} ideaId={ideaId} currentStatus={idea.status} /></div>
           </div>
         </div>
       </div>
@@ -109,21 +116,10 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
         <section className="space-y-5">
           <ReferenceWithBrief url={raw} title={idea.title} brief={{ intention: idea.objective, camera: idea.camera, talent: idea.talent, edit: idea.edit }} />
           {idea.script_content && <ScriptEditor ideaId={ideaId} initialScript={idea.script_content} />}
-          <div className="grid gap-px border-2 border-blanco-20 bg-blanco-10 md:grid-cols-3">
-            <Block title="CÁMARA">{idea.camera}</Block>
-            <Block title="TALENTO">{idea.talent}</Block>
-            <Block title="EDICIÓN">{idea.edit}</Block>
-          </div>
           <EnhancedIdeaCollaboration projectSlug={projectSlug} ideaId={ideaId} />
         </section>
 
         <aside className="space-y-5">
-          <div className="brutal-panel anim-rise">
-            <p className="eyebrow">[TU SIGUIENTE ACCIÓN]</p>
-            <h2 className="mt-4 font-display text-3xl font-bold text-blanco">QUÉ HACER<br /><span className="text-mostaza">AHORA.</span></h2>
-            <div className="mt-6"><IdeaActions projectSlug={projectSlug} ideaId={ideaId} currentStatus={idea.status} /></div>
-          </div>
-
           <div className="border-2 border-blanco-20 p-5 anim-rise">
             <p className="mono-label text-mostaza">// LO QUE FALTA DE ESTA FICHA</p>
             <p className="mt-3 font-mono text-[10px] leading-5 text-blanco-60">
@@ -145,4 +141,3 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
   </main>;
 }
 
-function Block({ title, children }: { title: string; children: React.ReactNode }) { return <div className="border border-blanco-10 bg-blanco-05 p-5"><p className="mono-label mb-3 text-mostaza">// {title}</p><div className="text-sm leading-6 text-blanco-60">{children}</div></div>; }
