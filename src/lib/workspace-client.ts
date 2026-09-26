@@ -79,9 +79,16 @@ export async function transitionIdeaStatus(input: {
   note: string;
   role: RoleKey;
 }): Promise<{ error?: string }> {
-  // The workflow engine is the only authority on legal moves. Validating here,
-  // before the write, means a hand-crafted request cannot jump `draft` straight
-  // to `published` the way the unchecked version of this function allowed.
+  // The check below is for the UI only: it greys out buttons the person cannot
+  // use, so they get an explanation instead of a silent failure. It is NOT a
+  // security control. The real one runs on the server, in
+  // api/workspace/transition, which reads the caller's real role from
+  // rr_hub_access and ignores the status posted from here.
+  //
+  // The previous version of this comment claimed a hand-crafted request could
+  // not skip states. It could: the write went straight to Supabase with the
+  // anon key, so this function was the only thing between the request and the
+  // table, and the requester did not have to run it.
   const from = (input.fromStatus ?? 'draft') as WorkflowStatus;
   const to = input.toStatus as WorkflowStatus;
   const permitted = allowedTransitions(input.role, from).some((move) => move.to === to);
@@ -89,23 +96,32 @@ export async function transitionIdeaStatus(input: {
     return { error: `Tu rol (${ROLE_LABEL[input.role]}) no puede pasar de ${from} a ${to}.` };
   }
 
+  const response = await postWorkspaceAction('transition', {
+    ideaId: input.ideaId, toStatus: to, fromStatus: from, note: input.note,
+  });
+  return response ?? {};
+}
+
+/** Shared call into the server-side workspace API. */
+async function postWorkspaceAction(action: string, body: Record<string, unknown>): Promise<{ error?: string } | null> {
   const supabase = createClient();
   if (!supabase) return { error: 'Supabase no está configurado en este entorno.' };
-  const { error: updateError } = await supabase
-    .from('rr_hub_ideas')
-    .update({ status: to, updated_at: new Date().toISOString() })
-    .eq('id', input.ideaId);
-  if (updateError) return { error: updateError.message };
 
-  const { error: eventError } = await supabase.from('rr_hub_events').insert({
-    idea_id: input.ideaId,
-    from_status: from,
-    to_status: to,
-    comment: input.note || null,
-    actor_label: ROLE_LABEL[input.role],
+  const { data: sessionData } = await supabase.auth.getSession();
+  const response = await fetch(`/api/workspace/${action}`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      // The session token is what lets the server look up the real role. Without
+      // it the route answers 401 rather than trusting anything sent by the page.
+      ...(sessionData.session?.access_token ? { authorization: `Bearer ${sessionData.session.access_token}` } : {}),
+    },
+    body: JSON.stringify(body),
   });
-  if (eventError) return { error: eventError.message };
-  return {};
+
+  if (response.ok) return null;
+  const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+  return { error: payload?.error ?? `La operación falló (${response.status}).` };
 }
 
 export async function loadComments(ideaId: string): Promise<IdeaComment[]> {
@@ -127,33 +143,50 @@ export async function loadComments(ideaId: string): Promise<IdeaComment[]> {
 }
 
 export async function addComment(input: { ideaId: string; body: string; roleLabel: string }): Promise<{ error?: string }> {
-  const supabase = createClient();
-  if (!supabase) return { error: 'Supabase no está configurado en este entorno.' };
-  const { error } = await supabase
-    .from('rr_hub_comments')
-    .insert({ idea_id: input.ideaId, body: input.body, role_label: input.roleLabel, author_label: `Modo colaborativo · ${input.roleLabel}` });
-  return error ? { error: error.message } : {};
+  // `roleLabel` used to be written straight into the row, so the browser chose
+  // how a comment was attributed — anyone could post as "Owner". The server
+  // ignores it and uses the caller's real role from rr_hub_access.
+  const response = await postWorkspaceAction('comment', { ideaId: input.ideaId, body: input.body });
+  return response ?? {};
 }
 
-export async function resolveComment(input: { commentId: string; resolved: boolean }): Promise<{ error?: string }> {
+export async function resolveComment(input: { commentId: string; ideaId: string; resolved: boolean }): Promise<{ error?: string }> {
+  const response = await postWorkspaceAction('resolve-comment', {
+    commentId: input.commentId, ideaId: input.ideaId, resolved: input.resolved,
+  });
+  return response ?? {};
+}
+
+/** Idea creation, including the sequential `code`. The server owns both. */
+export async function createIdea(input: {
+  projectSlug: string; title: string; description: string; objective: string;
+  contentType: 'organic' | 'paid'; category: string; referenceUrls: string[];
+  cameraBrief: string; talentBrief: string; editBrief: string; script: string;
+}): Promise<{ error?: string; id?: string }> {
   const supabase = createClient();
   if (!supabase) return { error: 'Supabase no está configurado en este entorno.' };
-  const { error } = await supabase
-    .from('rr_hub_comments')
-    .update({ resolved_at: input.resolved ? new Date().toISOString() : null })
-    .eq('id', input.commentId);
-  return error ? { error: error.message } : {};
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session) return { error: 'Necesitas una sesión para crear una idea.' };
+
+  const response = await fetch('/api/workspace/create-idea', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${sessionData.session.access_token}`,
+    },
+    body: JSON.stringify(input),
+  });
+  const payload = (await response.json().catch(() => null)) as { error?: string; id?: string } | null;
+  if (!response.ok) return { error: payload?.error ?? `No se pudo crear la idea (${response.status}).` };
+  return { id: payload?.id };
 }
 
 export async function saveIdeaScript(input: { ideaId: string; script: string; role: RoleKey }): Promise<{ error?: string }> {
-  const supabase = createClient();
-  if (!supabase) return { error: 'Supabase no está configurado en este entorno.' };
-  const { error } = await supabase.from('rr_hub_ideas').update({ script_content: input.script, updated_at: new Date().toISOString() }).eq('id', input.ideaId);
-  if (error) return { error: error.message };
-  // Saving a script is not a state transition. The previous version stamped a
-  // `script_in_progress` event on every keystroke-save, so the traceability
-  // timeline listed moves that never happened. The real status is left alone.
-  return {};
+  // Saving a script is not a state transition. The original version stamped a
+  // `script_in_progress` event on every save, so the traceability timeline
+  // listed moves that never happened. The server route writes no event either.
+  const response = await postWorkspaceAction('script', { ideaId: input.ideaId, script: input.script });
+  return response ?? {};
 }
 
 export async function loadAssets(ideaId: string): Promise<IdeaAsset[]> {
@@ -192,8 +225,19 @@ export async function uploadAsset(input: {
   if (!allowed) return { error: 'Tipo de archivo no permitido. Usa imagen, video, PDF, DOC o DOCX.' };
 
   const safeName = input.file.name.replace(/[^\w.\-]+/g, '_');
-  const path = `${input.projectSlug}/${input.ideaId}/${input.stage}/${Date.now()}-${safeName}`;
+  // The session id is part of the path because the server checks for it: it
+  // ties the stored object to whoever uploaded it, so a member of one project
+  // cannot register an asset inside another's folder.
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData.session?.user?.id;
+  if (!userId) return { error: 'Necesitas una sesión para subir archivos.' };
 
+  const path = `${input.projectSlug}/${input.ideaId}/${input.stage}/${userId}-${Date.now()}-${safeName}`;
+
+  // The bytes go up from the browser on purpose: that request carries the
+  // session token, so the RLS policies on storage.objects are what decide
+  // whether this person may write here. The metadata row then goes through the
+  // server route, which checks the path belongs to this idea.
   const { error: uploadError } = await supabase.storage
     .from(STORAGE_BUCKET)
     .upload(path, input.file, { upsert: false, contentType: input.file.type || undefined });
@@ -202,15 +246,11 @@ export async function uploadAsset(input: {
   // Only record the asset once the bytes are actually there. The other order
   // left a row pointing at an object that was never uploaded, which then
   // rendered as a broken image instead of an error.
-  const { error: insertError } = await supabase.from('rr_hub_assets').insert({
-    idea_id: input.ideaId,
-    asset_stage: input.stage,
-    storage_path: path,
-    file_name: input.file.name,
-    mime_type: input.file.type || null,
-    version_label: input.versionLabel,
+  const response = await postWorkspaceAction('asset', {
+    ideaId: input.ideaId, path, stage: input.stage,
+    fileName: input.file.name, mimeType: input.file.type, versionLabel: input.versionLabel,
   });
-  return insertError ? { error: insertError.message } : {};
+  return response ?? {};
 }
 
 export async function signedAssetUrl(path: string): Promise<string | null> {

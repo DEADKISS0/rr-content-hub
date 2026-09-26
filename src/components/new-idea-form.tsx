@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ReferenceWithBrief } from '@/components/reference-with-brief';
 import { createClient } from '@/lib/supabase/client';
-import { buildIdeaPack, looksLikeUrl, nextIdeaCode } from '@/lib/workspace-client';
+import { buildIdeaPack, createIdea, looksLikeUrl, nextIdeaCode } from '@/lib/workspace-client';
 
 type FormState = { title: string; type: 'Orgánico' | 'Pauta'; category: string; objective: string; description: string; camera: string; talent: string; edit: string; reference: string };
 const empty: FormState = { title: '', type: 'Orgánico', category: '', objective: '', description: '', camera: '', talent: '', edit: '', reference: '' };
@@ -47,33 +47,25 @@ export function NewIdeaForm({ projectSlug }: { projectSlug: string }) {
     if (!referenceValid) { setNotice('La referencia debe ser un enlace válido (https://…). Revísala antes de guardar.'); return; }
     if (!supabase) { setNotice('Supabase no está configurado en este entorno. Avisa al administrador para activar el guardado compartido.'); return; }
     setSaving(true);
-    const resolvedProjectId = projectId || (await supabase.from('rr_hub_projects').select('id').eq('slug', projectSlug).maybeSingle()).data?.id;
-    if (!resolvedProjectId) { setNotice('No pudimos encontrar Wundeer en la base. Intenta recargar la página.'); setSaving(false); return; }
-    const finalCode = code || (await nextIdeaCode(resolvedProjectId, contentType));
-    const { data, error } = await supabase.from('rr_hub_ideas').insert({
-      project_id: resolvedProjectId,
-      code: finalCode,
+    // The insert and the event go through the server: it checks that this
+    // session has a role in the project, and it assigns the code. The browser
+    // used to do both with the anon key, so "code" was a preview that two
+    // concurrent writers could duplicate, and a role was never checked at all.
+    const { error, id } = await createIdea({
+      projectSlug,
       title: form.title.trim(),
-      description: form.description.trim() || 'Sin descripción aún.',
+      description: form.description.trim(),
       objective: form.objective.trim(),
-      content_type: contentType,
-      category: form.category.trim() || 'Sin categoría',
-      status: 'draft',
-      priority: 'normal',
-      camera_brief: form.camera.trim() || generated.camera,
-      talent_brief: form.talent.trim() || generated.talent,
-      edit_brief: form.edit.trim() || generated.edit,
-      script_content: generated.script,
-      reference_urls: form.reference.trim() ? [form.reference.trim()] : [],
-    }).select('id').single();
-    if (error || !data) { setNotice(`No se guardó la idea: ${error?.message ?? 'error desconocido'}.`); setSaving(false); return; }
-    await supabase.from('rr_hub_events').insert({
-      idea_id: data.id,
-      to_status: 'draft',
-      comment: 'Idea creada con referencia, brief automático y guion inicial.',
-      actor_label: 'Modo colaborativo · RR ALIADOS',
+      contentType,
+      category: form.category.trim(),
+      referenceUrls: form.reference.trim() ? [form.reference.trim()] : [],
+      cameraBrief: form.camera.trim() || generated.camera,
+      talentBrief: form.talent.trim() || generated.talent,
+      editBrief: form.edit.trim() || generated.edit,
+      script: generated.script,
     });
-    router.push(`/${projectSlug}/ideas/${data.id}`);
+    if (error || !id) { setNotice(error ?? 'No se guardó la idea.'); setSaving(false); return; }
+    router.push(`/${projectSlug}/ideas/${id}`);
   }
 
   return <form onSubmit={submit} className="mt-10 space-y-6">
