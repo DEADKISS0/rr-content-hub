@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { loadTimeline, transitionIdeaStatus, type TimelineEvent } from '@/lib/workspace-client';
-import { STATUS_META, TONE_CLASS, allowedTransitions, statusMeta, waitingOn, type WorkflowStatus } from '@/lib/flow';
+import { STATUS_META, TONE_CLASS, allowedTransitions, statusMeta, waitingOn, ROLE_KEYS, type RoleKey, type WorkflowStatus } from '@/lib/flow';
+import { PUBLIC_MODE } from '@/lib/mode';
 import { createClient } from '@/lib/supabase/client';
 
 /**
@@ -11,7 +12,7 @@ import { createClient } from '@/lib/supabase/client';
  * (ENVIAR A CLIENTE, no "siguiente") and, on click, the note previews what
  * happens next so nobody presses blind.
  */
-export function IdeaActions({ ideaId, currentStatus = 'pending_approval' }: { projectSlug: string; ideaId: string; currentStatus?: string; role?: string }) {
+export function IdeaActions({ ideaId, currentStatus = 'pending_approval', role = 'client_viewer' }: { projectSlug: string; ideaId: string; currentStatus?: string; role?: string }) {
   const [status, setStatus] = useState<WorkflowStatus>(currentStatus as WorkflowStatus);
   const [history, setHistory] = useState<TimelineEvent[]>([]);
   const [note, setNote] = useState('');
@@ -35,8 +36,12 @@ export function IdeaActions({ ideaId, currentStatus = 'pending_approval' }: { pr
     return () => { supabase.removeChannel(channel); };
   }, [ideaId, refresh]);
 
-  const activeRole = 'owner' as const;
-  const moves = useMemo(() => allowedTransitions(activeRole, status), [status]);
+  // The role comes from the server (rr_hub_access), never from the browser.
+  // `client_viewer` is the safe default: a visitor who is not signed in can
+  // read the piece but no transition is offered to them.
+  const activeRole = (ROLE_KEYS.includes(role as RoleKey) ? role : 'client_viewer') as RoleKey;
+  const moves = useMemo(() => allowedTransitions(activeRole, status), [activeRole, status]);
+  const readOnly = PUBLIC_MODE || activeRole === 'client_viewer';
   const waiting = waitingOn(status);
   const meta = statusMeta(status);
   const tone = TONE_CLASS[meta.tone];
@@ -71,7 +76,7 @@ export function IdeaActions({ ideaId, currentStatus = 'pending_approval' }: { pr
 
     {notice && <div role="status" className="border-2 border-mostaza bg-mostaza/10 p-3 font-mono text-xs leading-5 text-blanco anim-pop">{notice}</div>}
 
-    {moves.length > 0 ? <>
+    {moves.length > 0 && !readOnly ? <>
         <label className="block"><span className="mono-label mb-2 block text-mostaza">// NOTA PARA EL SIGUIENTE RELEVO (OPCIONAL)</span><textarea value={note} onChange={(event) => setNote(event.target.value)} className="input-brutal min-h-20" placeholder="Contexto, confirmaciones o cambios relevantes…" /></label>
         <div className="grid gap-3">
           {moves.map((move, index) => {

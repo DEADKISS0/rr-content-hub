@@ -1,7 +1,7 @@
 'use client';
 
 import { createClient } from '@/lib/supabase/client';
-import { ROLE_LABEL, type RoleKey } from '@/lib/flow';
+import { ROLE_LABEL, allowedTransitions, type RoleKey, type WorkflowStatus } from '@/lib/flow';
 
 /**
  * Client-side workspace operations backed by Supabase.
@@ -79,20 +79,30 @@ export async function transitionIdeaStatus(input: {
   note: string;
   role: RoleKey;
 }): Promise<{ error?: string }> {
+  // The workflow engine is the only authority on legal moves. Validating here,
+  // before the write, means a hand-crafted request cannot jump `draft` straight
+  // to `published` the way the unchecked version of this function allowed.
+  const from = (input.fromStatus ?? 'draft') as WorkflowStatus;
+  const to = input.toStatus as WorkflowStatus;
+  const permitted = allowedTransitions(input.role, from).some((move) => move.to === to);
+  if (!permitted) {
+    return { error: `Tu rol (${ROLE_LABEL[input.role]}) no puede pasar de ${from} a ${to}.` };
+  }
+
   const supabase = createClient();
   if (!supabase) return { error: 'Supabase no está configurado en este entorno.' };
   const { error: updateError } = await supabase
     .from('rr_hub_ideas')
-    .update({ status: input.toStatus, updated_at: new Date().toISOString() })
+    .update({ status: to, updated_at: new Date().toISOString() })
     .eq('id', input.ideaId);
   if (updateError) return { error: updateError.message };
 
   const { error: eventError } = await supabase.from('rr_hub_events').insert({
     idea_id: input.ideaId,
-    from_status: input.fromStatus ?? null,
-    to_status: input.toStatus,
+    from_status: from,
+    to_status: to,
     comment: input.note || null,
-    actor_label: `Modo colaborativo · ${ROLE_LABEL[input.role]}`,
+    actor_label: ROLE_LABEL[input.role],
   });
   if (eventError) return { error: eventError.message };
   return {};
@@ -140,13 +150,10 @@ export async function saveIdeaScript(input: { ideaId: string; script: string; ro
   if (!supabase) return { error: 'Supabase no está configurado en este entorno.' };
   const { error } = await supabase.from('rr_hub_ideas').update({ script_content: input.script, updated_at: new Date().toISOString() }).eq('id', input.ideaId);
   if (error) return { error: error.message };
-  const { error: eventError } = await supabase.from('rr_hub_events').insert({
-    idea_id: input.ideaId,
-    to_status: 'script_in_progress',
-    comment: 'Guion guardado y disponible para los equipos de producción.',
-    actor_label: `Modo colaborativo · ${ROLE_LABEL[input.role]}`,
-  });
-  return eventError ? { error: eventError.message } : {};
+  // Saving a script is not a state transition. The previous version stamped a
+  // `script_in_progress` event on every keystroke-save, so the traceability
+  // timeline listed moves that never happened. The real status is left alone.
+  return {};
 }
 
 export async function loadAssets(ideaId: string): Promise<IdeaAsset[]> {

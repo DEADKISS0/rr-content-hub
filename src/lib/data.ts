@@ -69,8 +69,10 @@ export async function getProject(slug: string) {
   if (!project) return { project: null, access: null, supabase };
 
   const { data: { user } } = await supabase.auth.getUser();
-  // Public mode: without a session every project stays browsable under an owner view.
-  if (!user) return { project, access: { role_in_project: 'owner' }, supabase };
+  // Public mode: an anonymous visitor may browse Wundeer, but browsing is not
+  // ownership. This used to return `owner`, which is the one role that bypasses
+  // every transition rule in flow.ts — it handed write controls to the public.
+  if (!user) return { project, access: { role_in_project: 'client_viewer' }, supabase };
 
   const { data: access } = await supabase
     .from('rr_hub_access')

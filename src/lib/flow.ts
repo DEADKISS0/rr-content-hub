@@ -16,6 +16,17 @@ export type RoleKey =
   | 'owner' | 'creator' | 'camera' | 'model' | 'editor'
   | 'publisher' | 'media_buyer' | 'client_approver' | 'client_viewer';
 
+/** Runtime guard for a role that arrived from the database or the browser. */
+export const ROLE_KEYS: readonly RoleKey[] = [
+  'owner', 'creator', 'camera', 'model', 'editor',
+  'publisher', 'media_buyer', 'client_approver', 'client_viewer',
+] as const;
+
+/** Narrows an untrusted string to a real role; anything else becomes a viewer. */
+export function toRoleKey(value?: string | null): RoleKey {
+  return ROLE_KEYS.includes(value as RoleKey) ? (value as RoleKey) : 'client_viewer';
+}
+
 export const STATUS_ORDER: WorkflowStatus[] = [
   'draft', 'pending_approval', 'needs_changes', 'approved',
   'script_in_progress', 'pending_script_review', 'script_approved',

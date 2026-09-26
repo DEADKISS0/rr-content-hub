@@ -338,8 +338,16 @@ const CONTENT_PLAN: Array<{ theme: string; pieces: Array<[Pillar, string]> }> = 
   ]},
 ];
 
+/**
+ * First shoot session. It is a parameter rather than a literal inside the
+ * generator because a hardcoded `new Date(...)` here is evaluated at build
+ * time: every deploy silently re-dated the whole plan.
+ */
+export const ROADMAP_START_ISO = '2026-09-12';
+
 export const contentRoadmap: ContentWeek[] = (() => {
-  const start = new Date(2026, 8, 12); // sábado 12 de septiembre de 2026
+  const [y, m, d] = ROADMAP_START_ISO.split('-').map(Number);
+  const start = new Date(y, m - 1, d);
   const weeks: ContentWeek[] = [];
   for (let i = 0; i < CONTENT_PLAN.length; i += 1) {
     const session = addDays(start, i * 7);
@@ -359,6 +367,27 @@ export const contentRoadmap: ContentWeek[] = (() => {
   }
   return weeks;
 })();
+
+/**
+ * True when the plan's delivery dates are already in the past. Surfacing this
+ * turns "the roadmap expired" from a silent data bug into a visible warning.
+ */
+export function isRoadmapStale(now: Date = new Date()): boolean {
+  const last = contentRoadmap.at(-1);
+  if (!last) return false;
+  return new Date(`${last.sessionIso}T23:59:59`).getTime() < now.getTime();
+}
+
+/** Weeks between the plan start and today, for the "plan has been running N weeks" line. */
+export function roadmapWeekNumber(now: Date = new Date()): number {
+  const [y, m, d] = ROADMAP_START_ISO.split('-').map(Number);
+  // Local midnight, not `new Date(iso)`: that parses as UTC and lands on the
+  // previous day in any negative-offset zone, putting week 1 at 0.
+  const start = new Date(y, m - 1, d).getTime();
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const weeks = Math.floor((midnight - start) / (7 * 24 * 3600 * 1000));
+  return Math.max(1, Math.min(CONTENT_PLAN.length, weeks + 1));
+}
 
 /** Group the content weeks by month for a compact timeline. */
 export const contentMonths = (() => {
