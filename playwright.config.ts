@@ -15,6 +15,18 @@ import { defineConfig, devices } from '@playwright/test';
  */
 const PUERTO = process.env.HUB_E2E_PORT ?? '3100';
 
+/**
+ * `HUB_BASE_URL` corre los recorridos contra un build ya desplegado en vez del
+ * dev server — el caso que importa cuando lo que se acaba de subir a `main` es
+ * un cambio de SERVIDOR (una acción nueva en `/api/workspace`), no de estilos.
+ *
+ * Importa porque el dev server corre sin `SUPABASE_SERVICE_ROLE_KEY`: cualquier
+ * ruta que use el cliente `service` devuelve 500 ahí y pasa en local, mientras
+ * en producción responde bien. La acción `roster` fue exactamente ese caso — el
+ * e2e en local veía un roster vacío y en producción devuelve 16 personas.
+ */
+const BASE = process.env.HUB_BASE_URL ?? `http://localhost:${PUERTO}`;
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
@@ -22,7 +34,7 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   reporter: [['list']],
   use: {
-    baseURL: `http://localhost:${PUERTO}`,
+    baseURL: BASE,
     trace: 'retain-on-failure',
   },
   projects: [{
@@ -31,10 +43,14 @@ export default defineConfig({
     // justo bajo el pliegue. Con una ventana alta el fallo no se ve.
     use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 720 } },
   }],
-  webServer: {
-    command: `npm run dev -- --port ${PUERTO}`,
-    url: `http://localhost:${PUERTO}/wundeer`,
-    reuseExistingServer: true,
-    timeout: 120_000,
-  },
+  // Con `HUB_BASE_URL` no hay servidor local que levantar: el destino ya está
+  // desplegado y arrancarlo sería arrancar un segundo sitio con otro código.
+  ...(process.env.HUB_BASE_URL ? {} : {
+    webServer: {
+      command: `npm run dev -- --port ${PUERTO}`,
+      url: `http://localhost:${PUERTO}/wundeer`,
+      reuseExistingServer: true,
+      timeout: 120_000,
+    },
+  }),
 });
