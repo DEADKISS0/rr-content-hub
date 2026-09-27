@@ -71,12 +71,9 @@ export function StartHere({ ideas, projectSlug }: { ideas: Pieza[]; projectSlug:
                       {idea.code ?? 'IDEA'} · {esCliente ? 'ESPERA TU RESPUESTA' : `ESPERA A ${meta.who}`}
                       {dias > 0 ? ` · ${dias} ${dias === 1 ? 'DÍA' : 'DÍAS'}` : ' · HOY'}
                     </span>
-                    <span className="mt-1 block font-display text-lg font-bold leading-tight text-blanco group-hover:text-blanco sm:text-xl">
+                    <span className="mt-1 block font-display text-lg font-bold leading-tight text-blanco group-hover:text-blanco-90 sm:text-xl">
                       {idea.title}
                     </span>
-                  </span>
-                  <span className="btn-brutal inline-flex shrink-0 items-center gap-2">
-                    ABRIR <Icon name="arrow" size={14} />
                   </span>
                 </Link>
               </li>
