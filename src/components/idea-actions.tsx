@@ -47,21 +47,39 @@ export function IdeaActions({ ideaId, currentStatus = 'pending_approval', role =
   const tone = TONE_CLASS[meta.tone];
   const done = status === 'closed';
 
+  /**
+   * Confirmación en dos pasos.
+   *
+   * Un clic movía la pieza de verdad: la aprobaba, la mandaba a cliente, la
+   * cerraba. Con 25 piezas y aprobaciones de un solo toque, un dedazo en móvil
+   * cambiaba el estado de una pieza que llevaba 16 días esperando y no había
+   * forma de volver atrás. Ahora el primer clic solo arma, y el botón dice
+   * exactamente qué va a pasar y a quién le toca después. El segundo clic
+   * confirma; Escape o un clic fuera cancelan.
+   */
+  const [armado, setArmado] = useState<WorkflowStatus | null>(null);
+
   async function run(target: WorkflowStatus, label: string, note: string) {
     if (busy) return; // double-click guard: one in-flight transition at a time
     setBusy(true);
     const { error } = await transitionIdeaStatus({ ideaId, fromStatus: status, toStatus: target, note: note.trim() || label, role: activeRole });
     setBusy(false);
-    if (error) { setNotice(`⚠ No se pudo registrar: ${error}`); return; }
+    if (error) { setNotice(`⚠ No se pudo registrar: ${error}`); setArmado(null); return; }
     setStatus(target);
     setNote('');
+    setArmado(null);
     setJustChanged(true);
     window.setTimeout(() => setJustChanged(false), 2000);
     setNotice(`✓ ${label}. Ahora le toca a ${waitingOn(target)}.`);
     refresh();
   }
 
+  function confirmar(tecla: React.KeyboardEvent) {
+    if (tecla.key === 'Escape' && armado) { setArmado(null); setNotice(''); }
+  }
+
   const nextStep = moves[0] ? statusMeta(moves[0].to) : null;
+  const armadoMeta = armado ? statusMeta(armado) : null;
 
   return <div className="space-y-4" aria-live="polite">
     <div className={`border-l-4 ${tone.border} ${tone.bg} p-5 ${justChanged ? 'anim-highlight' : ''}`}>
@@ -77,24 +95,43 @@ export function IdeaActions({ ideaId, currentStatus = 'pending_approval', role =
     {notice && <div role="status" className="border border-blanco-20 bg-blanco-05 p-3 font-mono text-xs leading-5 text-blanco anim-pop">{notice}</div>}
 
     {moves.length > 0 && !readOnly ? <>
-        <label className="block"><span className="mono-label mb-2 block text-blanco-50">// NOTA PARA EL SIGUIENTE RELEVO (OPCIONAL)</span><textarea value={note} onChange={(event) => setNote(event.target.value)} className="input-brutal min-h-20" placeholder="Contexto, confirmaciones o cambios relevantes…" /></label>
-        <div className="grid gap-3">
-          {moves.map((move, index) => {
-            const moveMeta = statusMeta(move.to);
-            return <button key={move.to} disabled={busy} onClick={() => run(move.to, move.label, move.note)} className={`w-full px-5 py-4 text-left font-display font-bold ${index === 0 ? 'btn-brutal' : 'border border-blanco-20 bg-blanco-05 text-blanco-80'} ${busy ? 'opacity-60' : ''}`}>
-              <span className="block">{busy ? 'REGISTRANDO…' : move.label}</span>
+      <label className="block"><span className="mono-label mb-2 block text-blanco-50">// NOTA PARA EL SIGUIENTE RELEVO (OPCIONAL)</span><textarea value={note} onChange={(event) => setNote(event.target.value)} className="input-brutal min-h-20" placeholder="Contexto, confirmaciones o cambios relevantes…" /></label>
+      <div className={`grid gap-3 ${busy ? 'pointer-events-none opacity-60' : ''}`} onKeyDown={confirmar} role="group" aria-label="Movimientos disponibles">
+        {moves.map((move, index) => {
+          const moveMeta = statusMeta(move.to);
+          const armadoEste = armado === move.to;
+          return <div key={move.to}>
+            <button
+              disabled={busy}
+              onClick={() => (armadoEste ? run(move.to, move.label, move.note) : (setArmado(move.to), setNotice('')))}
+              aria-expanded={armadoEste}
+              className={`w-full px-5 py-4 text-left font-display font-bold ${index === 0 ? 'btn-brutal' : 'border border-blanco-20 bg-blanco-05 text-blanco-80'} transition-transform duration-150 active:translate-y-px`}
+            >
+              <span className="block">{busy && armadoEste ? 'REGISTRANDO…' : move.label}</span>
               <span className="mt-1 block font-mono text-[10px] font-normal opacity-80">→ deja la pieza en {moveMeta.label} · le tocará a {moveMeta.who}</span>
-            </button>;
-          })}
-        </div>
-        {nextStep && <div className="border border-blanco-20 p-4">
-          <p className="mono-label text-blanco-50">[DESPUÉS DE ESTO]</p>
-          <p className="mt-2 text-xs leading-5 text-blanco-60">La pieza queda en <strong className="text-blanco">{nextStep.label}</strong> y el siguiente relevo es <strong className="text-blanco">{nextStep.who}</strong>. {nextStep.blurb}</p>
-        </div>}
-      </> : <div className="border border-dashed border-blanco-20 p-4">
-        <p className="mono-label text-blanco-50">[SIN ACCIÓN DISPONIBLE]</p>
-        <p className="mt-2 text-xs leading-5 text-blanco-60">Esta pieza no tiene un movimiento pendiente en este estado. Puedes seguir el hilo y comentar; cuando el estado cambie, aparecerá aquí la acción.</p>
+            </button>
+            {armadoEste && armadoMeta && <div className="anim-slide-down mt-2 border border-blanco-40 bg-blanco-10 p-4">
+              <p className="mono-label text-blanco-60">[CONFIRMA ANTES]</p>
+              <p className="mt-2 text-sm leading-6 text-blanco-70">
+                Vas a mover <strong className="text-blanco">{meta.label}</strong> a <strong className="text-blanco">{armadoMeta.label}</strong>.
+                Esta acción escribe en el historial y no se puede deshacer: si te equivocaste, avisa en el hilo de abajo.
+              </p>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <button type="button" onClick={() => run(move.to, move.label, move.note)} className="btn-brutal">SÍ, MOVER AHORA</button>
+                <button type="button" onClick={() => { setArmado(null); setNotice(''); }} className="font-mono text-xs text-blanco-60 underline transition-colors hover:text-blanco">CANCELAR (ESC)</button>
+              </div>
+            </div>}
+          </div>;
+        })}
+      </div>
+      {nextStep && <div className="border border-blanco-20 p-4">
+        <p className="mono-label text-blanco-50">[DESPUÉS DE ESTO]</p>
+        <p className="mt-2 text-xs leading-5 text-blanco-60">La pieza queda en <strong className="text-blanco">{nextStep.label}</strong> y el siguiente relevo es <strong className="text-blanco">{nextStep.who}</strong>. {nextStep.blurb}</p>
       </div>}
+    </> : <div className="border border-dashed border-blanco-20 p-4">
+      <p className="mono-label text-blanco-50">[SIN ACCIÓN DISPONIBLE]</p>
+      <p className="mt-2 text-xs leading-5 text-blanco-60">Esta pieza no tiene un movimiento pendiente en este estado. Puedes seguir el hilo y comentar; cuando el estado cambie, aparecerá aquí la acción.</p>
+    </div>}
 
     {history.length > 0 && <details className="border-t border-blanco-20 pt-4" open>
       <summary className="cursor-pointer font-mono text-[10px] text-blanco-60">VER TRAZABILIDAD ({history.length})</summary>

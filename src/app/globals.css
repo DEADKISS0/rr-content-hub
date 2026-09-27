@@ -8,11 +8,20 @@
   --color-negro: #070001;
   --color-blanco-10: rgba(255,255,243,.1);
   --color-blanco-20: rgba(255,255,243,.2);
-  --color-blanco-40: rgba(255,255,243,.4);
-  --color-blanco-60: rgba(255,255,243,.6);
-  --color-blanco-70: rgba(255,255,243,.72);
-  --color-blanco-50: rgba(255,255,243,.5);
   --color-blanco-30: rgba(255,255,243,.3);
+  --color-blanco-40: rgba(255,255,243,.4);
+  /* Contraste del texto secundario. A 0.5 de opacidad daba 5.20:1 — ya pasaba
+     AA normal, pero tres auditorías visuales seguidas lo marcaron como
+     "apagado" al compararlo con el blanco de los titulares. A 0.62 da 7.70:1:
+     mismo color perceived, mucho más aire. Medido con la fórmula WCAG real
+     sobre #070001, no estimado a ojo. */
+  --color-blanco-50: rgba(255,255,243,.62);
+  --color-blanco-60: rgba(255,255,243,.6);
+  --color-blanco-70: rgba(255,255,243,.78);
+  /* 80 faltaba y `btn-brutal` lo usaba en su hover: un `@apply` con una clase
+     que no existe tumba TODO el CSS, no solo la regla. Lo cazó el arranque del
+     dev server (HTTP 500 en cada ruta), no el build. */
+  --color-blanco-80: rgba(255,255,243,.86);
   --color-blanco-05: rgba(255,255,243,.05);
   --shadow-brutal: 4px 4px 0 #be076d;
   --shadow-brutal-lg: 8px 8px 0 #be076d;
@@ -51,8 +60,11 @@
 }
 
 @layer components {
+  /* Una sola acción primaria por superficie: blanco sólido sobre fondo negro.
+     Es la jerarquía completa de la paleta — si todo es acento, nada es
+     principal. El color de marca vive en los estados, no en los botones. */
   .btn-brutal {
-    @apply px-5 py-2.5 bg-blanco-10 text-blanco font-display font-bold uppercase tracking-tight border border-blanco-20 hover:bg-blanco-20 hover:border-blanco-40 active:bg-blanco-05 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply px-5 py-2.5 bg-blanco text-negro font-display font-bold uppercase tracking-tight border border-blanco hover:bg-blanco-80 hover:border-blanco active:bg-blanco-60 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   .btn-brutal-mostaza {

@@ -101,6 +101,12 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
 
       <FlowGuide ideas={ideas} phase={filters.phase} onPhase={(phase) => onChange({ phase, act: 'all' })} />
 
+      {/* La barra va FUERA del desplegable a propósito, y NO es sticky. El
+          buscador tiene que estar a la vista antes de que nadie abra nada
+          (medido 2026-09-27: escondido en un <details> cerrado, quien buscaba
+          "O1" tenía que descubrir primero que existía un filtro). Y sin
+          `sticky`, escribir no deja un contador flotando sobre un tablero
+          cerrado: `dirty` abre el <details> en el mismo gesto. */}
       <BoardControls filters={filters} onChange={onChange} total={ideas.length} shown={visible.length} waiting={waitingClient} />
 
       {/* El trabajo completo sigue aquí, a una línea de distancia. Si alguien
@@ -113,7 +119,7 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
         <div className="p-4 pt-0">
 
       {filters.view === 'map' ? (
-        <div key={`map-${filters.phase}`} className={`view-in grid gap-px border-2 border-blanco bg-blanco-20 ${filters.phase === 'all' ? 'lg:grid-cols-2 xl:grid-cols-4' : 'xl:grid-cols-2'}`}>
+        <div key={`map-${filters.phase}`} className={`view-in grid gap-px border border-blanco-20 bg-blanco-10 ${filters.phase === 'all' ? 'lg:grid-cols-2 xl:grid-cols-4' : 'xl:grid-cols-2'}`}>
           {BOARD_COLUMNS.filter((column) => filters.phase === 'all' || column.key === filters.phase).map((column, index) => {
             const items = visible.filter((idea) => (column.statuses as readonly string[]).includes(idea.status));
             const originalIndex = BOARD_COLUMNS.findIndex((item) => item.key === column.key);

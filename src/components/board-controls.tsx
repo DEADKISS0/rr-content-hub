@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { ACT_GROUPS } from '@/lib/flow';
 import { Icon } from './ui/icons';
 
@@ -16,11 +17,20 @@ export type BoardFilters = {
  * Barra de control del tablero.
  *
  * Reescrita el 2026-09-26 por una razón medida: la pantalla tenía 47 cosas
- * clicables y nadie encontraba nada. Ahora, por defecto, la barra muestra UN
- * solo control ("BUSCAR Y ORDENAR") más el conteo. Buscar, cambiar de vista y
- * filtrar por responsable viven dentro, y solo se despliegan si alguien los
- * busca. El filtro por paso sigue en la guía del flujo: tenerlo en dos lugares
- * era la razón de que nadie supiera cuál manda.
+ * clicables y nadie encontraba nada.
+ *
+ * Rehecha el 2026-09-27 por otra razón igual de medida: el buscador había
+ * quedado DENTRO de un `<details>` que arrancaba cerrado, así que quien llegaba
+ * sabiendo qué buscaba ("¿dónde está O1?") tenía que descubrir primero que
+ * existía un filtro. Búsqueda siempre visible, con atajo de `/`. Lo demás
+ * —cambiar de vista y filtrar por responsable— sí es de exploración, así que
+ * se repliega detrás de un resumen que NOMBRA las dos cosas: un cajón con
+ * tres cosas distintas dentro es un cajón de sastre.
+ *
+ * `sticky` es opcional y el tablero lo apaga a propósito: la barra vive fuera
+ * del `<details>` que guarda las tarjetas, así que si flotara se quedaría
+ * pegada sobre un tablero cerrado, con un contador que cambia y nada visible
+ * que lo explique.
  */
 export function BoardControls({
   filters,
@@ -28,74 +38,94 @@ export function BoardControls({
   total,
   shown,
   waiting,
+  sticky = true,
 }: {
   filters: BoardFilters;
   onChange: (next: Partial<BoardFilters>) => void;
   total: number;
   shown: number;
   waiting: number;
+  sticky?: boolean;
 }) {
   const dirty = filters.query !== '' || filters.phase !== 'all' || filters.act !== 'all';
   const activeGroup = filters.act === 'all'
     ? 'TODOS'
     : ACT_GROUPS.find((group) => group.key === filters.act)?.label ?? filters.act.toUpperCase();
 
+  // Atajo "/" para buscar. Se registra en `document` y se salta si el foco ya
+  // está escribiendo: teclear "/" dentro del buscador tiene que seguir
+  // escribiendo "/", no robar la tecla.
+  useEffect(() => {
+    const alTeclear = (event: KeyboardEvent) => {
+      const foco = document.activeElement;
+      const escribiendo = foco instanceof HTMLInputElement || foco instanceof HTMLTextAreaElement;
+      const atajo = event.key === '/' && !escribiendo && !event.metaKey && !event.ctrlKey && !event.altKey;
+      if (atajo) {
+        event.preventDefault();
+        document.querySelector<HTMLInputElement>('[data-atajo-buscar]')?.focus();
+        return;
+      }
+      const enBuscador = foco === document.querySelector('[data-atajo-buscar]');
+      if (event.key === 'Escape' && enBuscador && filters.query) onChange({ query: '' });
+    };
+    document.addEventListener('keydown', alTeclear);
+    return () => document.removeEventListener('keydown', alTeclear);
+  }, [filters.query, onChange]);
+
   return (
-    <div className="sticky top-[68px] z-20 -mx-5 mb-6 border-y border-blanco-20 bg-negro/95 px-5 py-3 backdrop-blur md:-mx-10 md:px-10">
+    <div className={`${sticky ? 'sticky top-[68px] z-20' : ''} -mx-5 mb-6 border-y border-blanco-20 bg-negro/95 px-5 py-3 backdrop-blur md:-mx-10 md:px-10`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <details className="group/buscar" open={dirty || undefined}>
-          <summary className="inline-flex cursor-pointer list-none items-center gap-2 border border-blanco-20 px-3 py-2 font-mono text-sm text-blanco-60 transition-colors hover:border-blanco-40 hover:text-blanco">
-            <Icon name="search" size={14} />
-            BUSCAR Y ORDENAR
-            <Icon name="chevron" size={12} className="transition-transform group-open/buscar:rotate-180" />
-          </summary>
+        <label className="group flex min-w-[16rem] flex-1 items-center gap-2 border border-blanco-20 bg-negro px-3 py-2 transition-colors focus-within:border-blanco-40">
+          <Icon name="search" size={14} className="shrink-0 text-blanco-50 transition-colors group-focus-within:text-blanco" />
+          <input
+            value={filters.query}
+            onChange={(event) => onChange({ query: event.target.value })}
+            placeholder="Buscar por código, título o categoría…"
+            aria-label="Buscar piezas"
+            data-atajo-buscar
+            className="w-full bg-transparent font-mono text-sm text-blanco outline-none placeholder:text-blanco-50"
+          />
+          {filters.query ? (
+            <button type="button" aria-label="Limpiar búsqueda" onClick={() => onChange({ query: '' })} className="anim-pop shrink-0 text-blanco-60 transition-colors hover:text-blanco">
+              <Icon name="close" size={13} />
+            </button>
+          ) : (
+            <kbd className="hidden shrink-0 border border-blanco-20 px-1.5 py-0.5 font-mono text-[10px] text-blanco-40 lg:inline">/</kbd>
+          )}
+        </label>
 
-          <div className="anim-slide-down mt-3 flex flex-wrap items-center gap-3 border-l-2 border-blanco-20 pl-3">
-            <label className="group flex min-w-[15rem] flex-1 items-center gap-2 border border-blanco-20 bg-negro px-3 py-2 transition-colors focus-within:border-blanco-40">
-              <Icon name="search" size={14} className="text-blanco-50 transition-colors group-focus-within:text-blanco" />
-              <input
-                value={filters.query}
-                onChange={(event) => onChange({ query: event.target.value })}
-                placeholder="Escribe el código o el título…"
-                aria-label="Buscar piezas"
-                className="w-full bg-transparent font-mono text-sm text-blanco outline-none placeholder:text-blanco-50"
-              />
-              {filters.query && (
-                <button type="button" aria-label="Limpiar búsqueda" onClick={() => onChange({ query: '' })} className="anim-pop text-blanco-60 transition-colors hover:text-blanco">
-                  <Icon name="close" size={13} />
-                </button>
-              )}
-            </label>
+        <div className="flex flex-wrap items-center gap-3">
+          <span aria-live="polite" className="font-mono text-xs text-blanco-60">
+            <b className="anim-count text-blanco">{shown}</b>/{total} PIEZAS · <b className="anim-count text-blanco">{waiting}</b> ESPERANDO
+          </span>
 
-            <div className="flex items-center gap-1 border border-blanco-20 p-0.5" role="group" aria-label="Vista">
-              {(['map', 'list'] as BoardView[]).map((view) => {
-                const active = filters.view === view;
-                return (
-                  <button
-                    key={view}
-                    type="button"
-                    onClick={() => onChange({ view })}
-                    aria-pressed={active}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 font-mono text-xs transition-colors ${active ? 'bg-blanco text-negro' : 'text-blanco-60 hover:text-blanco'}`}
-                  >
-                    <Icon name={view === 'map' ? 'grid' : 'list'} size={13} />
-                    {view === 'map' ? 'TARJETAS' : 'LISTA'}
-                  </button>
-                );
-              })}
-            </div>
+          <details className="group/ver">
+            <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 border border-blanco-20 px-2.5 py-1.5 font-mono text-xs text-blanco-60 transition-colors hover:border-blanco-40 hover:text-blanco">
+              <Icon name="filter" size={12} />
+              VISTA
+              {filters.act !== 'all' ? ` · ${activeGroup}` : ''} Y RESPONSABLE
+              <Icon name="chevron" size={12} className="transition-transform group-open/ver:rotate-180" />
+            </summary>
+            <div className="anim-slide-down mt-2 flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-1 border border-blanco-20 p-0.5" role="group" aria-label="Vista">
+                {(['map', 'list'] as BoardView[]).map((view) => {
+                  const active = filters.view === view;
+                  return (
+                    <button
+                      key={view}
+                      type="button"
+                      onClick={() => onChange({ view })}
+                      aria-pressed={active}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 font-mono text-xs transition-colors ${active ? 'bg-blanco text-negro' : 'text-blanco-60 hover:text-blanco'}`}
+                    >
+                      <Icon name={view === 'map' ? 'grid' : 'list'} size={13} />
+                      {view === 'map' ? 'TARJETAS' : 'LISTA'}
+                    </button>
+                  );
+                })}
+              </div>
 
-            {/* Los seis responsables viven dentro de un desplegable: la barra
-                pasa de siete botones siempre visibles a uno que dice quién
-                está filtrando. Sin estado controlado a propósito — así el
-                navegador maneja el abrir/cerrar y no pelea con React. */}
-            <details className="group/act">
-              <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 border border-blanco-20 px-2.5 py-1.5 font-mono text-xs uppercase tracking-[0.06em] text-blanco-60 transition-colors hover:border-blanco-40 hover:text-blanco">
-                <Icon name="filter" size={12} />
-                QUIÉN ACTÚA: <b className={filters.act === 'all' ? 'text-blanco-60' : 'text-blanco'}>{activeGroup}</b>
-                <Icon name="chevron" size={12} className="transition-transform group-open/act:rotate-180" />
-              </summary>
-              <div className="anim-slide-down mt-2 flex flex-wrap items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => onChange({ act: 'all' })}
@@ -119,14 +149,8 @@ export function BoardControls({
                   );
                 })}
               </div>
-            </details>
-          </div>
-        </details>
-
-        <div className="flex items-center gap-3">
-          <span aria-live="polite" className="font-mono text-xs text-blanco-60">
-            <b className="anim-count text-blanco">{shown}</b>/{total} PIEZAS · <b className="anim-count text-blanco">{waiting}</b> ESPERANDO
-          </span>
+            </div>
+          </details>
 
           {dirty && (
             <button

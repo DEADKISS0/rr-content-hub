@@ -251,14 +251,14 @@ export function actGroup(status: WorkflowStatus): ActGroup {
 }
 
 /** Clases por tono, reutilizadas por badges, rieles y filtros.
- *  El color de marca salio de aqui el 2026-09-26: con 14 estados en pantalla,
- *  un color por tono era leer un codigo de barras, no una pantalla. Ahora el
- *  estado se dice con texto (`statusMeta().label`) y el color queda libre para
- *  marcar de verdad una sola cosa: el foco de teclado. */
+ *  El fondo SIEMPRE va neutro (`bg-blanco-05`): el color vive en el borde, el
+ *  texto y el punto, nunca en un relleno grande. Motivo, medido el 2026-09-26:
+ *  con relleno, 14 estados en pantalla se leian como un codigo de barras; con
+ *  acento, el color vuelve a ser senal y la pantalla vuelve a respirar. */
 export const TONE_CLASS: Record<ToneKey, { border: string; bg: string; text: string; dot: string }> = {
-  mostaza: { border: 'border-blanco-20', bg: 'bg-blanco-05', text: 'text-blanco-60', dot: 'bg-blanco-40' },
-  fucsia: { border: 'border-blanco-20', bg: 'bg-blanco-05', text: 'text-blanco-60', dot: 'bg-blanco-40' },
-  orquidea: { border: 'border-blanco-20', bg: 'bg-blanco-05', text: 'text-blanco-60', dot: 'bg-blanco-40' },
+  mostaza: { border: 'border-mostaza/50', bg: 'bg-blanco-05', text: 'text-mostaza', dot: 'bg-mostaza' },
+  fucsia: { border: 'border-fucsia/50', bg: 'bg-blanco-05', text: 'text-fucsia', dot: 'bg-fucsia' },
+  orquidea: { border: 'border-orquidea/50', bg: 'bg-blanco-05', text: 'text-orquidea', dot: 'bg-orquidea' },
   neutro: { border: 'border-blanco-20', bg: 'bg-blanco-05', text: 'text-blanco-60', dot: 'bg-blanco-40' },
 };
 

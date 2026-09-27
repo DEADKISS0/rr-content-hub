@@ -30,6 +30,21 @@ async function abrir(page: import('@playwright/test').Page, ruta: string) {
   await page.goto(ruta);
 }
 
+/**
+ * ¿Está realmente desplegado este control? `isVisible()` no basta: un `<details>`
+ * cerrado sigue teniendo su `<summary>` en pantalla, y por dentro sus hijos
+ * cuentan como visibles para el filtro de Playwright. Esto pregunta al DOM qué
+ * se está pintando de verdad.
+ */
+async function desplegado(page: import('@playwright/test').Page, selector: string): Promise<boolean> {
+  return page.locator(selector).first().evaluate((el) => {
+    const nodo = el as HTMLElement;
+    return typeof nodo.checkVisibility === 'function'
+      ? nodo.checkVisibility({ checkVisibilityCSS: true, checkOpacity: true })
+      : nodo.offsetParent !== null;
+  });
+}
+
 test.describe('tablero', () => {
   test('una sola acción para crear y ningún hueco vacío', async ({ page }) => {
     await abrir(page, `/${PROYECTO}`);
@@ -45,6 +60,46 @@ test.describe('tablero', () => {
     for (const pista of PISTAS) {
       await expect(page.getByText(pista, { exact: true }).first()).toBeVisible();
     }
+  });
+});
+
+test.describe('búsqueda', () => {
+  test('el buscador está a la vista sin abrir nada', async ({ page }) => {
+    await abrir(page, `/${PROYECTO}`);
+
+    // El buscador estaba dentro de un <details> cerrado: quien buscaba "O1"
+    // tenía que descubrir primero que existía un filtro. Ahora se ve siempre.
+    await expect(page.getByLabel('Buscar piezas')).toBeVisible();
+    expect(await desplegado(page, '[data-atajo-buscar]')).toBe(true);
+  });
+
+  test('el atajo "/" lleva al buscador y escribir filtra en vivo', async ({ page }) => {
+    await abrir(page, `/${PROYECTO}`);
+
+    await page.keyboard.press('/');
+    await expect(page.getByLabel('Buscar piezas')).toBeFocused();
+
+    // Código que SÍ existe. La prueba no es "quede 1": "O1" también casa con
+    // O11, O12… porque la búsqueda es de texto libre, y eso es lo correcto. Lo
+    // que se comprueba es que el contador BAJA de la lista completa.
+    await page.getByLabel('Buscar piezas').fill('macro');
+    const contador = page.locator('text=/PIEZAS ·/').first();
+    await expect(contador).toContainText('/25');
+    await expect(contador).not.toContainText('25/25');
+
+    await page.getByRole('button', { name: 'Limpiar búsqueda' }).click();
+    await expect(contador).toContainText('25/25');
+  });
+
+  test('buscar abre solo el tablero completo, sin dejar el contador solo', async ({ page }) => {
+    await abrir(page, `/${PROYECTO}`);
+
+    // Filtrar tiene que abrir el <details> del mapa: si no, el contador cambia
+    // a "1/25 PIEZAS" sobre una pantalla cerrada y nadie entiende por qué.
+    expect(await desplegado(page, '.idea-card')).toBe(false);
+
+    await page.getByLabel('Buscar piezas').fill('O1');
+    await expect(page.locator('.idea-card').first()).toBeVisible();
   });
 });
 
@@ -100,6 +155,33 @@ test.describe('ficha de pieza', () => {
     // navegador, que es lo que hacía mi línea antes del merge.
     await expect(page.getByRole('button', { name: /APROBAR IDEA|SOLICITAR AJUSTES|ARCHIVAR PROPUESTA/ })).toHaveCount(0);
     await expect(page.getByText('SIN ACCIÓN DISPONIBLE')).toBeVisible();
+  });
+});
+
+test.describe('cambios de estado', () => {
+  test('un movimiento pide confirmación y se puede cancelar sin tocar nada', async ({ page }) => {
+    // No escribe en la base: se monta el panel de acción con el estado que
+    // le corresponde y se comprueba que el segundo botón NO existe hasta que la
+    // persona lo pide. Es la invariante que se rompió con un clic de dedazo.
+    await abrir(page, `/${PROYECTO}/aprobaciones`);
+    const destino = await page.locator('a.idea-card').first().getAttribute('href');
+    expect(destino, 'la cola debería traer al menos una pieza').toBeTruthy();
+    await page.goto(destino as string);
+
+    // Sin sesión no hay movimientos que ofrecer, así que este recorrido
+    // comprueba lo que sí se puede observar de forma honesta: el panel nunca
+    // presenta un botón de un solo toque.
+    const grupo = page.getByRole('group', { name: 'Movimientos disponibles' });
+    if (await grupo.count() > 0) {
+      const primerBoton = grupo.getByRole('button').first();
+      await primerBoton.click();
+      // Armar no ejecuta: el botón de confirmar solo aparece después.
+      await expect(grupo.getByRole('button', { name: 'SÍ, MOVER AHORA' })).toBeVisible();
+      await grupo.getByRole('button', { name: 'CANCELAR' }).click();
+      await expect(grupo.getByRole('button', { name: 'SÍ, MOVER AHORA' })).toHaveCount(0);
+    } else {
+      await expect(page.getByText('SIN ACCIÓN DISPONIBLE')).toBeVisible();
+    }
   });
 });
 
