@@ -110,8 +110,18 @@ export async function transitionIdeaStatus(input: {
   return response ?? {};
 }
 
-/** Shared call into the server-side workspace API. */
-async function postWorkspaceAction(action: string, body: Record<string, unknown>): Promise<{ error?: string } | null> {
+/**
+ * Envía una acción al servidor y devuelve su cuerpo.
+ *
+ * Antes devolvía `null` en éxito y solo propagaba `error`, lo cual servía para
+ * las mutaciones ("ok o ya qué más da") pero no para las lecturas: `roster`
+ * necesita el contenido de la respuesta, no un centinela. Ahora se devuelve el
+ * JSON parseado, y `error` se queda como campo para que los dos casos convivan.
+ */
+export async function postWorkspaceAction(
+  action: string,
+  body: Record<string, unknown>,
+): Promise<Record<string, unknown> | null> {
   const supabase = createClient();
   if (!supabase) return { error: 'Supabase no está configurado en este entorno.' };
 
@@ -127,9 +137,11 @@ async function postWorkspaceAction(action: string, body: Record<string, unknown>
     body: JSON.stringify(body),
   });
 
-  if (response.ok) return null;
-  const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-  return { error: payload?.error ?? `La operación falló (${response.status}).` };
+  const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+  if (!response.ok) {
+    return { error: (payload?.error as string) ?? `La operación falló (${response.status}).` };
+  }
+  return payload;
 }
 
 export async function loadComments(ideaId: string): Promise<IdeaComment[]> {
@@ -176,27 +188,16 @@ export async function resolveComment(input: { commentId: string; ideaId: string;
 export type RosterMember = { userId: string; nombre: string; rol: string; email: string | null };
 
 export async function loadRoster(projectSlug: string): Promise<RosterMember[]> {
-  const supabase = createClient();
-  if (!supabase) return [];
-  const { data: proyecto } = await supabase
-    .from('rr_hub_projects').select('id').eq('slug', projectSlug).maybeSingle();
-  if (!proyecto) return [];
-
-  const { data: accesos } = await supabase
-    .from('rr_hub_access')
-    .select('user_id, role_in_project, rr_hub_profiles!inner(id, full_name, email)')
-    .eq('project_id', proyecto.id);
-  if (!accesos?.length) return [];
-
-  return accesos.map((fila: any) => {
-    const perfil = Array.isArray(fila.rr_hub_profiles) ? fila.rr_hub_profiles[0] : fila.rr_hub_profiles;
-    return {
-      userId: fila.user_id as string,
-      nombre: (perfil?.full_name as string) || (perfil?.email as string) || 'RR Aliados',
-      rol: (fila.role_in_project as string) || 'sin_rol',
-      email: (perfil?.email as string) ?? null,
-    };
-  }).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  // Va por el servidor, no por el cliente de Supabase del navegador: el RLS de
+  // `rr_hub_access` solo deja leer con sesión (`user_id = auth.uid()`), y en
+  // modo abierto no la hay. Además no hay FK entre `rr_hub_access` y
+  // `rr_hub_profiles`, así que el join anidado devolvía PGRST200 — que PostgREST
+  // reporta como `data = null` y la interfaz pintaba como "no hay nadie".
+  const response = await postWorkspaceAction('roster', { projectSlug });
+  // El servidor ya devuelve el roster con la forma correcta; se narrow porque
+  // el transporte es genérico y no conoce la forma de cada acción.
+  const lista = (response?.roster as RosterMember[] | undefined) ?? [];
+  return Array.isArray(lista) ? lista : [];
 }
 
 /**

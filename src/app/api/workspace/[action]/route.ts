@@ -158,8 +158,10 @@ export async function POST(request: NextRequest) {
   try { body = (await request.json()) as Body; } catch { return error('Cuerpo JSON inválido.', 400); }
 
   // Creating an idea is the one action that has no idea to authorise against,
-  // so it is handled before the ideaId requirement.
+  // so it is handled before the ideaId requirement. The roster joins it: it also
+  // has no idea, and asking for one would 400 before ever getting to the lookup.
   if (action === 'create-idea') return createIdea(body, ctx);
+  if (action === 'roster') return roster(body, ctx);
 
   const ideaId = str(body.ideaId, 64);
   if (!ideaId) return error('Falta ideaId.', 400);
@@ -209,6 +211,8 @@ export async function POST(request: NextRequest) {
     // fake one in the timeline is worse than no trace.
     return NextResponse.json({ success: true });
   }
+
+  if (action === 'roster') return roster(body, ctx);
 
   /**
    * Asignar responsable.
@@ -359,6 +363,61 @@ function validateAssetPath(
   if (parts[1] !== ideaId) return { pathError: 'La ruta no corresponde a esta idea.' };
   if (!parts[3].startsWith(userId)) return { pathError: 'La ruta no corresponde a tu sesión.' };
   return { assetPath: candidate };
+}
+
+/**
+ * El roster de un proyecto: quién puede recibir una pieza.
+ *
+ * Va por el servidor, y no con el cliente de Supabase del navegador, por dos
+ * razones que hicieron que la primera versión devolviera una lista vacía:
+ *
+ * 1. RLS: `rr_hub_access_read` solo deja leer si `user_id = auth.uid()`. Sin
+ *    sesión no hay roster — que es lo correcto, es la lista de quién tiene
+ *    acceso a cada proyecto — pero en modo abierto no hay `auth.uid()`.
+ * 2. **No hay FK entre `rr_hub_access` y `rr_hub_profiles`.** La primera apunta
+ *    a `auth.users(id)` y la segunda tiene su propio id. El join anidado
+ *    `rr_hub_profiles!inner(...)` devolvía PGRST200, y PostgREST reporta eso como
+ *    `data = null`: la interfaz pintaba "no hay nadie" sin decir que la consulta
+ *    estaba rota.
+ *
+ * El cliente `service` salta RLS, que es justo lo que hace falta aquí: la lista
+ * no es un secreto, es la misma información que ya está en la barra lateral y en
+ * `/audit`. Lo que no se hace es devolver uuid sueltos que no hagan falta.
+ */
+async function roster(body: Body, ctx: Ctx): Promise<NextResponse> {
+  const slug = str(body.projectSlug, 60);
+  if (!slug) return error('Falta projectSlug.', 400);
+
+  const { data: proyecto } = await ctx.service
+    .from('rr_hub_projects').select('id').eq('slug', slug).maybeSingle();
+  if (!proyecto) return error('Ese proyecto no existe.', 404);
+
+  const { data: accesos, error: accesoError } = await ctx.service
+    .from('rr_hub_access')
+    .select('user_id, role_in_project')
+    .eq('project_id', proyecto.id);
+  if (accesoError) return error(accesoError.message, 500);
+  if (!accesos?.length) return NextResponse.json({ roster: [] });
+
+  const { data: perfiles } = await ctx.service
+    .from('rr_hub_profiles')
+    .select('id, full_name, email')
+    .in('id', accesos.map((fila: { user_id: string }) => fila.user_id));
+
+  const porId = new Map((perfiles ?? []).map((p: any) => [p.id as string, p]));
+  const lista = accesos
+    .map((fila: any) => {
+      const perfil = porId.get(fila.user_id as string);
+      return {
+        userId: fila.user_id as string,
+        nombre: (perfil?.full_name as string) || (perfil?.email as string) || 'RR Aliados',
+        rol: (fila.role_in_project as string) || 'sin_rol',
+        email: (perfil?.email as string) ?? null,
+      };
+    })
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+
+  return NextResponse.json({ roster: lista });
 }
 
 /**
