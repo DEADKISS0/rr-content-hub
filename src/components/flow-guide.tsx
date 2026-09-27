@@ -48,25 +48,25 @@ export function FlowGuide({
   // filtrado. Repetirlo en tres lugares era parte del ruido.
 
   return (
-    <section aria-label="Guía del flujo" className="anim-rise mb-6 border-2 border-blanco">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-blanco-20 px-4 py-3">
+    <section aria-label="Guía del flujo" className="anim-rise mb-6 border border-blanco-20">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-blanco-10 px-4 py-3">
         <div className="flex items-center gap-3">
-          <span className="text-mostaza"><Icon name="roadmap" size={16} /></span>
+          <span className="text-blanco-50"><Icon name="roadmap" size={16} /></span>
           <h2 className="font-display text-lg font-bold text-blanco">ASÍ AVANZA UNA PIEZA</h2>
-          <span className="hidden font-mono text-xs text-blanco-50 sm:inline">TOCA UN PASO Y VES SOLO ESAS</span>
+          <span className="hidden font-mono text-xs text-blanco-40 sm:inline">TOCA UN PASO Y VES SOLO ESAS</span>
         </div>
         <button
           type="button"
           onClick={() => setOpen((value) => !value)}
           aria-expanded={open}
-          className="inline-flex items-center gap-1.5 border border-blanco-20 px-2.5 py-1.5 font-mono text-xs text-blanco-60 transition-colors hover:border-mostaza hover:text-mostaza"
+          className="inline-flex items-center gap-1.5 border border-blanco-20 px-2.5 py-1.5 font-mono text-xs text-blanco-60 transition-colors hover:border-blanco-40 hover:text-blanco"
         >
           <Icon name={open ? 'close' : 'eye'} size={13} />
           {open ? 'OCULTAR LA EXPLICACIÓN' : '¿QUÉ SIGNIFICA ESTO?'}
         </button>
       </div>
 
-      <ol className="grid grid-cols-1 gap-px bg-blanco-20 sm:grid-cols-2 lg:grid-cols-5">
+      <ol className="grid grid-cols-1 gap-px bg-blanco-10 sm:grid-cols-2 lg:grid-cols-5">
         {counts.map((item, index) => {
           const active = phase === item.key;
           const empty = item.count === 0;
@@ -77,32 +77,32 @@ export function FlowGuide({
                 onClick={() => onPhase(active ? 'all' : item.key)}
                 aria-pressed={active}
                 title={`${item.label} · ${item.plain}`}
-                className={`step-card group flex h-full w-full flex-col gap-2 p-4 text-left transition-all ${active ? 'bg-mostaza/15' : 'hover:bg-blanco-05'}`}
+                className={`step-card group flex h-full w-full flex-col gap-2 p-4 text-left transition-all ${active ? 'bg-blanco-10' : 'hover:bg-blanco-05'}`}
                 style={{ animationDelay: `${index * 60}ms` }}
               >
                 <span className="flex items-center justify-between">
-                  <span className={`font-mono text-[10px] tracking-[0.1em] ${active ? 'text-mostaza' : 'text-blanco-50'}`}>
+                  <span className={`font-mono text-[10px] tracking-[0.1em] ${active ? 'text-blanco' : 'text-blanco-40'}`}>
                     PASO {String(index + 1).padStart(2, '0')}
                   </span>
-                  <span className={`transition-transform duration-200 group-hover:translate-x-0.5 ${active ? 'text-mostaza' : 'text-blanco-40'}`}>
+                  <span className={`transition-transform duration-200 group-hover:translate-x-0.5 ${active ? 'text-blanco' : 'text-blanco-30'}`}>
                     <Icon name={STEP_ICON[item.key] ?? 'piezas'} size={14} />
                   </span>
                 </span>
 
-                <span className={`font-display text-xl font-bold leading-none ${empty ? 'text-blanco-50' : 'text-blanco'}`}>{item.label}</span>
+                <span className={`font-display text-xl font-bold leading-none ${empty ? 'text-blanco-40' : 'text-blanco'}`}>{item.label}</span>
 
                 <span className="flex items-baseline gap-2">
-                  <b className={`font-display text-3xl font-bold leading-none ${empty ? 'text-blanco-30' : 'text-fucsia'}`}>{item.count}</b>
-                  <span className="font-mono text-[10px] text-blanco-50">{item.count === 1 ? 'PIEZA' : 'PIEZAS'}</span>
+                  <b className={`font-display text-3xl font-bold leading-none ${empty ? 'text-blanco-20' : 'text-blanco'}`}>{item.count}</b>
+                  <span className="font-mono text-[10px] text-blanco-40">{item.count === 1 ? 'PIEZA' : 'PIEZAS'}</span>
                 </span>
 
                 <span className="rail-track">
                   <span className="rail-fill" style={{ width: item.count ? `max(6%, ${Math.round((item.count / total) * 100)}%)` : '0%', animationDelay: `${index * 90 + 120}ms` }} />
                 </span>
 
-                <span className="font-mono text-[10px] leading-4 text-blanco-60">{STEP_ACTION[item.key] ?? item.plain}</span>
+                <span className="font-mono text-[10px] leading-4 text-blanco-50">{STEP_ACTION[item.key] ?? item.plain}</span>
 
-                <span className="font-mono text-[10px] leading-4 text-blanco-50">
+                <span className="font-mono text-[10px] leading-4 text-blanco-40">
                   {item.count ? firstActor(ideas, item.statuses) : 'NADIE ESPERANDO'}
                 </span>
               </button>
@@ -112,12 +112,12 @@ export function FlowGuide({
       </ol>
 
       {open && (
-        <div className="anim-slide-down border-t-2 border-mostaza bg-mostaza/5 px-4 py-4">
-          <p className="mono-label text-mostaza">[CÓMO FUNCIONA, EN TRES LÍNEAS]</p>
-          <ol className="mt-3 space-y-2 text-sm leading-6 text-blanco-70">
+        <div className="anim-slide-down border-t border-blanco-20 bg-blanco-05 px-4 py-4">
+          <p className="mono-label text-blanco-40">[CÓMO FUNCIONA, EN TRES LÍNEAS]</p>
+          <ol className="mt-3 space-y-2 text-sm leading-6 text-blanco-60">
             <li><b className="text-blanco">1.</b> Cada pieza nace como idea y avanza hacia la derecha. Nadie la salta: cada paso tiene un responsable.</li>
-            <li><b className="text-blanco">2.</b> Cuando el cliente tiene la pelota, la pieza se marca en <b className="text-mostaza">mostaza</b>. Cuando le toca al equipo, en <b className="text-orquidea">orquídea</b>. Cuando está en rodaje o edición, en <b className="text-fucsia">fucsia</b>.</li>
-            <li><b className="text-blanco">3.</b> El medidor <b className="text-blanco">INFO</b> de cada tarjeta dice cuánta información clave está cargada (0 a 5). Si está bajo, alguien va a preguntar.</li>
+            <li><b className="text-blanco">2.</b> Cuando el cliente tiene la pelota, la pieza se marca en mostaza. Cuando le toca al equipo, en orquídea. Cuando está en rodaje o edición, en fucsia.</li>
+            <li><b className="text-blanco">3.</b> El medidor INFO de cada tarjeta dice cuánta información clave está cargada (0 a 5). Si está bajo, alguien va a preguntar.</li>
           </ol>
         </div>
       )}

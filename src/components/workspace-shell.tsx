@@ -92,9 +92,9 @@ export function WorkspaceShell({ children, project }: { children: React.ReactNod
         title={item.help}
         onClick={() => setMenuOpen(false)}
         aria-current={active ? 'page' : undefined}
-        className={`group flex items-center gap-3 border-l-2 py-3 transition-colors ${collapsed ? 'md:justify-center md:px-0' : 'items-start px-3'} ${active ? 'border-fucsia bg-fucsia/10 text-blanco' : 'border-transparent text-blanco-60 hover:border-mostaza hover:bg-blanco-05 hover:text-mostaza'}`}
+        className={`group flex items-center gap-3 border-l-2 py-3 transition-colors ${collapsed ? 'md:justify-center md:px-0' : 'items-start px-3'} ${active ? 'border-blanco bg-blanco-10 text-blanco' : 'border-transparent text-blanco-60 hover:border-blanco-40 hover:bg-blanco-05 hover:text-blanco'}`}
       >
-        <span className={`shrink-0 ${collapsed ? '' : 'mt-[3px]'} ${active ? 'text-fucsia' : 'text-blanco-40 group-hover:text-mostaza'}`}>
+        <span className={`shrink-0 ${collapsed ? '' : 'mt-[3px]'} ${active ? 'text-blanco' : 'text-blanco-40 group-hover:text-blanco'}`}>
           <Icon name={item.icon} size={18} />
         </span>
         <span className={`collapse-label min-w-0 ${collapsed ? 'md:hidden' : ''}`}>
