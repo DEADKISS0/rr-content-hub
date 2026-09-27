@@ -425,3 +425,48 @@ test.describe('la puerta no bloquea la página', () => {
     await expect(enlace).toHaveAttribute('href', `/login?next=${encodeURIComponent(`/${PROYECTO}/ideas/nueva`)}`);
   });
 });
+
+/**
+ * El OAuth no debe poder sacar a la persona de este sitio.
+ *
+ * El reporte fue "entro al Content Hub y me abre Medellín Under". Las dos apps
+ * comparten proyecto de Supabase y cliente de Google, así que Supabase tiene UN
+ * destino de respaldo. Si el login se pide sin `redirectTo`, vuelve ahí — y
+ * "ahí" es la app que configuró el proyecto, no la que la persona eligió.
+ *
+ * La regla que queda: OAuth siempre aterriza en `/auth/callback` (la ruta que
+ * GoTrue tiene permitida) y el destino viaja en `next`. Mandar el destino
+ * final directo se rechaza y cae igual en la app equivocada.
+ */
+test.describe('el login no se va a otra app', () => {
+  test('el botón de Google pide el callback, nunca el destino final', async ({ page }) => {
+    await abrir(page, `/login?next=${encodeURIComponent(`/${PROYECTO}/ideas/nueva`)}`);
+
+    // Se intercepta la navegación a Google para ver qué URL se pidió.
+    const pedido = page.waitForRequest(/accounts\.google\.com/, { timeout: 15_000 }).catch(() => null);
+    await page.getByRole('button', { name: /Entrar con Google/i }).click();
+    const url = (await pedido)?.url() ?? page.url();
+    const destino = new URL(url).searchParams.get('redirect_to') ?? '';
+
+    // Al callback, con el paso 1 en `next`.
+    expect(destino).toContain('/auth/callback');
+    expect(destino).toContain(encodeURIComponent(`/${PROYECTO}/ideas/nueva`));
+
+    // Y nunca a otro proyecto: ni al sitio de la otra app, ni fuera de aquí.
+    // El host se compara contra el del hub leído ANTES de pulsar: cuando se pide
+    // el login, el navegador ya navegó a Google y `page.url()` no sirve.
+    await abrir(page, `/login`);
+    const hostHub = new URL(page.url()).hostname;
+    expect(new URL(destino).hostname).toBe(hostHub);
+    expect(destino).not.toMatch(/medellin/i);
+  });
+
+  test('el callback rechaza un next de otro sitio', async ({ page }) => {
+    await abrir(page, `/auth/callback?next=${encodeURIComponent('https://medellin-guide.vercel.app')}`);
+
+    // Sin `code` no hay intercambio de sesión, pero tampoco debe redirigir
+    // fuera: vuelve al login, que es de este proyecto.
+    await expect(page).toHaveURL(/\/login\?/);
+    expect(page.url()).not.toContain('medellin-guide');
+  });
+});

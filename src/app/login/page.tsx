@@ -40,9 +40,22 @@ function FormularioLogin() {
   const params = useSearchParams();
   const pedido = params.get('next') ?? '/select-project';
   const destino = pedido.startsWith('/') && !pedido.startsWith('//') ? pedido : '/select-project';
-  // Se arma dentro del manejador, no en el render: este componente se renderiza
-  // también en el servidor, donde `window` no existe.
-  const redirigir = () => `${window.location.origin}${destino}`;
+
+  /**
+   * Dónde aterriza OAuth. SIEMPRE el callback, que ya sabe a dónde mandarle a
+   * esta persona, y no el destino final.
+   *
+   * Por qué importa tanto: el Content Hub y Medellín Guide comparten proyecto
+   * de Supabase y cliente de Google. Supabase solo tiene UN destino de
+   * respaldo (su SITE_URL, que es el de la app que configuró el proyecto), así
+   * que si el login se pide sin `redirectTo`, Google devuelve a la otra
+   * aplicación — de eso venía "entro al hub y me abre Medellín Under".
+   *
+   * Mandar el destino final directamente también falla: GoTrue lo compara con
+   * su allowlist y lo rechaza, y entonces vuelve al SITE_URL. El callback es la
+   * ruta que siempre está permitida.
+   */
+  const callback = () => `${window.location.origin}/auth/callback?next=${encodeURIComponent(destino)}`;
 
   async function sendLink(e: React.FormEvent) {
     e.preventDefault();
@@ -54,7 +67,7 @@ function FormularioLogin() {
     setError('');
     const { error: err } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: redirigir() },
+      options: { emailRedirectTo: callback() },
     });
     setLoading(false);
     if (err) setError(err.message);
@@ -68,7 +81,7 @@ function FormularioLogin() {
     }
     const { error: err } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: redirigir() },
+      options: { redirectTo: callback() },
     });
     if (err) setError(err.message);
   }
