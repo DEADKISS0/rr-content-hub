@@ -36,17 +36,19 @@ export async function updateSession(request: NextRequest) {
   // Keep the signed-in session fresh when someone does log in.
   await supabase.auth.getUser();
 
-  // Authentication gate: OFF while public mode is active.
+  // Authentication gate: solo rutas de escritura y admin requieren sesion.
+  // Todo lo demas (tablero, fichas, auditoria de lectura) sigue publico.
   if (process.env.NEXT_PUBLIC_AUTH_ENABLED === 'true') {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
     const path = request.nextUrl.pathname;
-    const isPublic = path.startsWith('/audit') || path.startsWith('/login') || path.startsWith('/auth');
-    if (!user && !isPublic) {
-      const url = request.nextUrl.clone();
-      url.pathname = '/login';
-      return NextResponse.redirect(url);
+    const PROTECTED = ['/audit/admin', '/api/workspace', '/wundeer/ideas/nueva'];
+    const isProtected = PROTECTED.some((p) => path.startsWith(p));
+    if (isProtected) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        const url = request.nextUrl.clone();
+        url.pathname = '/login';
+        return NextResponse.redirect(url);
+      }
     }
   }
 
