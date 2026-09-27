@@ -1,0 +1,59 @@
+import Image from 'next/image';
+import Link from 'next/link';
+
+/**
+ * Pie del hub: la firma de RR Aliados.
+ *
+ * Antes el logo solo vivía en la barra lateral, que en móvil está oculta tras
+ * el botón de menú: en un teléfono de 390 px la única marca visible era el
+ * nombre del proyecto en la cabecera. Aquí la firma es siempre visible y se
+ * repite en cada scroll largo.
+ *
+ * Responsive:
+ * - El texto largo ("Deployed by RR Aliados") se apila en móvil y va en línea
+ *   desde `sm`; nunca se corta con puntos suspensivos ni se sale de la caja.
+ * - **No hay botón de crear aquí a propósito.** Existe en la cabecera, y la
+ *   regla de "una sola acción primaria por superficie" lo prohíbe duplicar: en
+ *   `/wundeer` había 3 enlaces idénticos de crear y una de las rondas anteriores
+ *   los quitó. Repetirlo en el pie hizo fallar 4 e2e, que es justo el detector
+ *   que existe para esto. Quien llega al final de una ficha larga ya tiene el
+ *   botón de la cabecera a un scroll de vuelta, y el enlace del pie a la
+ *   cabecera no aporta: el logo y la firma son lo que faltaba.
+ */
+export function HubFooter({ slug, projectName }: { slug: string; projectName: string }) {
+  return (
+    <footer className="mt-16 border-t border-blanco-20 bg-negro px-4 py-8 sm:px-5 md:px-10">
+      <div className="mx-auto flex max-w-7xl flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <Image
+            src="/brand/rr-symbol-fucsia-on-negro.png"
+            alt="RR Aliados"
+            width={40}
+            height={31}
+            className="h-8 w-auto shrink-0 object-contain"
+          />
+          <div className="min-w-0">
+            <p className="font-display text-sm font-bold leading-tight text-blanco">
+              Deployed by RR Aliados
+            </p>
+            <p className="mt-0.5 font-mono text-[10px] leading-4 text-blanco-50">
+              Content Hub · {projectName.toUpperCase()}
+            </p>
+          </div>
+        </div>
+
+        <nav aria-label="Enlaces del pie" className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <Link href={`/${slug}`} className="font-mono text-[11px] text-blanco-60 underline-offset-4 transition-colors hover:text-blanco hover:underline">
+            TABLERO
+          </Link>
+          <Link href={`/${slug}/ideas`} className="font-mono text-[11px] text-blanco-60 underline-offset-4 transition-colors hover:text-blanco hover:underline">
+            BANCO DE IDEAS
+          </Link>
+          <Link href={`/select-project`} className="font-mono text-[11px] text-blanco-60 underline-offset-4 transition-colors hover:text-blanco hover:underline">
+            CAMBIAR DE PROYECTO
+          </Link>
+        </nav>
+      </div>
+    </footer>
+  );
+}

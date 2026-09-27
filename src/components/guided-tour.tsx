@@ -75,14 +75,9 @@ const PASOS_FICHA: Paso[] = [
     texto: 'Este recuadro dice quién tiene la pelota y te da el botón para mover la pieza. Si no te toca a ti, te lo dice y no te ofrece botones de más.',
   },
   {
-    target: '[data-guia="preview"]',
-    titulo: 'Así se verá publicado',
-    texto: 'Una vista de la referencia real. Si no hay referencia todavía, lo dice: nunca te muestra una foto inventada.',
-  },
-  {
     target: '[data-guia="brief"]',
-    titulo: 'Aquí está el trabajo del equipo',
-    texto: 'Qué se graba, cómo, quién actúa y cómo se edita. Todo lo que la pieza necesita para rodarse sin preguntar nada.',
+    titulo: 'Esta es la referencia y su brief',
+    texto: 'A la izquierda, el video real de la referencia. A la derecha, qué hay que copiar de ella: encuadre, talento, ritmo. El equipo trabaja con esto, no con el enlace suelto.',
   },
   {
     target: '[data-guia="comentarios"]',

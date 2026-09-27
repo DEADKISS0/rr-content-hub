@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { getIdea, getProject } from '@/lib/data';
+import { rolEnProyecto } from '@/lib/project-guard';
 import { StatusBadge, STATUS_ICON } from '@/components/status-badge';
 import { IdeaActions } from '@/components/idea-actions';
 import { EnhancedIdeaCollaboration } from '@/components/collaboration-enhanced';
@@ -10,8 +11,6 @@ import { ScriptEditor } from '@/components/script-editor';
 import { Chip } from '@/components/ui/chips';
 import { formatOf } from '@/components/ui/cover';
 import { BriefRail, PhaseRail, briefState } from '@/components/ui/meter';
-import { PublicationPreview } from '@/components/ui/preview';
-import { InstagramEmbed } from '@/components/ui/instagram-embed';
 import { Icon, type IconName } from '@/components/ui/icons';
 import { statusMeta, productionStep, daysSince, type WorkflowStatus } from '@/lib/flow';
 
@@ -27,6 +26,10 @@ import { statusMeta, productionStep, daysSince, type WorkflowStatus } from '@/li
 export default async function IdeaDetail({ params }: { params: Promise<{ projectSlug: string; ideaId: string }> }) {
   const { projectSlug, ideaId } = await params;
   const { project } = await getProject(projectSlug); if (!project) notFound();
+  // El rol lo resuelve el servidor contra `rr_hub_access`; el navegador solo lo
+  // muestra. Sin esto, `IdeaActions` caía a su valor por defecto y ninguna ficha
+  // ofrecía una transición real, ni con la puerta encendida.
+  const { rol } = await rolEnProyecto(project.id);
   const idea: any = await getIdea(project.id, ideaId); if (!idea) notFound();
   const raw = idea.reference_url ?? idea.reference_urls?.[0] ?? idea.ref ?? '';
   const meta = statusMeta(idea.status);
@@ -95,20 +98,16 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
           <div data-guia="accion" className="brutal-panel anim-rise">
             <p className="eyebrow">[TU SIGUIENTE ACCIÓN]</p>
             <h2 className="mt-3 font-display text-2xl font-bold text-blanco">Qué hacer ahora.</h2>
-            <div className="mt-5"><IdeaActions projectSlug={projectSlug} ideaId={ideaId} currentStatus={idea.status} /></div>
+            <div className="mt-5"><IdeaActions projectSlug={projectSlug} ideaId={ideaId} currentStatus={idea.status} role={rol} /></div>
           </div>
 
-          <div data-guia="preview">
-            <p className="mono-label mb-3 text-blanco-50">// COMO SE VERÁ PUBLICADO</p>
-            {raw && raw.includes('instagram.com') ? (
-              <InstagramEmbed url={raw} title={idea.title} />
-            ) : (
-              <PublicationPreview url={raw} code={idea.code} title={idea.title} format={format.icon as IconName} size="lg" />
-            )}
-            <p className="mt-3 font-mono text-[10px] text-blanco-60">
-              {raw ? 'VISTA PREVIA DE LA REFERENCIA REAL' : 'SIN REFERENCIA TODAVÍA'}
-            </p>
-          </div>
+          {/* Un solo bloque de referencia, más abajo, dentro de
+              `ReferenceWithBrief`: ahí la referencia y el brief van juntos y el
+              iframe es el real. Este preview la mostraba por segunda vez, con
+              otro componente y otra etiqueta ("VISTA PREVIA DE LA REFERENCIA
+              REAL"), y quien leía la ficha veía la misma pieza dos veces. Para
+              cuando el embed no se pueda incrustar, `ReferenceWithBrief` ya
+              ofrece "ABRIR ORIGINAL". */}
         </div>
       </div>
 

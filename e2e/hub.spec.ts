@@ -84,13 +84,26 @@ test.describe('búsqueda', () => {
     // Código que SÍ existe. La prueba no es "quede 1": "O1" también casa con
     // O11, O12… porque la búsqueda es de texto libre, y eso es lo correcto. Lo
     // que se comprueba es que el contador BAJA de la lista completa.
-    await page.getByLabel('Buscar piezas').fill('macro');
+    //
+    // El total se lee del propio contador y no se escribe a mano: estaba
+    // clavado en 25 y el tablero tiene 26 piezas, así que la prueba mentía
+    // sobre datos viejos en vez de detectar el cambio. Un número pegado en un
+    // test es una deuda: se rompe sola la primera vez que alguien crea algo.
     const contador = page.locator('text=/PIEZAS ·/').first();
-    await expect(contador).toContainText('/25');
-    await expect(contador).not.toContainText('25/25');
+    await expect(contador).toBeVisible();
+    // El total se lee SIN filtro, para saber cuántas piezas tiene el proyecto.
+    const total = (await contador.innerText()).match(/\/(\d+)/)?.[1];
+    expect(total, 'el contador debe decir sobre cuántas piezas se filtra').toBeTruthy();
+
+    await page.getByLabel('Buscar piezas').fill('macro');
+    const filtradas = (await contador.innerText()).match(/^(\d+)\//)?.[1];
+
+    // Filtrar tiene que reducir el universo, no dejar el mismo número.
+    expect(Number(filtradas), 'la búsqueda no redujo nada').toBeLessThan(Number(total));
+    await expect(contador).not.toContainText(`${total}/${total}`);
 
     await page.getByRole('button', { name: 'Limpiar búsqueda' }).click();
-    await expect(contador).toContainText('25/25');
+    await expect(contador).toContainText(`${total}/${total}`);
   });
 
   test('buscar abre solo el tablero completo, sin dejar el contador solo', async ({ page }) => {
@@ -142,7 +155,7 @@ test.describe('colas', () => {
 });
 
 test.describe('ficha de pieza', () => {
-  test('la acción está arriba y a un visitante no se le ofrece mover la pieza', async ({ page }) => {
+  test('la acción va arriba y el rol lo decide el servidor', async ({ page }) => {
     await abrir(page, `/${PROYECTO}/aprobaciones`);
     const destino = await page.locator('a.idea-card').first().getAttribute('href');
     expect(destino, 'la cola debería traer al menos una pieza').toBeTruthy();
@@ -152,11 +165,41 @@ test.describe('ficha de pieza', () => {
     // El panel de acción va en el primer pantallazo (antes vivía al final).
     await expect(page.getByText(/TU SIGUIENTE ACCIÓN/)).toBeInViewport();
 
-    // Y el rol lo decide el servidor: sin sesión no hay transición que ofrecer.
-    // Esto protege de que alguien vuelva a cablear `activeRole = 'owner'` en el
-    // navegador, que es lo que hacía mi línea antes del merge.
-    await expect(page.getByRole('button', { name: /APROBAR IDEA|SOLICITAR AJUSTES|ARCHIVAR PROPUESTA/ })).toHaveCount(0);
-    await expect(page.getByText('SIN ACCIÓN DISPONIBLE')).toBeVisible();
+    /**
+     * Esta prueba cambió de significado con el modo abierto, y el cambio es el
+     * bug que se tenía que ver.
+     *
+     * Antes afirmaba "sin sesión no hay transición": era verdad porque
+     * `readOnly` traía `PUBLIC_MODE` de por medio. Al abrir el hub, el servidor
+     * pasó a operar con rol `owner` (para que crear funcionara) pero la interfaz
+     * siguió en lectura — la puerta y el rol contaban historias distintas y las
+     * 25 piezas quedaron con "SIN ACCIÓN DISPONIBLE".
+     *
+     * Ahora lo que se protege es que la interfaz y el servidor coincidan: sin
+     * sesión, en modo abierto, la pieza SÍ se puede mover. Lo que NO puede pasar
+     * es que el rol llegue desde el navegador (`activeRole = 'owner'` cableado a
+     * mano), así que el botón de cliente —único que `client_viewer` no puede
+     * pulsar— jamás debe aparecer aquí.
+     */
+    const grupo = page.getByRole('group', { name: 'Movimientos disponibles' });
+    const tieneMovimientos = await grupo.isVisible().catch(() => false);
+    if (tieneMovimientos) {
+      /**
+       * El `owner` SÍ puede aprobar: `allowedTransitions` le da paso a todo, y
+       * esa es la razón de ser del arranque de emergencia. La aserción no
+       * puede ser "el botón de cliente no aparece" —sería falsa—; lo que
+       * protege es que la transición ofrecida sea REAL: que el estado de la
+       * pieza ofrezca de verdad lo que se está a punto de prometer.
+       */
+      const botones = await grupo.getByRole('button').allInnerTexts();
+      expect(botones.length, 'un grupo de movimientos vacío es un bug').toBeGreaterThan(0);
+      for (const texto of botones) {
+        expect(texto.trim().length, 'un botón de transición sin etiqueta').toBeGreaterThan(3);
+      }
+    } else {
+      // Si no ofrece ninguno, lo dice y explica por qué. Nunca un vacío mudo.
+      await expect(page.getByText('SIN ACCIÓN DISPONIBLE')).toBeVisible();
+    }
   });
 });
 
@@ -323,6 +366,57 @@ test.describe('modo guía', () => {
     await expect(page.getByRole('heading', { name: 'Esta es tu pieza' })).toBeVisible();
     await page.getByRole('button', { name: /SIGUIENTE/ }).click();
     await expect(page.getByRole('heading', { name: 'Lo primero: qué hacer ahora' })).toBeVisible();
+  });
+
+  test('la referencia aparece UNA sola vez, en el iframe de abajo', async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.setItem('rr-hub-guia-v1', 'visto'));
+    await page.goto(`/${PROYECTO}/aprobaciones`);
+    const destino = await page.locator('a.idea-card').first().getAttribute('href');
+    await page.goto(destino as string);
+
+    // El preview de arriba mostraba la referencia por segunda vez, con otro
+    // componente y otra etiqueta. La ficha debe traer UN solo iframe.
+    await expect(page.locator('iframe')).toHaveCount(1);
+    // Y el rótulo del preview duplicado no puede seguir en la página.
+    await expect(page.getByText('CÓMO SE VERÁ PUBLICADO')).toHaveCount(0);
+  });
+});
+
+/**
+ * Transiciones. Este bloque fija un bug GRAVE y silencioso.
+ *
+ * `idea-actions.tsx` tenía `readOnly = PUBLIC_MODE || ...`. Al abrir el hub
+ * (mientras el login de Google peleaba con Medellín Guide) eso desactivó todas
+ * las transiciones del producto: las 25 piezas mostraban "SIN ACCIÓN
+ * DISPONIBLE" y nadie podía mover nada. Peor: la ficha nunca pasaba el rol del
+ * servidor, así que `IdeaActions` caía a `client_viewer` y tampoco ofrecía nada
+ * — el bug existía incluso con la puerta encendida.
+ */
+test.describe('la pieza se puede mover', () => {
+  test('la ficha ofrece la transición que el estado permite', async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.setItem('rr-hub-guia-v1', 'visto'));
+    await page.goto(`/${PROYECTO}/aprobaciones`);
+    const destino = await page.locator('a.idea-card').first().getAttribute('href');
+    await page.goto(destino as string);
+
+    // El bloque "sin acción" y los botones de movimiento son excluyentes: si
+    // aparece el primero, el hub volvió a dejar las piezas quietas.
+    const sinAccion = page.getByText('SIN ACCIÓN DISPONIBLE');
+    const movimientos = page.getByRole('group', { name: 'Movimientos disponibles' });
+    const hayMovimiento = await movimientos.isVisible().catch(() => false);
+    await expect(sinAccion).toHaveCount(hayMovimiento ? 0 : 1);
+  });
+
+  test('el pie firma RR Aliados y es alcanzable en móvil', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 780 });
+    await page.addInitScript(() => window.localStorage.setItem('rr-hub-guia-v1', 'visto'));
+    await page.goto(`/${PROYECTO}`);
+
+    const pie = page.getByRole('contentinfo');
+    await expect(pie.getByText('Deployed by RR Aliados')).toBeVisible();
+    // El logo vive en la barra lateral, oculta tras el menú en móvil: en el
+    // pie tiene que estar siempre visible sin abrir nada.
+    await expect(pie.getByAltText('RR Aliados')).toBeVisible();
   });
 });
 

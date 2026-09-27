@@ -8,6 +8,7 @@ import { GuidedTour } from './guided-tour';
 import { Icon, type IconName } from './ui/icons';
 import { createClient } from '@/lib/supabase/client';
 import { AUTH_ENABLED } from '@/lib/mode';
+import { HubFooter } from '@/components/hub-footer';
 
 /**
  * Cascarón del proyecto.
@@ -257,7 +258,13 @@ export function WorkspaceShell({ children, project, role, email, puedeEscribir =
             </div>
           </div>
         </header>
+        {/* La ficha de una pieza y el tablero traen su propio `<main>` con su
+            encabezado. Envolverlos aquí producía DOS `main` en el documento —
+            HTML invalido, y `getByRole('contentinfo')` del pie quedaba en un
+            árbol raro. Aquí solo se entrega el contenido y el pie, sin `main`:
+            cada página conserva el suyo. */}
         {children}
+        <HubFooter slug={slug} projectName={project.name} />
       </div>
 
       <GuidedTour />

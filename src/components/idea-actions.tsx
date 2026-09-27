@@ -36,12 +36,21 @@ export function IdeaActions({ ideaId, currentStatus = 'pending_approval', role =
     return () => { supabase.removeChannel(channel); };
   }, [ideaId, refresh]);
 
-  // The role comes from the server (rr_hub_access), never from the browser.
-  // `client_viewer` is the safe default: a visitor who is not signed in can
-  // read the piece but no transition is offered to them.
+  /**
+   * `readOnly` no puede depender de `PUBLIC_MODE`.
+   *
+   * Estaba escrito como `PUBLIC_MODE || activeRole === 'client_viewer'`, así que
+   * al abrir el hub (mientras el login de Google peleaba con Medellín Guide) se
+   * desactivó TODA transición del producto: las 25 piezas-mostraban "SIN ACCIÓN
+   * DISPONIBLE" y no había forma de mover nada. El modo abierto gobierna la
+   * PUERTA —si te piden cuenta o no—; los ROLES son del servidor, que sigue
+   * siendo el único que valida si una transición es legal. Por eso aquí solo
+   * cuenta el rol: quien el servidor diga que es `client_viewer` no mueve nada,
+   * y quien diga que tiene un rol sí lo hace, con o sin sesión.
+   */
   const activeRole = (ROLE_KEYS.includes(role as RoleKey) ? role : 'client_viewer') as RoleKey;
   const moves = useMemo(() => allowedTransitions(activeRole, status), [activeRole, status]);
-  const readOnly = PUBLIC_MODE || activeRole === 'client_viewer';
+  const readOnly = activeRole === 'client_viewer';
   const waiting = waitingOn(status);
   const meta = statusMeta(status);
   const tone = TONE_CLASS[meta.tone];
