@@ -88,7 +88,7 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
           la barra y cada tarjeta ya dicen. */}
       <div className="mb-4">
         <p className="eyebrow">[MAPA DE OPERACIÓN]</p>
-        <h2 id="board-title" className="section-heading mt-2">TODO EL FLUJO, EN UNA VISTA.</h2>
+        <h2 id="board-title" className="section-heading mt-2">Todo el flujo, en una vista.</h2>
       </div>
 
       {/* Lo primero ya no son 25 tarjetas: es lo que necesita respuesta. */}

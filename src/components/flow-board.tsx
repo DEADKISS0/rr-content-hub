@@ -11,7 +11,7 @@ type Idea = { id: string; code?: string; title: string; description?: string; st
 export function FlowBoard({ ideas, projectSlug }: { ideas: Idea[]; projectSlug: string }) {
   return <section aria-labelledby="flow-board-title" className="mb-12">
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-      <div><p className="eyebrow">[MAPA DE OPERACIÓN]</p><h2 id="flow-board-title" className="section-heading mt-2">TODO EL FLUJO, EN UNA VISTA.</h2></div>
+      <div><p className="eyebrow">[MAPA DE OPERACIÓN]</p><h2 id="flow-board-title" className="section-heading mt-2">Todo el flujo, en una vista.</h2></div>
       <p className="font-mono text-[10px] text-blanco-40">4 COLUMNAS · {ideas.length} PIEZAS</p>
     </div>
     <div className="flow-board grid gap-px border border-blanco-20 bg-blanco-10 lg:grid-cols-4">

@@ -52,7 +52,7 @@ export function FlowGuide({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-blanco-10 px-4 py-3">
         <div className="flex items-center gap-3">
           <span className="text-blanco-50"><Icon name="roadmap" size={16} /></span>
-          <h2 className="font-display text-lg font-bold text-blanco">ASÍ AVANZA UNA PIEZA</h2>
+          <h2 className="font-display text-lg font-bold text-blanco">Así avanza una pieza</h2>
           <span className="hidden font-mono text-xs text-blanco-40 sm:inline">TOCA UN PASO Y VES SOLO ESAS</span>
         </div>
         <button
