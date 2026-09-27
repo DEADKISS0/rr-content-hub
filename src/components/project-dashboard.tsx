@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { ProjectMap, type BoardIdea } from '@/components/project-map';
 import { Chip, Initials } from '@/components/ui/chips';
 import { Icon } from '@/components/ui/icons';
-import { ROLE_LABEL, statusMeta, type RoleKey } from '@/lib/flow';
+import { ROLE_LABEL, statusMeta, esEsperaDelCliente, esTerminal, type RoleKey } from '@/lib/flow';
 import { QUEUES } from '@/lib/queues';
 
 type Project = { name: string; client_name: string; description?: string | null };
@@ -39,13 +39,8 @@ export function ProjectDashboard({ project, projectSlug, ideas, role }: { projec
    * eso aquí se filtra aparte y va a la cuenta de abajo: son 3 piezas que el
    * tablero atributos al cliente y no lo son.
    */
-  const ESPERA_CLIENTE = new Set(['pending_approval', 'pending_script_review']);
-  const esperandoCliente = ideas.filter((idea) => ESPERA_CLIENTE.has(idea.status));
-  const esperandoEquipo = ideas.filter((idea) => {
-    if (idea.status === 'closed' || idea.status === 'published') return false;
-    if (ESPERA_CLIENTE.has(idea.status)) return false;
-    return true;
-  });
+  const esperandoCliente = ideas.filter((idea) => esEsperaDelCliente(idea.status));
+  const esperandoEquipo = ideas.filter((idea) => !esEsperaDelCliente(idea.status) && !esTerminal(idea.status));
   const byActor = esperandoCliente.reduce<Record<string, BoardIdea[]>>((groups, idea) => {
     const who = statusMeta(idea.status).who;
     groups[who] = [...(groups[who] ?? []), idea];

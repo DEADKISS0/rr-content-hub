@@ -169,6 +169,34 @@ export function allowedTransitions(role: RoleKey, status: WorkflowStatus): Allow
  */
 const CLIENT_GATED: readonly WorkflowStatus[] = ['pending_approval', 'pending_script_review'];
 
+/**
+ * ¿La pieza está esperando a alguien de fuera?
+ *
+ * Esta pregunta se hacía de tres maneras distintas en el código y las tres
+ * daban números diferentes: la cola de aprobaciones (que incluye
+ * `needs_changes`, donde el cliente ya respondió y le toca al equipo), la
+ * comparación a mano con `'el cliente'`, y ahora `ESPERA_CLIENTE` en el tablero.
+ * Todas desde fuentes distintas, y por eso el tablero decía 6 esperando al
+ * cliente cuando eran 3.
+ *
+ * La respuesta vive aquí, junto a `waitingOn`, que ya usaba esta misma lista.
+ * Cualquier pantalla que necesite contarlas sale de `esEsperaDelCliente()`.
+ */
+export function esEsperaDelCliente(status: string): boolean {
+  return CLIENT_GATED.includes(status as WorkflowStatus);
+}
+
+/**
+ * ¿La pieza ya no requiere que nadie la empuje?
+ *
+ * `published` y `closed` son los dos estados terminales del flujo. Un tablero que
+ * los cuenta como "pendientes" infla el número de trabajo que hay: con 26
+ * piezas, una ya cerrada sonaba a que aún pedía atención.
+ */
+export function esTerminal(status: string): boolean {
+  return status === 'published' || status === 'closed';
+}
+
 export function waitingOn(status: WorkflowStatus): string {
   if (status === 'closed') return 'nadie: flujo cerrado';
   if (CLIENT_GATED.includes(status)) return 'el cliente';
