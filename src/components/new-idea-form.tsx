@@ -1,10 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ReferenceWithBrief } from '@/components/reference-with-brief';
 import { createClient } from '@/lib/supabase/client';
 import { buildIdeaPack, createIdea, looksLikeUrl, nextIdeaCode } from '@/lib/workspace-client';
+import { Icon } from './ui/icons';
 
 type FormState = { title: string; type: 'Orgánico' | 'Pauta'; category: string; objective: string; description: string; camera: string; talent: string; edit: string; reference: string };
 const empty: FormState = { title: '', type: 'Orgánico', category: '', objective: '', description: '', camera: '', talent: '', edit: '', reference: '' };
@@ -20,6 +22,7 @@ export function NewIdeaForm({ projectSlug }: { projectSlug: string }) {
   const [form, setForm] = useState<FormState>(empty);
   const [notice, setNotice] = useState('');
   const [saving, setSaving] = useState(false);
+  const [faltaSesion, setFaltaSesion] = useState(false);
   const [projectId, setProjectId] = useState('');
   const [code, setCode] = useState('');
 
@@ -43,10 +46,11 @@ export function NewIdeaForm({ projectSlug }: { projectSlug: string }) {
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (saving) return;
-    if (!form.title.trim() || !form.objective.trim()) { setNotice('Completa al menos título y objetivo para conservar el contexto de la idea.'); return; }
-    if (!referenceValid) { setNotice('La referencia debe ser un enlace válido (https://…). Revísala antes de guardar.'); return; }
-    if (!supabase) { setNotice('Supabase no está configurado en este entorno. Avisa al administrador para activar el guardado compartido.'); return; }
+    if (!form.title.trim() || !form.objective.trim()) { avisar('Falta el título o el objetivo.'); return; }
+    if (!referenceValid) { avisar('La referencia debe ser un enlace válido (https://…).'); return; }
+    if (!supabase) { avisar('Supabase no está configurado en este entorno. Avisa al administrador.'); return; }
     setSaving(true);
+    setNotice('');
     // The insert and the event go through the server: it checks that this
     // session has a role in the project, and it assigns the code. The browser
     // used to do both with the anon key, so "code" was a preview that two
@@ -64,13 +68,48 @@ export function NewIdeaForm({ projectSlug }: { projectSlug: string }) {
       editBrief: form.edit.trim() || generated.edit,
       script: generated.script,
     });
-    if (error || !id) { setNotice(error ?? 'No se guardó la idea.'); setSaving(false); return; }
+    if (error || !id) { setSaving(false); setAvisoDeFallo(error ?? 'No se guardó la idea.'); return; }
     router.push(`/${projectSlug}/ideas/${id}`);
+  }
+
+  /**
+   * Un fallo que aparece 800 px más abajo del botón que lo provocó se lee como
+   * "no pasa nada". Por eso el aviso sube a la vista y el botón baja hasta él.
+   * Y cuando el problema es que no hay sesión, el aviso trae su propio botón:
+   * mandar a /login sin más devolvía a la persona al tablero, con el formulario
+   * perdido y la referencia escrita.
+   */
+  function avisar(texto: string) {
+    setNotice(texto);
+    window.setTimeout(() => {
+      document.getElementById('aviso-crear')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 40);
+  }
+
+  /** Un 401 significa "no hay sesión": en vez de un texto muerto, un botón. */
+  function setAvisoDeFallo(texto: string) {
+    const sinSesion = /sesión/i.test(texto);
+    setNotice(sinSesion
+      ? `${texto} Entra con tu cuenta y vuelve: tu referencia y el brief se conservan.`
+      : texto);
+    setFaltaSesion(sinSesion);
+    window.setTimeout(() => {
+      document.getElementById('aviso-crear')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 40);
   }
 
   return <form onSubmit={submit} className="mt-10 space-y-6">
     <div className="border-l-2 border-blanco-20 bg-blanco-05 px-4 py-3 font-mono text-[10px] leading-5 text-blanco-60">[CAPTURA GUIADA] Pega la referencia, escribe título y objetivo. El sistema prepara un primer brief para cámara, modelo, edición y guion; cada rol lo puede afinar después.</div>
-    {notice && <p role="alert" className="border border-blanco-20 bg-blanco-05 p-3 font-mono text-xs text-blanco anim-pop">{notice}</p>}
+
+    {/* El aviso vive ARRIBA, a la vista, no debajo de ocho bloques. Antes se
+        pintaba después del brief y del guion: quien hacía clic veía el botón
+        cambiar de color y nada más, y concluía "no pasa nada". */}
+    {notice && (
+      <div id="aviso-crear" role="alert" className="anim-pop border-l-4 border-l-mostaza bg-blanco-05 px-4 py-3">
+        <p className="text-sm leading-6 text-blanco-80">{notice}</p>
+        {faltaSesion && <BotonEntrar projectSlug={projectSlug} />}
+      </div>
+    )}
 
     <div className="grid gap-6 md:grid-cols-[120px_1fr]">
       <label className="block"><span className="mono-label mb-2 block text-blanco-50">// CÓDIGO</span><input value={code || '—'} disabled className="input-brutal bg-blanco-10 text-center font-display text-xl text-blanco" /><span className="mt-2 block font-mono text-[10px] text-blanco-40">Se genera solo</span></label>
@@ -134,6 +173,25 @@ export function NewIdeaForm({ projectSlug }: { projectSlug: string }) {
       <span className="font-mono text-[10px] text-blanco-50">{supabase ? `SE GUARDARÁ COMO ${code || 'NUEVA IDEA'}` : 'GUARDADO COMPARTIDO NO DISPONIBLE'}</span>
     </div>
   </form>;
+}
+
+/**
+ * Entrar sin perder el trabajo.
+ *
+ * El `next` no es un adorno: sin él, el login devolvía a la persona al tablero
+ * con el formulario vacío y la referencia escrita — la mitad del trabajo
+ * perdida por un clic. Con él, el callback devuelve a este mismo paso.
+ */
+function BotonEntrar({ projectSlug }: { projectSlug: string }) {
+  const destino = `/${projectSlug}/ideas/nueva`;
+  return (
+    <Link
+      href={`/login?next=${encodeURIComponent(destino)}`}
+      className="btn-brutal mt-3 inline-flex items-center gap-2"
+    >
+      <Icon name="user" size={14} /> ENTRAR Y SEGUIR
+    </Link>
+  );
 }
 
 function Field({ label, value, onChange, placeholder, textarea, select, options, className = '' }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; textarea?: boolean; select?: boolean; options?: string[]; className?: string }) {

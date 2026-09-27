@@ -1,10 +1,24 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { AUTH_ENABLED } from '@/lib/mode';
 
+/**
+ * `useSearchParams` obliga a que la página se renderice en cliente, así que
+ * Next exige un `<Suspense>` alrededor. Sin él, `/login` da error de build: es
+ * la razón por la que la página no podía leer a dónde volver.
+ */
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<main className="mx-auto max-w-md px-6 py-20"><p className="font-mono text-sm text-blanco-50">Cargando…</p></main>}>
+      <FormularioLogin />
+    </Suspense>
+  );
+}
+
+function FormularioLogin() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -17,6 +31,19 @@ export default function LoginPage() {
   // "entré y me expulsó", que es lo que pasaba sin este aviso.
   const soloLectura = !AUTH_ENABLED;
 
+  /**
+   * A dónde volver. Sin esto, entrar devolvía a la persona al tablero y perdía
+   * el formulario a medio llenar: la razón de que la gate de auth se sintiera
+   * como un callejón. Solo se aceptan rutas internas — un `?next=https://otro`
+   * sería un redirect abierto.
+   */
+  const params = useSearchParams();
+  const pedido = params.get('next') ?? '/select-project';
+  const destino = pedido.startsWith('/') && !pedido.startsWith('//') ? pedido : '/select-project';
+  // Se arma dentro del manejador, no en el render: este componente se renderiza
+  // también en el servidor, donde `window` no existe.
+  const redirigir = () => `${window.location.origin}${destino}`;
+
   async function sendLink(e: React.FormEvent) {
     e.preventDefault();
     if (!supabase) {
@@ -27,7 +54,7 @@ export default function LoginPage() {
     setError('');
     const { error: err } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: { emailRedirectTo: redirigir() },
     });
     setLoading(false);
     if (err) setError(err.message);
@@ -41,7 +68,7 @@ export default function LoginPage() {
     }
     const { error: err } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: redirigir() },
     });
     if (err) setError(err.message);
   }

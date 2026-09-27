@@ -33,9 +33,12 @@ const PASOS_TABLERO: Paso[] = [
     texto: 'Está a la izquierda. Cada línea te lleva a una parte del hub. Nada de lo que toques aquí borra información: puedes tocar sin miedo.',
   },
   {
-    target: 'header a[href$="/ideas/nueva"]',
-    titulo: 'Este botón crea una pieza',
-    texto: 'Tócalo cuando quieras sumar una idea. El hub te va pidiendo lo que falta, paso a paso, y no te deja avanzar si algo quedó en blanco.',
+    // El botón de crear es condicional: un rol de solo lectura no lo ve, y la
+    // guía no puede apuntar a algo que no existe para todo el mundo. El header
+    // siempre está, así que la guía señala el sitio y el texto explica la regla.
+    target: 'header',
+    titulo: 'Aquí se crea una pieza',
+    texto: 'El botón de la derecha suma una idea. Antes de entrar, el hub te pide lo que falta paso a paso. Si tu rol es de solo lectura, aquí verás "solo lectura" en vez del botón.',
   },
   {
     target: 'section[aria-label="Guía del flujo"]',

@@ -87,6 +87,12 @@
     @apply px-5 py-2.5 bg-blanco-10 text-blanco font-display font-bold uppercase tracking-tight border border-blanco-20 hover:bg-blanco-20 hover:border-blanco-40 active:bg-blanco-05 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
+  /* Secundario: borde y texto, relleno neutro. Para acciones que existen pero
+     no compiten con la principal — "ver perfil", "cerrar sesión", "filtrar". */
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 border border-blanco-20 px-3 py-1.5 font-mono text-[10px] uppercase text-blanco-70 transition-colors duration-150 hover:border-blanco-40 hover:text-blanco;
+  }
+
   .btn-brutal-fucsia {
     @apply px-5 py-2.5 bg-blanco-10 text-blanco font-display font-bold uppercase tracking-tight border border-blanco-20 hover:bg-blanco-20 hover:border-blanco-40 active:bg-blanco-05 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
   }

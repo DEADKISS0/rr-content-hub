@@ -2,10 +2,11 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useParams, usePathname } from 'next/navigation';
-import { useState, useSyncExternalStore } from 'react';
+import { useParams, usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { GuidedTour } from './guided-tour';
 import { Icon, type IconName } from './ui/icons';
+import { createClient } from '@/lib/supabase/client';
 
 /**
  * Cascarón del proyecto.
@@ -66,12 +67,57 @@ function readAside(): boolean {
   }
 }
 
-export function WorkspaceShell({ children, project }: { children: React.ReactNode; project: { slug: string; name: string; client_name: string }; role: string }) {
+/**
+ * Quién está dentro, y si puede escribir.
+ *
+ * El servidor ya sabe el rol (`access.role_in_project`) y por eso no hay que
+ * adivinarlo: se pasa como prop. Aquí solo se lee la sesión del navegador para
+ * pintar "INICIAR SESIÓN" o "VER PERFIL", que antes no existían en ninguna parte
+ * de la interfaz — no había forma de entrar desde el hub ni de salir.
+ *
+ * `rol` decide si el botón de crear es una trampa: un `client_viewer` ve el
+ * mismo botón que un `owner` y al pulsarlo recibe un 401. Con `puedeCrear` se
+ * muestra, pero directo al login, sin el falso intento.
+ */
+function useSesion(emailServidor?: string) {
+  const [correo, setCorreo] = useState<string | null>(emailServidor ?? null);
+  const router = useRouter();
+
+  useEffect(() => {
+    const supabase = createClient();
+    if (!supabase) return;
+    let vivo = true;
+    // El callback actualiza el estado; el `getUser` solo cubre el caso de una
+    // cookie de servidor que el cliente aún no conoce. Así el estado se cambia
+    // desde la suscripción, no desde el cuerpo del efecto.
+    const { data: sub } = supabase.auth.onAuthStateChange((_evento, sesion) => {
+      if (!vivo) return;
+      setCorreo(sesion?.user?.email ?? null);
+    });
+    void supabase.auth.getUser().then(({ data }) => {
+      if (!vivo) return;
+      setCorreo((actual) => actual ?? data.user?.email ?? null);
+    });
+    return () => { vivo = false; sub.subscription.unsubscribe(); };
+  }, []);
+
+  async function cerrarSesion() {
+    const supabase = createClient();
+    await supabase?.auth.signOut();
+    router.push('/');
+    router.refresh();
+  }
+
+  return { correo, cerrarSesion };
+}
+
+export function WorkspaceShell({ children, project, role, email, puedeEscribir = true }: { children: React.ReactNode; project: { slug: string; name: string; client_name: string }; role: string; email?: string; puedeEscribir?: boolean }) {
   const params = useParams<{ projectSlug: string }>();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const collapsed = useSyncExternalStore(subscribeAside, readAside, () => false);
   const slug = params.projectSlug;
+  const sesion = useSesion(email);
 
   function toggleCollapsed() {
     try {
@@ -168,11 +214,48 @@ export function WorkspaceShell({ children, project }: { children: React.ReactNod
             <Link href={`/${slug}`} className="hidden font-mono text-xs text-blanco-60 transition-colors hover:text-blanco md:block">
               {project.name.toUpperCase()} · TODO EL CONTENIDO EN UN LUGAR
             </Link>
-            {/* Una sola acción en el header: crear. La navegación de fases se
-                eliminó (la guía del tablero ya muestra los cuatro pasos). */}
-            <Link href={`/${slug}/ideas/nueva`} className="btn-brutal inline-flex items-center gap-2">
-              <Icon name="plus" size={14} /> NUEVA PIEZA
-            </Link>
+            <div className="flex items-center gap-2">
+              {/* Acceso. No existía en ninguna parte de la interfaz: no había
+                  forma de entrar desde el hub ni de ver con qué cuenta se
+                  estaba. Con la sesión puesta, esto dice quién eres. */}
+              {sesion.correo ? (
+                <details className="relative">
+                  <summary className="inline-flex cursor-pointer list-none items-center gap-2 border border-blanco-20 px-2 py-1.5 font-mono text-[10px] text-blanco-70 hover:border-blanco-40">
+                    <span className="inline-block h-4 w-4 border border-blanco-40 text-center leading-4 text-blanco-80">
+                      {sesion.correo.slice(0, 1).toUpperCase()}
+                    </span>
+                    <span className="hidden max-w-32 truncate sm:inline">{sesion.correo}</span>
+                  </summary>
+                  <div className="absolute right-0 z-30 mt-1 w-64 border border-blanco-20 bg-negro p-3">
+                    <p className="font-mono text-[10px] leading-5 text-blanco-60">
+                      <span className="block text-blanco-80">{sesion.correo}</span>
+                      Rol en {project.name}: <span className="text-orquidea">{role.replace('_', ' ')}</span>
+                    </p>
+                    <div className="mt-3 flex flex-col gap-1">
+                      <Link href={`/${slug}/perfil`} className="btn-ghost">VER PERFIL</Link>
+                      <button onClick={sesion.cerrarSesion} className="btn-ghost">CERRAR SESIÓN</button>
+                    </div>
+                  </div>
+                </details>
+              ) : (
+                <Link href={`/login?next=${encodeURIComponent(`/${slug}/ideas/nueva`)}`} className="inline-flex items-center gap-2 border border-blanco-20 px-2 py-1.5 font-mono text-[10px] text-blanco-70 hover:border-blanco-40">
+                  <Icon name="user" size={14} /> INICIAR SESIÓN
+                </Link>
+              )}
+
+              {/* Crear. Solo se ofrece si el servidor dice que el rol puede
+                  escribir. Antes el botón era idéntico para todos y el 401
+                  llegaba después del clic, sin explicación. */}
+              {puedeEscribir ? (
+                <Link href={`/${slug}/ideas/nueva`} className="btn-brutal inline-flex items-center gap-2">
+                  <Icon name="plus" size={14} /> NUEVA PIEZA
+                </Link>
+              ) : (
+                <span className="hidden font-mono text-[10px] text-blanco-40 sm:inline" title="Tu rol es de solo lectura">
+                  SOLO LECTURA
+                </span>
+              )}
+            </div>
           </div>
         </header>
         {children}

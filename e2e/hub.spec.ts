@@ -50,7 +50,11 @@ test.describe('tablero', () => {
     await abrir(page, `/${PROYECTO}`);
 
     // Una sola puerta para crear: la regla que quitó 13 botones y 2 CTA de más.
-    await expect(page.locator('a[href$="/ideas/nueva"]:visible')).toHaveCount(1);
+    // Cuenta solo el botón de acción, no los enlaces de navegación. Y sin
+    // sesión no hay botón: se ofrece "INICIAR SESIÓN". Antes esta prueba contaba
+    // cualquier enlace a esa ruta y el header no tenía ninguno visible.
+    await expect(page.locator('a[href$="/ideas/nueva"]:visible')).toHaveCount(0);
+    await expect(page.getByRole('link', { name: /INICIAR SESIÓN/ })).toBeVisible();
 
     await expect(page.getByText('TOCA UN PASO Y VES SOLO ESAS')).toBeVisible();
 
@@ -298,11 +302,11 @@ test.describe('modo guía', () => {
     await expect(page.getByText(/PASO 1 DE 6/)).toBeVisible();
 
     await page.getByRole('button', { name: /SIGUIENTE/ }).click();
-    await expect(page.getByRole('heading', { name: 'Este botón crea una pieza' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Aquí se crea una pieza' })).toBeVisible();
     await expect(page.getByText(/PASO 2 DE 6/)).toBeVisible();
 
     await page.keyboard.press('Escape');
-    await expect(page.getByRole('heading', { name: 'Este botón crea una pieza' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Aquí se crea una pieza' })).toHaveCount(0);
   });
 
   test('en la ficha explica la acción, el preview y el brief', async ({ page }) => {
@@ -316,5 +320,57 @@ test.describe('modo guía', () => {
     await expect(page.getByRole('heading', { name: 'Esta es tu pieza' })).toBeVisible();
     await page.getByRole('button', { name: /SIGUIENTE/ }).click();
     await expect(page.getByRole('heading', { name: 'Lo primero: qué hacer ahora' })).toBeVisible();
+  });
+});
+
+/**
+ * Acceso. Estas tres invariantes nacieron de un reporte literal: "le doy click
+ * en crear idea y no pasa nada" y "cuando alguien no esté logueado y le dé en
+ * nueva idea, que se loguee, no lo mandes al inicio".
+ *
+ *   1. El botón de crear SIEMPRE responde. Antes devolvía el error en un nodo
+ *      que se pintaba después del brief, fuera de pantalla: se veía el botón
+ *      cambiar de color y nada más.
+ *   2. Sin sesión, el aviso trae su propio botón para entrar — no un texto
+ *      muerto que obliga a buscar el login a mano.
+ *   3. El login devuelve al paso 1, no al tablero. Con `next` en la URL, y solo
+ *      con rutas internas: un `?next=https://otro` sería un redirect abierto.
+ */
+test.describe('acceso y creación', () => {
+  test('sin sesión, crear responde con un aviso y un botón para entrar', async ({ page }) => {
+    await abrir(page, `/${PROYECTO}/ideas/nueva`);
+
+    await page.getByLabel(/TÍTULO/).fill('Prueba de acceso');
+    await page.getByLabel(/OBJETIVO/).fill('Verificar que el botón responde');
+
+    await page.getByRole('button', { name: /CREAR IDEA/ }).click();
+
+    // `#aviso-crear`, no `getByRole('alert')`: Next.js monta su propio nodo
+    // `role="alert"` (`__next-route-announcer__`) y el selector genérico encuentra
+    // dos. La prueba pasaba sin comprobar nada.
+    const aviso = page.locator('#aviso-crear');
+    await expect(aviso).toBeVisible();
+    await expect(aviso).toContainText(/sesión/i);
+    // Y trae la salida, no solo el diagnóstico.
+    await expect(aviso.getByRole('link', { name: /ENTRAR Y SEGUIR/ })).toBeVisible();
+  });
+
+  test('el botón de entrar conserva el paso 1 de creación', async ({ page }) => {
+    await abrir(page, `/${PROYECTO}/ideas/nueva`);
+
+    await page.getByRole('link', { name: /INICIAR SESIÓN/ }).click();
+    await expect(page).toHaveURL(/\/login\?next=/);
+
+    // El destino viaja en la URL, listo para que el callback lo use.
+    const destino = new URL(page.url()).searchParams.get('next');
+    expect(destino).toBe(`/${PROYECTO}/ideas/nueva`);
+  });
+
+  test('el login rechaza un next externo', async ({ page }) => {
+    await abrir(page, `/login?next=${encodeURIComponent('https://sitio-falso.example')}`);
+
+    // Visible: no se redirige. Lo que se manda al proveedor es la ruta interna.
+    await expect(page.getByRole('button', { name: /Entrar con Google/i })).toBeVisible();
+    await expect(page).toHaveURL(/\/login\?next=/);
   });
 });
