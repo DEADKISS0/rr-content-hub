@@ -11,6 +11,7 @@ import { Chip } from '@/components/ui/chips';
 import { formatOf } from '@/components/ui/cover';
 import { BriefRail, PhaseRail, briefState } from '@/components/ui/meter';
 import { PublicationPreview } from '@/components/ui/preview';
+import { InstagramEmbed } from '@/components/ui/instagram-embed';
 import { Icon, type IconName } from '@/components/ui/icons';
 import { statusMeta, productionStep, daysSince, type WorkflowStatus } from '@/lib/flow';
 
@@ -100,7 +101,11 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
 
           <div data-guia="preview">
             <p className="mono-label mb-3 text-mostaza">// COMO SE VERÁ PUBLICADO</p>
-            <PublicationPreview url={raw} code={idea.code} title={idea.title} format={format.icon as IconName} size="lg" />
+            {raw && raw.includes('instagram.com') ? (
+              <InstagramEmbed url={raw} title={idea.title} />
+            ) : (
+              <PublicationPreview url={raw} code={idea.code} title={idea.title} format={format.icon as IconName} size="lg" />
+            )}
             <p className="mt-3 font-mono text-[10px] text-blanco-60">
               {raw ? 'VISTA PREVIA DE LA REFERENCIA REAL' : 'SIN REFERENCIA TODAVÍA'}
             </p>

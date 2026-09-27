@@ -38,15 +38,15 @@ export function StartHere({ ideas, projectSlug }: { ideas: Pieza[]; projectSlug:
   const cliente = esperando.filter(({ idea }) => actGroup(idea.status as WorkflowStatus) === 'cliente').length;
 
   return (
-    <section aria-labelledby="empezar-aqui" className="anim-rise mb-8 border-2 border-fucsia bg-fucsia/10">
-      <div className="border-b-2 border-fucsia px-5 py-4">
-        <p className="mono-label text-fucsia">[EMPIEZA POR AQUÍ]</p>
+    <section aria-labelledby="empezar-aqui" className="anim-rise mb-8 border border-blanco-20 bg-negro">
+      <div className="border-b border-blanco-20 px-5 py-4">
+        <p className="mono-label text-blanco-40">[EMPIEZA POR AQUÍ]</p>
         <h2 id="empezar-aqui" className="mt-2 font-display text-2xl font-bold leading-tight text-blanco sm:text-3xl">
           {esperando.length === 0
             ? 'HOY NO HAY NADA PARADO.'
             : <>HAY {esperando.length} {esperando.length === 1 ? 'PIEZA ESPERANDO' : 'PIEZAS ESPERANDO'} RESPUESTA.</>}
         </h2>
-        <p className="mt-3 max-w-3xl text-base leading-7 text-blanco-70">
+        <p className="mt-3 max-w-3xl text-base leading-7 text-blanco-60">
           {esperando.length === 0
             ? 'Todo avanza solo. Puedes bajar a ver el trabajo completo cuando quieras.'
             : cliente === esperando.length
@@ -56,7 +56,7 @@ export function StartHere({ ideas, projectSlug }: { ideas: Pieza[]; projectSlug:
       </div>
 
       {urgentes.length > 0 && (
-        <ol className="divide-y-2 divide-fucsia/40">
+        <ol className="divide-y divide-blanco-10">
           {urgentes.map(({ idea, dias }) => {
             const meta = statusMeta(idea.status as WorkflowStatus);
             const esCliente = actGroup(idea.status as WorkflowStatus) === 'cliente';
@@ -64,14 +64,14 @@ export function StartHere({ ideas, projectSlug }: { ideas: Pieza[]; projectSlug:
               <li key={idea.id}>
                 <Link
                   href={`/${projectSlug}/ideas/${idea.id}`}
-                  className="group flex flex-wrap items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-fucsia/15"
+                  className="group flex flex-wrap items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-blanco-05"
                 >
                   <span className="min-w-0">
-                    <span className="block font-mono text-xs text-mostaza">
+                    <span className="block font-mono text-xs text-blanco-40">
                       {idea.code ?? 'IDEA'} · {esCliente ? 'ESPERA TU RESPUESTA' : `ESPERA A ${meta.who}`}
                       {dias > 0 ? ` · ${dias} ${dias === 1 ? 'DÍA' : 'DÍAS'}` : ' · HOY'}
                     </span>
-                    <span className="mt-1 block font-display text-lg font-bold leading-tight text-blanco group-hover:text-mostaza sm:text-xl">
+                    <span className="mt-1 block font-display text-lg font-bold leading-tight text-blanco group-hover:text-blanco sm:text-xl">
                       {idea.title}
                     </span>
                   </span>
@@ -86,7 +86,7 @@ export function StartHere({ ideas, projectSlug }: { ideas: Pieza[]; projectSlug:
       )}
 
       {esperando.length > urgentes.length && (
-        <p className="border-t-2 border-fucsia px-5 py-3 font-mono text-xs text-blanco-60">
+        <p className="border-t border-blanco-10 px-5 py-3 font-mono text-xs text-blanco-40">
           Y {esperando.length - urgentes.length} más abajo, en el trabajo completo.
         </p>
       )}

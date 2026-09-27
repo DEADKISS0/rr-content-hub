@@ -6,6 +6,7 @@ import { actGroup, BOARD_COLUMNS, daysSince, statusMeta, type WorkflowStatus } f
 import { BoardControls, type BoardFilters } from './board-controls';
 import { FlowGuide } from './flow-guide';
 import { StartHere } from './start-here';
+import { ContentTypeTabs } from './content-type-tabs';
 import { StatusBadge } from './status-badge';
 import { ActorChip, Chip } from './ui/chips';
 import { EmptyState } from './ui/empty-state';
@@ -34,7 +35,9 @@ export type BoardIdea = {
   script_content?: string | null;
 };
 
-function matches(idea: BoardIdea, filters: BoardFilters): boolean {
+type ContentTypeFilter = 'all' | 'organic' | 'paid';
+
+function matches(idea: BoardIdea, filters: BoardFilters, contentType: ContentTypeFilter): boolean {
   const query = filters.query.trim().toLowerCase();
   if (query) {
     const haystack = [idea.code, idea.title, idea.category, idea.description, idea.objective]
@@ -48,6 +51,7 @@ function matches(idea: BoardIdea, filters: BoardFilters): boolean {
     if (!column || !(column.statuses as readonly string[]).includes(idea.status)) return false;
   }
   if (filters.act !== 'all' && actGroup(idea.status as WorkflowStatus) !== filters.act) return false;
+  if (contentType !== 'all' && idea.content_type !== contentType) return false;
   return true;
 }
 
@@ -61,13 +65,20 @@ function matches(idea: BoardIdea, filters: BoardFilters): boolean {
  */
 export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; projectSlug: string }) {
   const [filters, setFilters] = useState<BoardFilters>({ query: '', phase: 'all', act: 'all', view: 'map' });
+  const [contentType, setContentType] = useState<ContentTypeFilter>('all');
   const onChange = (next: Partial<BoardFilters>) => setFilters((current) => ({ ...current, ...next }));
 
-  const visible = useMemo(() => ideas.filter((idea) => matches(idea, filters)), [ideas, filters]);
+  const visible = useMemo(() => ideas.filter((idea) => matches(idea, filters, contentType)), [ideas, filters, contentType]);
   const maxColumn = Math.max(1, ...BOARD_COLUMNS.map((column) => visible.filter((idea) => (column.statuses as readonly string[]).includes(idea.status)).length));
 
   const waitingClient = ideas.filter((idea) => actGroup(idea.status as WorkflowStatus) === 'cliente').length;
-  const dirty = filters.query !== '' || filters.phase !== 'all' || filters.act !== 'all';
+  const dirty = filters.query !== '' || filters.phase !== 'all' || filters.act !== 'all' || contentType !== 'all';
+
+  const counts = {
+    all: ideas.length,
+    organic: ideas.filter((i) => i.content_type === 'organic').length,
+    paid: ideas.filter((i) => i.content_type === 'paid').length,
+  };
 
   return (
     <section aria-labelledby="board-title" className="anim-rise">
@@ -83,14 +94,19 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
       {/* Lo primero ya no son 25 tarjetas: es lo que necesita respuesta. */}
       <StartHere ideas={ideas} projectSlug={projectSlug} />
 
+      {/* División orgánico / pauta: tabs limpias con conteo real. */}
+      <div className="mb-6">
+        <ContentTypeTabs value={contentType} onChange={setContentType} counts={counts} />
+      </div>
+
       <FlowGuide ideas={ideas} phase={filters.phase} onPhase={(phase) => onChange({ phase, act: 'all' })} />
 
       <BoardControls filters={filters} onChange={onChange} total={ideas.length} shown={visible.length} waiting={waitingClient} />
 
       {/* El trabajo completo sigue aquí, a una línea de distancia. Si alguien
           filtra o busca, se abre solo: no hay que hacer dos gestos. */}
-      <details open={dirty || undefined} className="group/todas border-2 border-blanco-20">
-        <summary className="inline-flex w-full cursor-pointer list-none items-center gap-2 px-4 py-3 font-mono text-sm text-blanco-60 transition-colors hover:bg-blanco-05 hover:text-mostaza">
+      <details open={dirty || undefined} className="group/todas border border-blanco-20">
+        <summary className="inline-flex w-full cursor-pointer list-none items-center gap-2 px-4 py-3 font-mono text-sm text-blanco-60 transition-colors hover:bg-blanco-05 hover:text-blanco">
           <Icon name="chevron" size={13} className="transition-transform group-open/todas:rotate-180" />
           VER TODAS LAS {ideas.length} PIEZAS Y EL MAPA COMPLETO
         </summary>
@@ -126,14 +142,14 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
                         key={idea.id}
                         href={`/${projectSlug}/ideas/${idea.id}`}
                         style={{ ['--delay' as string]: `${cardIndex * 45}ms` }}
-                        className="idea-card cascade sheen group block border-2 border-blanco-20 bg-negro transition-all duration-200 hover:-translate-y-1 hover:border-fucsia"
+                        className="idea-card cascade sheen group block border border-blanco-20 bg-negro transition-all duration-200 hover:border-blanco-40"
                       >
                         <PublicationPreview url={idea.reference_url} code={idea.code} title={idea.title} format={format.icon} />
                         <div className="space-y-3 p-3">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <StatusBadge status={idea.status} compact />
-                            {idea.priority === 'high' && <Chip icon="bolt" tone="mostaza">ALTA</Chip>}
-                            {days !== null && <Chip icon="clock" tone={days > 14 ? 'fucsia' : 'neutro'} className={days > 14 ? 'anim-pulse' : ''} title={`Última actividad hace ${days} días`}>{days}D</Chip>}
+                            {idea.priority === 'high' && <Chip icon="bolt" tone="blanco">ALTA</Chip>}
+                            {days !== null && <Chip icon="clock" tone="neutro" title={`Última actividad hace ${days} días`}>{days}D</Chip>}
                             <Chip icon={format.icon} tone="neutro">{format.label}</Chip>
                           </div>
                           <h4 className="font-display text-base font-bold leading-tight text-blanco group-hover:text-mostaza">{idea.title}</h4>
