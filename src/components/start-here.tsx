@@ -44,7 +44,7 @@ export function StartHere({ ideas, projectSlug }: { ideas: Pieza[]; projectSlug:
         <h2 id="empezar-aqui" className="mt-2 font-display text-2xl font-bold leading-tight text-blanco sm:text-3xl">
           {esperando.length === 0
             ? 'Hoy no hay nada parado.'
-            : <>Hay {esperando.length} {esperando.length === 1 ? 'pieza esperando' : 'piezas esperando'} respuesta.</>}
+            : `Hay ${esperando.length} ${esperando.length === 1 ? 'pieza esperando' : 'piezas esperando'} respuesta.`}
         </h2>
         <p className="mt-3 max-w-3xl text-base leading-7 text-blanco-60">
           {esperando.length === 0

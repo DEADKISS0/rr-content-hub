@@ -5,9 +5,9 @@ export type ChipTone = 'neutro' | 'mostaza' | 'fucsia' | 'orquidea' | 'blanco';
 
 const CHIP_SKIN: Record<ChipTone, string> = {
   neutro: 'border-blanco-20 text-blanco-50',
-  mostaza: 'border-mostaza text-mostaza',
-  fucsia: 'border-fucsia text-fucsia',
-  orquidea: 'border-orquidea text-orquidea',
+  mostaza: 'border-blanco-20 text-blanco-50',
+  fucsia: 'border-blanco-20 text-blanco-50',
+  orquidea: 'border-blanco-20 text-blanco-50',
   blanco: 'border-blanco text-blanco',
 };
 
@@ -40,14 +40,19 @@ export function Initials({ label, tone = 'neutro', size = 26 }: { label: string;
   );
 }
 
+/**
+ * A quién le toca actuar. La marca por rol ya no va en el color: cada chip trae
+ * sus iniciales y su nombre, así que el tono se queda neutro y lo que
+ * distingue a un rol de otro es el texto, no el tono.
+ */
 const ROLE_TONE: Record<string, ChipTone> = {
-  CREATIVA: 'mostaza', CREATIVE: 'mostaza', OWNER: 'blanco', CLIENTE: 'mostaza',
-  CÁMARA: 'fucsia', CAMARA: 'fucsia', MODELO: 'fucsia', EDITOR: 'orquidea',
-  PUBLISHER: 'fucsia', PAUTA: 'orquidea', 'RR ALIADOS': 'neutro',
+  CREATIVA: 'blanco', CREATIVE: 'blanco', OWNER: 'blanco', CLIENTE: 'blanco',
+  'CÁMARA': 'blanco', CAMARA: 'blanco', MODELO: 'blanco', EDITOR: 'blanco',
+  PUBLISHER: 'blanco', PAUTA: 'blanco', 'RR ALIADOS': 'neutro',
 };
 
 const ACTOR_TEXT: Record<ChipTone, string> = {
-  neutro: 'text-blanco', mostaza: 'text-mostaza', fucsia: 'text-fucsia', orquidea: 'text-orquidea', blanco: 'text-blanco',
+  neutro: 'text-blanco', mostaza: 'text-blanco', fucsia: 'text-blanco', orquidea: 'text-blanco', blanco: 'text-blanco',
 };
 
 /** A quién le toca actuar: iniciales + rol, con tono estable por rol. */
@@ -68,7 +73,7 @@ export function ActorChip({ who, prefix = 'ACTÚA' }: { who: string; prefix?: st
 export function BigCount({ value, label, tone = 'blanco' }: { value: number | string; label: string; tone?: ChipTone }) {
   return (
     <span className="inline-flex items-baseline gap-2">
-      <b className={`font-display text-3xl font-bold leading-none ${tone === 'mostaza' ? 'text-mostaza' : tone === 'fucsia' ? 'text-fucsia' : tone === 'orquidea' ? 'text-orquidea' : 'text-blanco'}`}>{value}</b>
+      <b className="font-display text-3xl font-bold leading-none text-blanco">{value}</b>
       <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-blanco-50">{label}</span>
     </span>
   );

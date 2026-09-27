@@ -250,13 +250,15 @@ export function actGroup(status: WorkflowStatus): ActGroup {
   return 'equipo';
 }
 
-/** Tailwind classes per tone, reused by badges, rails and filters.
- *  El color se queda en el borde y el texto (acento); el fondo va neutro para
- *  que la pantalla no grite. Feedback del 2026-09-26: "hay mucho color". */
+/** Clases por tono, reutilizadas por badges, rieles y filtros.
+ *  El color de marca salio de aqui el 2026-09-26: con 14 estados en pantalla,
+ *  un color por tono era leer un codigo de barras, no una pantalla. Ahora el
+ *  estado se dice con texto (`statusMeta().label`) y el color queda libre para
+ *  marcar de verdad una sola cosa: el foco de teclado. */
 export const TONE_CLASS: Record<ToneKey, { border: string; bg: string; text: string; dot: string }> = {
-  mostaza: { border: 'border-mostaza', bg: 'bg-blanco-05', text: 'text-mostaza', dot: 'bg-mostaza' },
-  fucsia: { border: 'border-fucsia', bg: 'bg-blanco-05', text: 'text-fucsia', dot: 'bg-fucsia' },
-  orquidea: { border: 'border-orquidea', bg: 'bg-blanco-05', text: 'text-orquidea', dot: 'bg-orquidea' },
+  mostaza: { border: 'border-blanco-20', bg: 'bg-blanco-05', text: 'text-blanco-60', dot: 'bg-blanco-40' },
+  fucsia: { border: 'border-blanco-20', bg: 'bg-blanco-05', text: 'text-blanco-60', dot: 'bg-blanco-40' },
+  orquidea: { border: 'border-blanco-20', bg: 'bg-blanco-05', text: 'text-blanco-60', dot: 'bg-blanco-40' },
   neutro: { border: 'border-blanco-20', bg: 'bg-blanco-05', text: 'text-blanco-60', dot: 'bg-blanco-40' },
 };
 

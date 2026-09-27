@@ -30,7 +30,6 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
   const idea: any = await getIdea(project.id, ideaId); if (!idea) notFound();
   const raw = idea.reference_url ?? idea.reference_urls?.[0] ?? idea.ref ?? '';
   const meta = statusMeta(idea.status);
-  const tone = meta.tone === 'mostaza' ? 'border-mostaza' : meta.tone === 'fucsia' ? 'border-fucsia' : meta.tone === 'orquidea' ? 'border-orquidea' : 'border-blanco-20';
   const inProduction = productionStep(idea.status) >= 0;
   const format = formatOf(idea.category, idea.content_type);
   const states = briefState({
@@ -71,9 +70,9 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
               : <Chip icon="check" tone="neutro">FICHA COMPLETA</Chip>}
           </div>
 
-          <div data-guia="estado" className={`mt-7 border-l-4 ${tone} bg-blanco-05 px-5 py-4`}>
+          <div data-guia="estado" className="mt-7 border-l-4 border-blanco-40 bg-blanco-05 px-5 py-4">
             <div className="flex items-center gap-3">
-              <span className={`flex h-9 w-9 items-center justify-center border-2 ${tone} ${meta.tone === 'mostaza' ? 'text-mostaza' : meta.tone === 'fucsia' ? 'text-fucsia' : meta.tone === 'orquidea' ? 'text-orquidea' : 'text-blanco'}`}>
+              <span className="flex h-9 w-9 items-center justify-center border border-blanco-30 text-blanco">
                 <Icon name={STATUS_ICON[idea.status as WorkflowStatus] ?? 'flag'} size={16} />
               </span>
               <div>
@@ -95,7 +94,7 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
               el pliegue. Lo cazó el recorrido e2e, no una revisión a ojo. */}
           <div data-guia="accion" className="brutal-panel anim-rise">
             <p className="eyebrow">[TU SIGUIENTE ACCIÓN]</p>
-            <h2 className="mt-3 font-display text-2xl font-bold text-blanco">QUÉ HACER<br /><span className="text-blanco-80">AHORA.</span></h2>
+            <h2 className="mt-3 font-display text-2xl font-bold text-blanco">Qué hacer ahora.</h2>
             <div className="mt-5"><IdeaActions projectSlug={projectSlug} ideaId={ideaId} currentStatus={idea.status} /></div>
           </div>
 
@@ -130,7 +129,7 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
         </section>
 
         <aside className="space-y-5">
-          <div className="border-2 border-blanco-20 p-5 anim-rise">
+          <div className="border border-blanco-20 p-5 anim-rise">
             <p className="mono-label text-blanco-50">// LO QUE FALTA DE ESTA FICHA</p>
             <p className="mt-3 font-mono text-[10px] leading-5 text-blanco-60">
               {missing.length
