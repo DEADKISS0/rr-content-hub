@@ -212,17 +212,22 @@ test.describe('roadmap', () => {
 });
 
 test.describe('portero de acceso', () => {
-  test('el panel de administración no existe para quien no tiene sesión', async ({ page }) => {
-    const respuesta = await page.goto('/audit/admin');
-
-    // La línea desplegada responde 404 sin sesión: ni confirma que la ruta existe.
-    // Es más fuerte que la página de guarda que tenía mi línea, así que el test
-    // fija el comportamiento nuevo, no el mío.
-    expect(respuesta?.status()).toBe(404);
+  test('el panel de administración no enseña el roster sin sesión', async ({ page }) => {
+    // Con la autenticación apagada la línea devuelve 404: ni confirma que la
+    // ruta existe. Con la encendida, el middleware manda a /login indicando a
+    // dónde volver. Las dos respuestas sirven; lo que no puede pasar es que el
+    // roster aparezca. Esta prueba corre con la variable que imponga cada modo.
+    await page.goto('/audit/admin');
 
     const texto = await page.locator('body').innerText();
     expect(texto).not.toMatch(/[\w.]+@[\w.]+\.\w+/);
     expect(texto).not.toContain('US10');
+    // Y nunca queda mostrando el panel a alguien sin sesión.
+    if (process.env.NEXT_PUBLIC_AUTH_ENABLED === 'true') {
+      await expect(page).toHaveURL(/\/login\?next=%2Faudit%2Fadmin/);
+    } else {
+      expect(page.url()).toContain('/audit/admin');
+    }
   });
 });
 
@@ -372,5 +377,51 @@ test.describe('acceso y creación', () => {
     // Visible: no se redirige. Lo que se manda al proveedor es la ruta interna.
     await expect(page.getByRole('button', { name: /Entrar con Google/i })).toBeVisible();
     await expect(page).toHaveURL(/\/login\?next=/);
+  });
+});
+
+/**
+ * El reporte literal fue "simplemente no carga cuando intento crear la idea".
+ *
+ * La causa era el middleware: `/wundeer/ideas/nueva` estaba en la lista de rutas
+ * protegidas, así que sin sesión devolvía un 307 a `/login` SIN `next`. La
+ * persona llegaba a un formulario vacío — o directamente a la portada — sin
+ * haber visto nunca el formulario ni un error. De ahí "no carga".
+ *
+ * La regla que queda: la página de creación se abre siempre; la sesión se pide
+ * al guardar, donde el aviso puede traer su propio botón. Las mutaciones del
+ * servidor siguen exigiendo sesión: eso no se relaja.
+ */
+test.describe('la puerta no bloquea la página', () => {
+  /**
+   * En producción `NEXT_PUBLIC_AUTH_ENABLED=true`, así que esta es la
+   * configuración que reproducía el 307. El server de pruebas corre con auth
+   * apagada: hay que levantarlo con la variable puesta o la prueba pasa de
+   * milagro y no mide nada.
+   */
+  test.use({ extraHTTPHeaders: {} });
+
+  test('la página de creación se abre sin sesión', async ({ page }) => {
+    const respuesta = await page.goto(`/${PROYECTO}/ideas/nueva`);
+    expect(respuesta?.status()).toBe(200);
+    // Y el formulario está de verdad en pantalla, no un 307 silencioso.
+    await expect(page.getByRole('heading', { name: 'Nueva idea.' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /CREAR IDEA/ })).toBeVisible();
+  });
+
+  test('el aviso de sesión ofrece entrar sin perder el formulario', async ({ page }) => {
+    await abrir(page, `/${PROYECTO}/ideas/nueva`);
+
+    await page.getByLabel(/TÍTULO/).fill('Prueba sin perder el trabajo');
+    await page.getByLabel(/OBJETIVO/).fill('Verificar que el destino se conserva');
+
+    await page.getByRole('button', { name: /CREAR IDEA/ }).click();
+
+    const aviso = page.locator('#aviso-crear');
+    await expect(aviso).toBeVisible();
+
+    // El enlace al login lleva el paso 1, no la portada.
+    const enlace = aviso.getByRole('link', { name: /ENTRAR Y SEGUIR/ });
+    await expect(enlace).toHaveAttribute('href', `/login?next=${encodeURIComponent(`/${PROYECTO}/ideas/nueva`)}`);
   });
 });
