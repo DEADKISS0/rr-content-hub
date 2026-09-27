@@ -29,32 +29,32 @@ type Paso = { target: string; titulo: string; texto: string };
 const PASOS_TABLERO: Paso[] = [
   {
     target: 'aside',
-    titulo: 'ESTE ES EL MENÚ',
+    titulo: 'Este es el menú',
     texto: 'Está a la izquierda. Cada línea te lleva a una parte del hub. Nada de lo que toques aquí borra información: puedes tocar sin miedo.',
   },
   {
     target: 'header a[href$="/ideas/nueva"]',
-    titulo: 'ESTE BOTÓN CREA UNA PIEZA',
+    titulo: 'Este botón crea una pieza',
     texto: 'Tócalo cuando quieras sumar una idea. El hub te va pidiendo lo que falta, paso a paso, y no te deja avanzar si algo quedó en blanco.',
   },
   {
     target: 'section[aria-label="Guía del flujo"]',
-    titulo: 'ESTOS SON LOS CUATRO PASOS',
+    titulo: 'Estos son los cuatro pasos',
     texto: 'Toda pieza hace el mismo recorrido: idea, guion, producción y publicado. El número grande dice cuántas piezas hay en cada paso. Si tocas un paso, abajo te quedan solo esas.',
   },
   {
     target: '.idea-card',
-    titulo: 'CADA TARJETA ES UNA PIEZA',
+    titulo: 'Cada tarjeta es una pieza',
     texto: 'Arriba a la izquierda está su código: O1, P7. El color te dice de quién es el turno. Toca la tarjeta y se abre completa.',
   },
   {
     target: 'a[href$="/aprobaciones"]',
-    titulo: 'AQUÍ VES LO QUE ESPERA RESPUESTA',
+    titulo: 'Aquí ves lo que espera respuesta',
     texto: 'Si una pieza lleva días parada, aparece en esta lista. Es lo primero que conviene mirar cada día.',
   },
   {
     target: 'a[href$="/roadmap"]',
-    titulo: 'Y AQUÍ, EL PLAN COMPLETO',
+    titulo: 'Y aquí, el plan completo',
     texto: 'Cuánto falta para cerrar cada tramo del proyecto. Sirve para saber si vamos al día sin tener que preguntarle a nadie.',
   },
 ];
@@ -63,27 +63,27 @@ const PASOS_TABLERO: Paso[] = [
 const PASOS_FICHA: Paso[] = [
   {
     target: 'main h1',
-    titulo: 'ESTA ES TU PIEZA',
+    titulo: 'Esta es tu pieza',
     texto: 'Arriba está el nombre y, al lado, en qué punto va. Las etiquetas de color te dicen si está completa o si le faltan datos.',
   },
   {
     target: '[data-guia="accion"]',
-    titulo: 'LO PRIMERO: QUÉ HACER AHORA',
+    titulo: 'Lo primero: qué hacer ahora',
     texto: 'Este recuadro dice quién tiene la pelota y te da el botón para mover la pieza. Si no te toca a ti, te lo dice y no te ofrece botones de más.',
   },
   {
     target: '[data-guia="preview"]',
-    titulo: 'ASÍ SE VERÁ PUBLICADO',
+    titulo: 'Así se verá publicado',
     texto: 'Una vista de la referencia real. Si no hay referencia todavía, lo dice: nunca te muestra una foto inventada.',
   },
   {
     target: '[data-guia="brief"]',
-    titulo: 'AQUÍ ESTÁ EL TRABAJO DEL EQUIPO',
+    titulo: 'Aquí está el trabajo del equipo',
     texto: 'Qué se graba, cómo, quién actúa y cómo se edita. Todo lo que la pieza necesita para rodarse sin preguntar nada.',
   },
   {
     target: '[data-guia="comentarios"]',
-    titulo: 'Y AQUÍ SE HABLA',
+    titulo: 'Y aquí se habla',
     texto: 'Cada decisión o duda queda escrita y la ven todos, desde cualquier computador. Nadie pierde el hilo en WhatsApp.',
   },
 ];
@@ -92,12 +92,12 @@ const PASOS_FICHA: Paso[] = [
 const PASOS_COLA: Paso[] = [
   {
     target: 'main',
-    titulo: 'AQUÍ ESTÁ LO QUE NO AVANZA SOLO',
+    titulo: 'Aquí está lo que no avanza solo',
     texto: 'Cada pieza de esta lista está esperando una respuesta de alguien. Están ordenadas por lo que más lleva parado: la de arriba es la más urgente.',
   },
   {
     target: 'a.idea-card',
-    titulo: 'TOCA UNA PIEZA PARA ABRIRLA',
+    titulo: 'Toca una pieza para abrirla',
     texto: 'Se abre completa: qué falta, quién actúa y el botón para decidir. Con el botón de atrás del navegador vuelves a esta lista.',
   },
 ];
@@ -116,8 +116,9 @@ export function GuidedTour() {
   const tarjeta = useRef<HTMLDivElement>(null);
   const reducido = useRef(false);
 
-  // La primera visita abre la guía sola. Terminarla o saltarla la marca vista;
-  // "saltar" no la marca, para que vuelva a aparecer la próxima vez.
+  // La primera visita abre la guía sola. Terminarla o saltarla la marca vista:
+  // una guía que vuelve a saltar en cada pantalla deja de ser ayuda y pasa a
+  // ser estorbo. El botón flotante siempre está para volver a abrirla.
   useEffect(() => {
     reducido.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     try {
@@ -187,10 +188,8 @@ export function GuidedTour() {
     };
   }, [paso, medir]);
 
-  const cerrar = useCallback((marcar: boolean) => {
-    if (marcar) {
-      try { window.localStorage.setItem(CLAVE, 'visto'); } catch { /* da igual */ }
-    }
+  const cerrar = useCallback(() => {
+    try { window.localStorage.setItem(CLAVE, 'visto'); } catch { /* da igual */ }
     setPaso(null);
     setCaja(null);
   }, []);
@@ -198,7 +197,7 @@ export function GuidedTour() {
   useEffect(() => {
     if (paso === null) return;
     const alTeclear = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') cerrar(false);
+      if (event.key === 'Escape') cerrar();
       if (event.key === 'ArrowRight') setPaso((n) => (n === null ? n : Math.min(n + 1, pasos.length - 1)));
       if (event.key === 'ArrowLeft') setPaso((n) => (n === null ? n : Math.max(n - 1, 0)));
     };
@@ -223,22 +222,23 @@ export function GuidedTour() {
 
       {abierto && (
         <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="guia-titulo">
-          {/* El recuadro que se posa sobre el botón. El truco de la sombra
-              gigante oscurece todo lo demás sin necesitar máscaras. */}
+          {/* El recuadro que se posa sobre el botón. La sombra gigante atenúa
+              el resto lo justo para que el foco se lea, sin borrar la página:
+              el objetivo es explicar lo que ya se ve, no taparlo. */}
           {caja && (
             <div
               aria-hidden="true"
-              className="pointer-events-none fixed border-2 border-blanco-40"
+              className="pointer-events-none fixed border border-blanco-40"
               style={{
                 top: Math.max(4, caja.top - 6),
                 left: Math.max(4, caja.left - 6),
                 width: Math.min(caja.width + 12, window.innerWidth - 8),
                 height: caja.height + 12,
-                boxShadow: '0 0 0 9999px rgba(7,0,1,0.86)',
+                boxShadow: '0 0 0 9999px rgba(7,0,1,0.45)',
               }}
             />
           )}
-          {!caja && <div aria-hidden="true" className="fixed inset-0 bg-negro/85" />}
+          {!caja && <div aria-hidden="true" className="fixed inset-0 bg-negro/45" />}
 
           <div
             ref={tarjeta}
@@ -261,24 +261,24 @@ export function GuidedTour() {
                 <button
                   type="button"
                   onClick={() => setPaso((n) => Math.max(0, (n ?? 0) - 1))}
-                  className="inline-flex items-center gap-2 border-2 border-blanco-20 px-3 py-2 font-mono text-xs text-blanco-60 transition-colors hover:border-blanco hover:text-blanco"
+                  className="inline-flex items-center gap-2 border border-blanco-20 px-3 py-2 font-mono text-xs text-blanco-60 transition-colors hover:border-blanco-40 hover:text-blanco"
                 >
                   ← ATRÁS
                 </button>
               )}
               <button
                 type="button"
-                onClick={() => (ultimo ? cerrar(true) : setPaso((n) => (n ?? 0) + 1))}
+                onClick={() => (ultimo ? cerrar() : setPaso((n) => (n ?? 0) + 1))}
                 className="btn-brutal inline-flex items-center gap-2"
               >
                 {ultimo ? 'YA ENTENDÍ' : 'SIGUIENTE'} <Icon name="arrow" size={14} />
               </button>
               <button
                 type="button"
-                onClick={() => cerrar(false)}
+                onClick={cerrar}
                 className="font-mono text-xs text-blanco-50 underline transition-colors hover:text-blanco"
               >
-                {ultimo ? 'VOLVER A MOSTRARLA LA PRÓXIMA VEZ' : 'SALTAR'}
+                {ultimo ? 'CERRAR' : 'SALTAR'}
               </button>
             </div>
           </div>

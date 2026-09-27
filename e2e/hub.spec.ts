@@ -147,7 +147,18 @@ test.describe('modo guía', () => {
     // Sin nada guardado, la guía arranca sola: es la respuesta a "que siempre
     // que uno abra le explique botón por botón".
     await expect(page.getByText(/PASO 1 DE 6/)).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole('heading', { name: 'ESTE ES EL MENÚ' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Este es el menú' })).toBeVisible();
+  });
+
+  test('saltarla la marca vista: no vuelve a saltar sola en la pantalla siguiente', async ({ page }) => {
+    await page.goto(`/${PROYECTO}`);
+    await expect(page.getByText(/PASO 1 DE 6/)).toBeVisible({ timeout: 15_000 });
+    await page.getByRole('button', { name: 'SALTAR' }).click();
+    await expect(page.getByText(/PASO 1 DE 6/)).toHaveCount(0);
+
+    await page.goto(`/${PROYECTO}/aprobaciones`);
+    await expect(page.getByText(/PASO 1 DE/)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Abrir la guía/ })).toBeVisible();
   });
 
   test('avanza botón por botón y se cierra con Escape', async ({ page }) => {
@@ -158,11 +169,11 @@ test.describe('modo guía', () => {
     await expect(page.getByText(/PASO 1 DE 6/)).toBeVisible();
 
     await page.getByRole('button', { name: /SIGUIENTE/ }).click();
-    await expect(page.getByRole('heading', { name: 'ESTE BOTÓN CREA UNA PIEZA' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Este botón crea una pieza' })).toBeVisible();
     await expect(page.getByText(/PASO 2 DE 6/)).toBeVisible();
 
     await page.keyboard.press('Escape');
-    await expect(page.getByRole('heading', { name: 'ESTE BOTÓN CREA UNA PIEZA' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Este botón crea una pieza' })).toHaveCount(0);
   });
 
   test('en la ficha explica la acción, el preview y el brief', async ({ page }) => {
@@ -173,8 +184,8 @@ test.describe('modo guía', () => {
     await page.goto(destino as string);
     await page.getByRole('button', { name: /Abrir la guía/ }).click();
 
-    await expect(page.getByRole('heading', { name: 'ESTA ES TU PIEZA' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Esta es tu pieza' })).toBeVisible();
     await page.getByRole('button', { name: /SIGUIENTE/ }).click();
-    await expect(page.getByRole('heading', { name: 'LO PRIMERO: QUÉ HACER AHORA' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Lo primero: qué hacer ahora' })).toBeVisible();
   });
 });
