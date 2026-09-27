@@ -42,14 +42,14 @@ export default function LoginPage() {
 
   return (
     <main className="mx-auto max-w-md px-6 py-20">
-      <h1 className="font-display text-3xl font-bold uppercase text-blanco">Acceder al hub</h1>
+      <h1 className="font-display text-3xl font-bold text-blanco">Acceder al hub</h1>
       <p className="mt-3 text-sm text-blanco-60">
         Solo quien tiene una cuenta autorizada puede crear o mover piezas.
       </p>
 
       {sent ? (
         <div className="brutal-panel mt-8 anim-rise">
-          <p className="text-mostaza font-display font-bold">LINK ENVIADO</p>
+          <p className="font-display font-bold text-blanco">Link enviado</p>
           <p className="mt-2 text-sm text-blanco-60">
             Revisa tu correo (y la carpeta de spam). El enlace caduca en una hora.
           </p>
@@ -57,7 +57,7 @@ export default function LoginPage() {
       ) : (
         <form onSubmit={sendLink} className="mt-8 space-y-5">
           <div>
-            <label htmlFor="email" className="mono-label block text-fucsia">
+            <label htmlFor="email" className="mono-label block text-blanco-50">
               TU CORREO
             </label>
             <input
@@ -67,18 +67,18 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="tu@email.com"
-              className="mt-2 w-full border-2 border-blanco-30 bg-negro p-3 font-mono text-sm text-blanco placeholder:text-blanco-20 focus:border-fucsia focus:outline-none"
+              className="mt-2 w-full border border-blanco-30 bg-negro p-3 font-mono text-sm text-blanco placeholder:text-blanco-20 focus:border-blanco-40 focus:outline-none"
             />
           </div>
 
           {error && (
-            <p className="text-sm text-fucsia">{error}</p>
+            <p className="text-sm text-blanco-60">{error}</p>
           )}
 
           <button
             type="submit"
             disabled={loading}
-            className="btn-brutal w-full bg-fucsia text-blanco disabled:opacity-50"
+            className="btn-brutal w-full disabled:opacity-50"
           >
             {loading ? 'ENVIANDO…' : 'ENVIAR LINK DE ACCESO'}
           </button>
@@ -92,9 +92,9 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={signInWithGoogle}
-            className="btn-brutal w-full border-2 border-blanco-30 bg-transparent text-blanco hover:bg-blanco-05"
+            className="btn-brutal w-full bg-transparent text-blanco-70 hover:text-blanco hover:bg-blanco-05"
           >
-            ENTRAR CON GOOGLE
+            Entrar con Google
           </button>
         </form>
       )}
