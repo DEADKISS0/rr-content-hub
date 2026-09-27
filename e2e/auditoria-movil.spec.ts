@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const FICHA = '27fe6119-b7b6-4409-8aeb-0ae419d574ae'; // O10, estado approved, ref de Drive
+const FICHA = process.env.FICHA_PROD ?? '27fe6119-b7b6-4409-8aeb-0ae419d574ae';
 const PROYECTO = 'wundeer';
 const marcaVisto = () => window.localStorage.setItem('rr-hub-guia-v1', 'visto');
 
