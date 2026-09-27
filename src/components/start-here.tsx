@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { actGroup, daysSince, statusMeta, type WorkflowStatus } from '@/lib/flow';
+import { actGroup, daysSince, statusMeta, TONE_HEX, type WorkflowStatus } from '@/lib/flow';
 import { QUEUES } from '@/lib/queues';
 import { Icon } from './ui/icons';
 
@@ -60,20 +60,33 @@ export function StartHere({ ideas, projectSlug }: { ideas: Pieza[]; projectSlug:
           {urgentes.map(({ idea, dias }) => {
             const meta = statusMeta(idea.status as WorkflowStatus);
             const esCliente = actGroup(idea.status as WorkflowStatus) === 'cliente';
+            const color = TONE_HEX[meta.tone];
             return (
               <li key={idea.id}>
                 <Link
                   href={`/${projectSlug}/ideas/${idea.id}`}
-                  className="group flex flex-wrap items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-blanco-05"
+                  className="group flex flex-wrap items-center justify-between gap-4 py-4 pl-5 pr-5 transition-colors hover:bg-blanco-05"
                 >
                   <span className="min-w-0">
-                    <span className="block font-mono text-xs text-blanco-40">
+                    {/* La barra de color va FIJA, no en el hover: es la que dice
+                        "esta pieza espera al cliente" (mostaza) o "la tiene el
+                        equipo" (fucsia). Es el único sitio de la primera pantalla
+                        donde la marca se ve, y se ve porque dice algo. */}
+                    <span
+                      className="mb-2 block h-1 w-10"
+                      style={{ backgroundColor: color }}
+                      aria-hidden
+                    />
+                    <span className="block font-mono text-xs text-blanco-50">
                       {idea.code ?? 'IDEA'} · {esCliente ? 'ESPERA TU RESPUESTA' : `ESPERA A ${meta.who}`}
                       {dias > 0 ? ` · ${dias} ${dias === 1 ? 'DÍA' : 'DÍAS'}` : ' · HOY'}
                     </span>
                     <span className="mt-1 block font-display text-lg font-bold leading-tight text-blanco group-hover:text-blanco-90 sm:text-xl">
                       {idea.title}
                     </span>
+                  </span>
+                  <span className="shrink-0 text-blanco-40 transition-colors group-hover:text-blanco" aria-hidden>
+                    <Icon name="arrow" size={18} />
                   </span>
                 </Link>
               </li>

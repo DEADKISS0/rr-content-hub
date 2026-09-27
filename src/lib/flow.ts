@@ -255,6 +255,17 @@ export function actGroup(status: WorkflowStatus): ActGroup {
  *  texto y el punto, nunca en un relleno grande. Motivo, medido el 2026-09-26:
  *  con relleno, 14 estados en pantalla se leian como un codigo de barras; con
  *  acento, el color vuelve a ser senal y la pantalla vuelve a respirar. */
+
+/** El mismo tono en HEX, para lo que no admite clases (style inline, SVG).
+ *  Las dos listas tienen que moverse juntas: si TONE_CLASS cambia de color y
+ *  esta no, la barra y el badge cuentan cosas distintas. */
+export const TONE_HEX: Record<ToneKey, string> = {
+  mostaza: '#ded116',
+  fucsia: '#be076d',
+  orquidea: '#973d8f',
+  neutro: '#6a6a64',
+};
+
 export const TONE_CLASS: Record<ToneKey, { border: string; bg: string; text: string; dot: string }> = {
   mostaza: { border: 'border-mostaza/50', bg: 'bg-blanco-05', text: 'text-mostaza', dot: 'bg-mostaza' },
   fucsia: { border: 'border-fucsia/50', bg: 'bg-blanco-05', text: 'text-fucsia', dot: 'bg-fucsia' },
