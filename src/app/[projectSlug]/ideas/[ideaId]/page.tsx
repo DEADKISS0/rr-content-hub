@@ -65,10 +65,10 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
           <div className="mt-6 flex flex-wrap items-center gap-2">
             <Chip icon={format.icon as IconName} tone="blanco">{format.label}</Chip>
             <Chip icon="pieces" tone="neutro">{idea.category ?? 'SIN CATEGORÍA'}</Chip>
-            {days !== null && <Chip icon="clock" tone={days > 10 ? 'mostaza' : 'neutro'}>{days === 0 ? 'HOY' : `${days} DÍAS SIN MOVERSE`}</Chip>}
+            {days !== null && <Chip icon="clock" tone="neutro">{days === 0 ? 'HOY' : `${days} DÍAS SIN MOVERSE`}</Chip>}
             {missing.length
-              ? <Chip icon="alert" tone="fucsia">{missing.length} DATOS POR COMPLETAR</Chip>
-              : <Chip icon="check" tone="fucsia">FICHA COMPLETA</Chip>}
+              ? <Chip icon="alert" tone="neutro">{missing.length} DATOS POR COMPLETAR</Chip>
+              : <Chip icon="check" tone="neutro">FICHA COMPLETA</Chip>}
           </div>
 
           <div data-guia="estado" className={`mt-7 border-l-4 ${tone} bg-blanco-05 px-5 py-4`}>
@@ -83,7 +83,7 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
             </div>
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <PhaseRail status={idea.status} />
-              {idea.status !== 'closed' && <span className="font-mono text-[10px] text-mostaza">AHORA ACTÚA: {meta.who}</span>}
+              {idea.status !== 'closed' && <span className="font-mono text-[10px] text-blanco-50">AHORA ACTÚA: {meta.who}</span>}
             </div>
           </div>
         </div>
@@ -95,12 +95,12 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
               el pliegue. Lo cazó el recorrido e2e, no una revisión a ojo. */}
           <div data-guia="accion" className="brutal-panel anim-rise">
             <p className="eyebrow">[TU SIGUIENTE ACCIÓN]</p>
-            <h2 className="mt-3 font-display text-2xl font-bold text-blanco">QUÉ HACER<br /><span className="text-mostaza">AHORA.</span></h2>
+            <h2 className="mt-3 font-display text-2xl font-bold text-blanco">QUÉ HACER<br /><span className="text-blanco-80">AHORA.</span></h2>
             <div className="mt-5"><IdeaActions projectSlug={projectSlug} ideaId={ideaId} currentStatus={idea.status} /></div>
           </div>
 
           <div data-guia="preview">
-            <p className="mono-label mb-3 text-mostaza">// COMO SE VERÁ PUBLICADO</p>
+            <p className="mono-label mb-3 text-blanco-50">// COMO SE VERÁ PUBLICADO</p>
             {raw && raw.includes('instagram.com') ? (
               <InstagramEmbed url={raw} title={idea.title} />
             ) : (
@@ -131,7 +131,7 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
 
         <aside className="space-y-5">
           <div className="border-2 border-blanco-20 p-5 anim-rise">
-            <p className="mono-label text-mostaza">// LO QUE FALTA DE ESTA FICHA</p>
+            <p className="mono-label text-blanco-50">// LO QUE FALTA DE ESTA FICHA</p>
             <p className="mt-3 font-mono text-[10px] leading-5 text-blanco-60">
               {missing.length
                 ? `Faltan ${missing.length} de 5 datos. Sin ellos la pieza no está lista para ir al cliente.`
