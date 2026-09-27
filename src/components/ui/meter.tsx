@@ -76,7 +76,7 @@ export function BriefRail({ states }: { states: BriefState[] }) {
     <div className="flex items-center gap-2">
       <div className="flex items-center gap-[3px]">
         {states.map((state) => (
-          <span key={state.key} title={`${state.label}: ${state.done ? 'listo' : 'falta'}`} className={`flex h-6 w-6 items-center justify-center border ${state.done ? 'border-fucsia bg-fucsia/15 text-fucsia' : 'border-blanco-20 bg-negro text-blanco-30'}`}>
+          <span key={state.key} title={`${state.label}: ${state.done ? 'listo' : 'falta'}`} className={`flex h-6 w-6 items-center justify-center border ${state.done ? 'border-blanco-40 bg-blanco-10 text-blanco' : 'border-blanco-20 bg-negro text-blanco-30'}`}>
             <Icon name={state.icon} size={12} />
           </span>
         ))}

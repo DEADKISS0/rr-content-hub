@@ -120,16 +120,14 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
             const filtered = filters.query !== '' || filters.phase !== 'all' || filters.act !== 'all';
             return (
               <section key={column.key} aria-label={column.label} className="flex min-h-[22rem] flex-col bg-negro p-4">
-                <header className="mb-4 border-b border-blanco-20 pb-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="font-mono text-[10px] text-mostaza">0{originalIndex + 1} / 04</span>
-                    {/* key={items.length}: al cambiar el número el span se remonta
-                        y el contador vuelve a entrar en vez de cambiar en silencio. */}
-                    <b key={items.length} className="anim-count font-display text-3xl font-bold leading-none text-blanco">{items.length}</b>
+                <header className="mb-4 border-b border-blanco-10 pb-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-mono text-[10px] text-blanco-40">0{originalIndex + 1} / 04</span>
+                    <b key={items.length} className="anim-count font-display text-xl font-bold leading-none text-blanco">{items.length}</b>
                   </div>
-                  <h3 className="mt-2 font-display text-xl font-bold text-blanco">{column.label}</h3>
-                  <p className="mt-1 text-[11px] leading-4 text-blanco-60">{column.plain}</p>
-                  <div className="mt-3"><SegMeter filled={items.length} total={maxColumn} tone={index === 2 ? 'fucsia' : index === 3 ? 'orquidea' : 'mostaza'} label="CARGA" /></div>
+                  <h3 className="mt-1 font-display text-lg font-bold text-blanco">{column.label}</h3>
+                  <p className="mt-1 text-[11px] leading-4 text-blanco-50">{column.plain}</p>
+                  <div className="mt-2"><SegMeter filled={items.length} total={maxColumn} tone="blanco" label="CARGA" /></div>
                 </header>
 
                 <div className="space-y-3">
@@ -152,13 +150,10 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
                             {days !== null && <Chip icon="clock" tone="neutro" title={`Última actividad hace ${days} días`}>{days}D</Chip>}
                             <Chip icon={format.icon} tone="neutro">{format.label}</Chip>
                           </div>
-                          <h4 className="font-display text-base font-bold leading-tight text-blanco group-hover:text-mostaza">{idea.title}</h4>
+                          <h4 className="font-display text-base font-bold leading-tight text-blanco group-hover:text-blanco-90">{idea.title}</h4>
                           <BriefRail states={briefState(idea)} />
-                          <div className="flex items-center justify-between gap-3 border-t border-blanco-10 pt-3">
+                          <div className="flex items-center gap-3 border-t border-blanco-10 pt-3">
                             <ActorChip who={meta.who} />
-                            <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap font-mono text-[10px] text-fucsia">
-                              ABRIR <Icon name="arrow" size={12} className="transition-transform group-hover:translate-x-0.5" />
-                            </span>
                           </div>
                         </div>
                       </Link>
@@ -192,7 +187,7 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
                 key={idea.id}
                 href={`/${projectSlug}/ideas/${idea.id}`}
                 style={{ ['--delay' as string]: `${Math.min(rowIndex, 12) * 28}ms` }}
-                className="idea-row cascade grid grid-cols-1 items-center gap-3 px-4 py-3 transition-colors hover:bg-fucsia/10 lg:grid-cols-[6rem_1fr_auto_auto_auto] lg:gap-4"
+                className="idea-row cascade grid grid-cols-1 items-center gap-3 px-4 py-3 transition-colors hover:bg-blanco-05 lg:grid-cols-[6rem_1fr_auto_auto_auto] lg:gap-4"
               >
                 <span className="w-24 shrink-0 overflow-hidden">
                   <PublicationPreview url={idea.reference_url} code={null} title={idea.title} format={format.icon} size="sm" />
