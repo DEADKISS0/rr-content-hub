@@ -1,9 +1,10 @@
 import { notFound } from 'next/navigation';
-import { getIdea, getProject } from '@/lib/data';
+import { getIdea, getProject, getProfileName } from '@/lib/data';
 import { rolEnProyecto } from '@/lib/project-guard';
 import { StatusBadge, STATUS_ICON } from '@/components/status-badge';
 import { IdeaActions } from '@/components/idea-actions';
 import { EnhancedIdeaCollaboration } from '@/components/collaboration-enhanced';
+import { AssignOwner } from '@/components/assign-owner';
 import { ReferenceWithBrief } from '@/components/reference-with-brief';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { ProductionPipeline } from '@/components/production-pipeline';
@@ -31,6 +32,14 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
   // ofrecía una transición real, ni con la puerta encendida.
   const { rol } = await rolEnProyecto(project.id);
   const idea: any = await getIdea(project.id, ideaId); if (!idea) notFound();
+
+  // El responsable se resuelve en el servidor y se pasa como NOMBRE, no como
+  // id: el navegador no necesita saber el uuid de nadie, y `created_by` es la
+  // única columna que lo guarda. Si no hay responsable, `null` — y el bloque lo
+  // dice, en vez de inventar un nombre.
+  const responsable = idea.created_by
+    ? (await getProfileName(idea.created_by as string))
+    : null;
   const raw = idea.reference_url ?? idea.reference_urls?.[0] ?? idea.ref ?? '';
   const meta = statusMeta(idea.status);
   const inProduction = productionStep(idea.status) >= 0;
@@ -128,6 +137,14 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
         </section>
 
         <aside className="space-y-5">
+          {/* Quién responde por esta pieza. En modo abierto todo cambio queda
+              como "sin sesión": honesto, pero deja la pieza sin dueño. */}
+          <AssignOwner
+            ideaId={ideaId}
+            projectSlug={projectSlug}
+            currentName={responsable?.full_name ?? null}
+            canAssign={rol === 'owner'}
+          />
           <div className="border border-blanco-20 p-5 anim-rise">
             <p className="mono-label text-blanco-50">// LO QUE FALTA DE ESTA FICHA</p>
             <p className="mt-3 font-mono text-[10px] leading-5 text-blanco-60">

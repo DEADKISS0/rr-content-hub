@@ -210,6 +210,69 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true });
   }
 
+  /**
+   * Asignar responsable.
+   *
+   * En modo abierto todo cambio queda como "sin sesión", y eso es honesto pero
+   * inútil: nadie sabe a quién preguntarle por la pieza. Esta acción deja que se
+   * nombre a una persona REAL del roster, y escribe esa persona en
+   * `rr_hub_ideas.created_by`, que es la columna que ya existía para eso y nunca
+   * se usaba.
+   *
+   * La autoridad NO viene del body: el `userId` se resuelve contra
+   * `rr_hub_access` en el servidor, y se comprueba que esa persona tenga acceso
+   * al proyecto. Mandar un id inventado desde el navegador no asigna nada.
+   *
+   * No es un `transition`, así que no valida contra `allowedTransitions()`: es
+   * metadata, no un cambio de fase. Aun así exige `owner`, porque nombrar a
+   * alguien como responsable de una pieza es una decisión de dirección.
+   */
+  if (action === 'assign') {
+    if (role !== 'owner') return error(`Solo el owner puede asignar responsable. Tu rol es ${ROLE_LABEL[role]}.`, 403);
+
+    const asignado = str(body.userId, 64);
+    if (!asignado) return error('Falta el responsable.', 400);
+
+    // El proyecto se resuelve por el slug del body, no desde una variable que
+    // no existe en este scope: la comprobación tiene que ser "esta persona tiene
+    // acceso a ESTE proyecto", y para eso hace falta el id del proyecto.
+    const slug = str(body.projectSlug, 60);
+    if (!slug) return error('Falta projectSlug.', 400);
+    const { data: proyecto } = await service
+      .from('rr_hub_projects').select('id').eq('slug', slug).maybeSingle();
+    if (!proyecto) return error('Ese proyecto no existe.', 404);
+
+    const { data: existe } = await service
+      .from('rr_hub_access')
+      .select('user_id, role_in_project')
+      .eq('user_id', asignado)
+      .eq('project_id', proyecto.id)
+      .maybeSingle();
+    if (!existe) return error('Esa persona no tiene acceso a este proyecto.', 400);
+
+    const { data: perfil } = await service
+      .from('rr_hub_profiles')
+      .select('full_name, email')
+      .eq('id', asignado).maybeSingle();
+
+    const { error: updateError } = await service
+      .from('rr_hub_ideas')
+      .update({ created_by: asignado, updated_at: new Date().toISOString() })
+      .eq('id', ideaId);
+    if (updateError) return error(updateError.message, 500);
+
+    const nombre = perfil?.full_name ?? 'RR Aliados';
+    const { error: eventError } = await service.from('rr_hub_events').insert({
+      idea_id: ideaId, from_status: null, to_status: null,
+      comment: `Responsable asignado: ${nombre}${perfil?.email ? ` (${perfil.email})` : ''}.`,
+      actor_label: `${email ?? 'sin sesión'} · ${ROLE_LABEL[role]}`,
+      actor_id: userId,
+    });
+    if (eventError) return error(eventError.message, 500);
+
+    return NextResponse.json({ success: true, nombre });
+  }
+
   if (action === 'comment') {
     const text = str(body.body, 4000);
     if (!text) return error('El comentario está vacío.', 400);

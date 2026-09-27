@@ -117,6 +117,28 @@ export async function getProject(slug: string) {
   return { project, access, supabase };
 }
 
+/**
+ * El nombre de una persona del equipo, por id.
+ *
+ * Se usa para el responsable de una pieza (`rr_hub_ideas.created_by`). Devuelve
+ * `null` y no un texto de reserva cuando no encuentra a nadie: la ficha tiene que
+ * poder decir "sin responsable" en voz alta. Un nombre inventado es peor que un
+ * hueco, porque nadie se da cuenta del hueco.
+ */
+export async function getProfileName(userId: string): Promise<{ full_name: string; email: string | null } | null> {
+  const supabase = await createClient();
+  if (!supabase) return null;
+  const { data } = await supabase
+    .from('rr_hub_profiles')
+    .select('full_name, email')
+    .eq('id', userId)
+    .maybeSingle();
+  if (!data) return null;
+  const nombre = (data.full_name as string) || (data.email as string) || null;
+  if (!nombre) return null;
+  return { full_name: nombre, email: (data.email as string) ?? null };
+}
+
 export async function getProjects() {
   const supabase = await createClient();
   if (!supabase) {

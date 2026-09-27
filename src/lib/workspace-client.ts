@@ -157,6 +157,54 @@ export async function resolveComment(input: { commentId: string; ideaId: string;
   return response ?? {};
 }
 
+/**
+ * El roster del proyecto, para nombrar a un responsable.
+ *
+ * Solo se devuelven perfiles que tienen `rr_hub_access` en ESTE proyecto: la
+ * lista no es "todos los de RR Aliados", es "los que pueden recibir una pieza".
+ * El `userId` viaja al servidor, que vuelve a comprobar el acceso antes de
+ * escribir; esta lista es la comodidad, no la autoridad.
+ */
+export type RosterMember = { userId: string; nombre: string; rol: string; email: string | null };
+
+export async function loadRoster(projectSlug: string): Promise<RosterMember[]> {
+  const supabase = createClient();
+  if (!supabase) return [];
+  const { data: proyecto } = await supabase
+    .from('rr_hub_projects').select('id').eq('slug', projectSlug).maybeSingle();
+  if (!proyecto) return [];
+
+  const { data: accesos } = await supabase
+    .from('rr_hub_access')
+    .select('user_id, role_in_project, rr_hub_profiles!inner(id, full_name, email)')
+    .eq('project_id', proyecto.id);
+  if (!accesos?.length) return [];
+
+  return accesos.map((fila: any) => {
+    const perfil = Array.isArray(fila.rr_hub_profiles) ? fila.rr_hub_profiles[0] : fila.rr_hub_profiles;
+    return {
+      userId: fila.user_id as string,
+      nombre: (perfil?.full_name as string) || (perfil?.email as string) || 'RR Aliados',
+      rol: (fila.role_in_project as string) || 'sin_rol',
+      email: (perfil?.email as string) ?? null,
+    };
+  }).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+}
+
+/**
+ * Nombra a una persona real como responsable de la pieza.
+ *
+ * El `userId` NO es autoridad: el servidor comprueba que esa persona tenga
+ * acceso al proyecto y exige rol `owner` para asignar. Escribir en `created_by`
+ * es metadata, no un cambio de fase, así que no pasa por `allowedTransitions()`.
+ */
+export async function assignOwner(input: { ideaId: string; projectSlug: string; userId: string }): Promise<{ error?: string; nombre?: string }> {
+  const response = await postWorkspaceAction('assign', {
+    ideaId: input.ideaId, projectSlug: input.projectSlug, userId: input.userId,
+  });
+  return response ?? {};
+}
+
 /** Idea creation, including the sequential `code`. The server owns both. */
 export async function createIdea(input: {
   projectSlug: string; title: string; description: string; objective: string;
