@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { AUTH_ENABLED } from '@/lib/mode';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -10,6 +11,11 @@ export default function LoginPage() {
   const [error, setError] = useState('');
 
   const supabase = createClient();
+
+  // Si la escritura está apagada, entrar es opcional: el tablero se puede ver
+  // igual, pero crear y mover piezas no. Decirlo aquí evita la ronda de
+  // "entré y me expulsó", que es lo que pasaba sin este aviso.
+  const soloLectura = !AUTH_ENABLED;
 
   async function sendLink(e: React.FormEvent) {
     e.preventDefault();
@@ -43,9 +49,15 @@ export default function LoginPage() {
   return (
     <main className="mx-auto max-w-md px-6 py-20">
       <h1 className="font-display text-3xl font-bold text-blanco">Acceder al hub</h1>
-      <p className="mt-3 text-sm text-blanco-60">
-        Solo quien tiene una cuenta autorizada puede crear o mover piezas.
+      <p className="mt-3 text-sm leading-6 text-blanco-60">
+        Quien tiene una cuenta autorizada puede crear y mover piezas. El tablero se puede ver sin entrar.
       </p>
+
+      {soloLectura && (
+        <p className="mt-4 border-l-2 border-mostaza/70 bg-blanco-05 px-4 py-3 text-sm leading-6 text-blanco-70">
+          Ahora mismo el hub está en <b className="text-blanco">modo lectura</b>: puedes mirar todo, pero para crear o mover piezas hay que entrar.
+        </p>
+      )}
 
       {sent ? (
         <div className="brutal-panel mt-8 anim-rise">

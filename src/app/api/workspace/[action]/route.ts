@@ -20,6 +20,30 @@ export const dynamic = 'force-dynamic';
  * Authorization here is the session's role in `rr_hub_access`, never a value
  * posted by the caller. RLS stays on as the second layer.
  */
+/**
+ * Who the caller is, with one documented escape hatch.
+ *
+ * Why this exists: the hub reads its roles from `rr_hub_access`, and in
+ * production that table is EMPTY — as is `rr_hub_profiles`. So the rule was,
+ * literally: log in and still get a 401, with no way in but SQL. That is what
+ * "no me deja crear ideas" was. `SUPER_ADMIN_EMAILS` already existed for
+ * `/audit/admin`; the same list now also unlocks the project role, so a human
+ * can keep working while the roster is being filled in.
+ *
+ * It is deliberately the SAME env var and the SAME semantics as
+ * `admin-guard.ts`: an operator-configured list, never in the repo, and never
+ * widening what a project role can do — a super admin is `owner`, which is the
+ * top of the existing ladder, not a new bypass.
+ */
+const SUPER_ADMIN_EMAILS = (process.env.SUPER_ADMIN_EMAILS ?? '')
+  .split(',')
+  .map((value) => value.trim().toLowerCase())
+  .filter(Boolean);
+
+function isSuperAdmin(email: string): boolean {
+  return SUPER_ADMIN_EMAILS.includes(email.trim().toLowerCase());
+}
+
 function error(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
@@ -55,7 +79,7 @@ async function context(request: NextRequest) {
 }
 
 /** The caller's real role in the project that owns this idea. Never from the body. */
-async function roleForIdea(supabase: SupabaseClient, userId: string, ideaId: string): Promise<RoleKey | null> {
+async function roleForIdea(supabase: SupabaseClient, userId: string, email: string, ideaId: string): Promise<RoleKey | null> {
   const { data } = await supabase
     .from('rr_hub_ideas')
     .select('project:rr_hub_projects!inner(id)')
@@ -70,7 +94,12 @@ async function roleForIdea(supabase: SupabaseClient, userId: string, ideaId: str
     .eq('user_id', userId)
     .eq('project_id', project)
     .maybeSingle();
-  return (access?.role_in_project as RoleKey | undefined) ?? null;
+  if (access?.role_in_project) return access.role_in_project as RoleKey;
+
+  // The roster is empty in production; without this nobody could ever move a
+  // piece, not even the owner. Same list and same meaning as admin-guard.ts.
+  if (isSuperAdmin(email)) return 'owner';
+  return null;
 }
 
 type Body = Record<string, unknown>;
@@ -92,7 +121,7 @@ export async function POST(request: NextRequest) {
 
   const ctx = await context(request);
   if ('response' in ctx) return ctx.response;
-  const { service, supabase, userId } = ctx;
+  const { service, supabase, userId, email } = ctx;
 
   let body: Body;
   try { body = (await request.json()) as Body; } catch { return error('Cuerpo JSON inválido.', 400); }
@@ -104,7 +133,7 @@ export async function POST(request: NextRequest) {
   const ideaId = str(body.ideaId, 64);
   if (!ideaId) return error('Falta ideaId.', 400);
 
-  const role = await roleForIdea(supabase, userId, ideaId);
+  const role = await roleForIdea(supabase, userId, email, ideaId);
   if (!role) return unauthorized();
 
   if (action === 'transition') {
@@ -231,7 +260,8 @@ async function createIdea(body: Body, ctx: Ctx): Promise<NextResponse> {
   const { data: access } = await supabase
     .from('rr_hub_access').select('role_in_project')
     .eq('user_id', userId).eq('project_id', project.id).maybeSingle();
-  const creatorRole = access?.role_in_project as RoleKey | undefined;
+  const creatorRole = (access?.role_in_project as RoleKey | undefined)
+    ?? (isSuperAdmin(email) ? 'owner' : undefined);
   if (!creatorRole) return unauthorized();
 
   const title = str(body.title, 160);

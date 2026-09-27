@@ -309,14 +309,89 @@ export function looksLikeUrl(value: string): boolean {
  * key. It is deliberately editable: a future provider can replace this with
  * a richer draft without changing the data model or the team workflow.
  */
+/**
+ * Genera el primer brief de la pieza a partir de lo que escribió quien la creó.
+ *
+ * Por qué cambió (2026-09-27): el texto era genérico y no miraba la referencia.
+ * Si la referencia es un reel de Instagram, el guion no decía qué hay que
+ * aprender de ese reel: solo repetía "la referencia". Quien recibía la pieza
+ * tenía que abrir el enlace por su cuenta para saber de qué se trata.
+ *
+ * Ahora mira la referencia y escribe qué se debe copiar de ella: el formato
+ * (reel / post / horizontal) y la red. Sin inventar: si no se pudo leer el
+ * post, lo dice y pide abrirlo antes de rodar.
+ */
 export function buildIdeaPack(input: { title: string; objective: string; description: string; reference: string }) {
   const title = input.title.trim() || 'la pieza';
   const objective = input.objective.trim() || 'conectar la pieza con la audiencia';
   const concept = input.description.trim() || 'la referencia visual seleccionada';
+  const ref = input.reference.trim();
+  const fuente = ref ? describeReference(ref) : null;
+
   return {
-    camera: `Plano de apertura que sitúe ${title}. Sigue la energía de la referencia y prioriza textura, producto y un cierre limpio. Objetivo de cámara: ${objective}.`,
-    talent: `Actitud natural y segura. Vestuario coherente con ${title}; evita gestos sobreactuados. Revisa la referencia antes de rodar.`,
-    edit: `Ritmo directo: abre con el gesto o detalle más fuerte, conserva una idea por plano y cierra con la acción principal. Mantén como guía: ${concept}.`,
-    script: `TÍTULO: ${title}\n\nOBJETIVO\n${objective}\n\n1. GANCHO (0–2 s)\nMuestra el detalle o acción más atractiva de la referencia.\n\n2. DESARROLLO (2–8 s)\nCuenta una sola idea: ${concept}.\n\n3. CIERRE (8–12 s)\nTermina con producto, gesto o mensaje claro que conecte con el objetivo.\n\nREFERENCIA\n${input.reference.trim() || 'Pendiente de enlace visual.'}`,
+    camera: `Plano de apertura que sitúe ${title}. ${fuente?.comoRodear ?? 'Sigue la energía de la referencia y prioriza textura, producto y un cierre limpio.'} Objetivo de cámara: ${objective}.`,
+    talent: `${fuente?.comoActuar ?? 'Actitud natural y segura.'} Vestuario coherente con ${title}; evita gestos sobreactuados.${fuente?.sobreTalento ? ` La referencia trabaja así: ${fuente.sobreTalento}` : ''}.`,
+    edit: `${fuente?.comoEditar ?? 'Ritmo directo: abre con el gesto o detalle más fuerte, conserva una idea por plano y cierra con la acción principal.'} Mantén como guía: ${concept}.`,
+    script: `TÍTULO: ${title}
+
+OBJETIVO
+${objective}
+
+QUÉ ESTAMOS COPIANDO DE LA REFERENCIA
+${fuente?.referencia ?? (ref ? 'Referencia enlazada, sin metadatos públicos: ábrela antes de rodar.' : 'Pendiente de enlace visual.')}
+
+1. GANCHO (0–2 s)
+Muestra el detalle o acción más atractivo de la referencia.
+
+2. DESARROLLO (2–8 s)
+Cuenta una sola idea: ${concept}.
+
+3. CIERRE (8–12 s)
+Termina con producto, gesto o mensaje claro que conecte con el objetivo.
+
+REFERENCIA
+${ref || 'Pendiente de enlace visual.'}`,
   };
+}
+
+/** Qué se puede leer de la referencia sin inventar nada. */
+function describeReference(url: string) {
+  const lower = url.toLowerCase();
+  const esReel = /instagram\.com\/(reel|reels|tv)\//.test(lower);
+  const esPost = /instagram\.com\/(p|posts)\//.test(lower);
+  const esTikTok = lower.includes('tiktok.com');
+  const esYouTube = lower.includes('youtube.com') || lower.includes('youtu.be');
+  const esDrive = lower.includes('drive.google.com');
+
+  if (esReel) return {
+    referencia: 'Reel vertical de Instagram: se sostiene de pie y dura poco.',
+    comoRodear: 'Formato vertical, un solo plano por idea y ritmo corto: en un reel no hay tiempo de montar.',
+    comoActuar: 'La persona entra ya en movimiento: gesto claro desde el primer segundo.',
+    sobreTalento: 'postura activa, sin colocación previa.',
+    comoEditar: 'Cortes cada 1–2 s, sin transiciones, y el último plano se queda quieto para que se lea el mensaje.',
+  };
+  if (esPost) return {
+    referencia: 'Post de Instagram: imagen fija, no video.',
+    comoRodear: 'Una sola toma, encuadre pensado para verse pequeño en el feed.',
+    comoActuar: 'Pose o gesto que se sostenga en una foto, no una acción en movimiento.',
+    comoEditar: 'Si se arma video, partir de esa imagen: mismo encuadre, misma luz, mismo sujeto.',
+  };
+  if (esTikTok) return {
+    referencia: 'Video de TikTok: vertical, con texto sobreimpreso y música.',
+    comoRodear: 'Vertical, plano corto, y dejar espacio arriba y abajo para el texto que pone TikTok.',
+    comoActuar: 'Ritmo de TikTok: entra directo, sin presentación.',
+    comoEditar: 'Corte al ritmo, con el texto encima; el audio suele ser parte del mensaje.',
+  };
+  if (esYouTube) return {
+    referencia: 'Video de YouTube: horizontal y con narración.',
+    comoRodear: 'Horizontal, y el primer segundo tiene que aguantar un título o una voz encima.',
+    comoActuar: 'Hablar a cámara o narrar con naturalidad: el formato tolera más texto que un reel.',
+    comoEditar: 'Ritmo de quien explica, con planos de apoyo para que no pese solo la voz.',
+  };
+  if (esDrive) return {
+    referencia: 'Archivo de Google Drive: la referencia es un archivo, no un post.',
+    comoRodear: 'Ábrelo antes de rodar: puede ser una imagen, un guion o un video subido.',
+    comoEditar: 'Definir la duración después de ver el archivo, no antes.',
+  };
+  return null;
 }

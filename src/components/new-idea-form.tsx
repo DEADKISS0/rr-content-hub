@@ -88,20 +88,54 @@ export function NewIdeaForm({ projectSlug }: { projectSlug: string }) {
       {!referenceValid && <p role="alert" className="mt-2 border border-blanco-20 bg-blanco-05 p-2 font-mono text-[10px] text-blanco">Ese texto no parece un enlace válido. Debe empezar por https://</p>}
     </div>
     {form.reference.trim() && referenceValid && <section aria-live="polite"><p className="mono-label mb-2 text-blanco-50">// PREVISUALIZACIÓN AUTOMÁTICA</p><ReferenceWithBrief url={form.reference.trim()} title={form.title || 'Nueva idea'} brief={{ intention: form.objective, camera: form.camera, talent: form.talent, edit: form.edit }} /></section>}
-    <details className="border border-blanco-20 p-5" open><summary className="cursor-pointer font-mono text-[10px] text-blanco-50">BRIEF AUTOMÁTICO · PUEDES AJUSTARLO ANTES DE GUARDAR</summary>
-      <div className="mt-5 grid gap-6 md:grid-cols-3">
-        <Field label="CÁMARA" value={form.camera} onChange={(value) => update('camera', value)} textarea placeholder={generated.camera} />
-        <Field label="TALENTO / MODELAJE" value={form.talent} onChange={(value) => update('talent', value)} textarea placeholder={generated.talent} />
-        <Field label="EDICIÓN" value={form.edit} onChange={(value) => update('edit', value)} textarea placeholder={generated.edit} />
+
+    {/* El brief deja de ser un <details> que hay que descubrir: se lee ANTES de
+        guardar. El pedido fue explícito — "cuando lo autorrellene tiene que ver
+        y entender antes el contenido". Con el panel abierto y el guion debajo,
+        quien crea lee lo que el equipo va a ejecutar y lo corrige ahí mismo, en
+        lugar de descubrir un texto generado después de enviarlo.
+        `mostaza` en el borde: es contenido nuevo que hay que mirar, no un dato
+        más de la ficha. */}
+    <section className="border-l-4 border-l-mostaza/70 border-y border-r border-blanco-20 bg-blanco-05">
+      <header className="border-b border-blanco-20 px-5 py-4">
+        <p className="eyebrow text-mostaza">[LO QUE EL EQUIPO VA A EJECUTAR]</p>
+        <h2 className="mt-2 font-display text-xl font-bold text-blanco">El brief que se genera al guardar</h2>
+        <p className="mt-2 text-sm leading-6 text-blanco-60">
+          Se arma con tu título, tu objetivo y la referencia que pegaste. Léelo antes de crear: es lo que verá el equipo en cámara, talento y edición.
+        </p>
+      </header>
+
+      <div className="grid gap-px bg-blanco-10 sm:grid-cols-3">
+        {(['camera', 'talent', 'edit'] as const).map((campo) => {
+          const etiqueta = campo === 'camera' ? 'CÁMARA' : campo === 'talent' ? 'TALENTO / MODELAJE' : 'EDICIÓN';
+          const generado = campo === 'camera' ? generated.camera : campo === 'talent' ? generated.talent : generated.edit;
+          const editado = Boolean(form[campo].trim());
+          return (
+            <div key={campo} className="bg-negro p-5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="mono-label text-blanco-50">// {etiqueta}</span>
+                {editado && <span className="font-mono text-[10px] text-mostaza">EDITADO</span>}
+              </div>
+              <p className="mt-3 text-sm leading-6 text-blanco-70">{generado}</p>
+              <Field label="" value={form[campo]} onChange={(value) => update(campo, value)} textarea placeholder="O escribe tu propia versión (vacío = usar la generada)" className="mt-4" />
+            </div>
+          );
+        })}
       </div>
-    </details>
+
+      <details className="border-t border-blanco-20">
+        <summary className="cursor-pointer px-5 py-3 font-mono text-[10px] text-blanco-50 hover:text-blanco">VER TAMBIÉN EL GUION QUE SE GENERARÁ</summary>
+        <pre className="overflow-x-auto whitespace-pre-wrap border-t border-blanco-20 px-5 py-4 font-mono text-xs leading-6 text-blanco-60">{generated.script}</pre>
+      </details>
+    </section>
+
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
       <button disabled={saving || !referenceValid} className="btn-brutal" type="submit">{saving ? 'GUARDANDO…' : 'CREAR IDEA →'}</button>
-      <span className="font-mono text-[10px] text-blanco-40">{supabase ? `SE GUARDARÁ COMO ${code || 'NUEVA IDEA'}` : 'GUARDADO COMPARTIDO NO DISPONIBLE'}</span>
+      <span className="font-mono text-[10px] text-blanco-50">{supabase ? `SE GUARDARÁ COMO ${code || 'NUEVA IDEA'}` : 'GUARDADO COMPARTIDO NO DISPONIBLE'}</span>
     </div>
   </form>;
 }
 
-function Field({ label, value, onChange, placeholder, textarea, select, options }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; textarea?: boolean; select?: boolean; options?: string[] }) {
-  return <label className="block"><span className="mono-label mb-2 block text-blanco-50">// {label}</span>{select ? <select value={value} onChange={(event) => onChange(event.target.value)} className="input-brutal">{options?.map((option) => <option key={option}>{option}</option>)}</select> : textarea ? <textarea value={value} onChange={(event) => onChange(event.target.value)} className="input-brutal min-h-28" placeholder={placeholder} /> : <input value={value} onChange={(event) => onChange(event.target.value)} className="input-brutal" placeholder={placeholder} />}</label>;
+function Field({ label, value, onChange, placeholder, textarea, select, options, className = '' }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; textarea?: boolean; select?: boolean; options?: string[]; className?: string }) {
+  return <label className={`block ${className}`}>{label && <span className="mono-label mb-2 block text-blanco-50">// {label}</span>}{select ? <select value={value} onChange={(event) => onChange(event.target.value)} className="input-brutal">{options?.map((option) => <option key={option}>{option}</option>)}</select> : textarea ? <textarea value={value} onChange={(event) => onChange(event.target.value)} className="input-brutal min-h-24" placeholder={placeholder} /> : <input value={value} onChange={(event) => onChange(event.target.value)} className="input-brutal" placeholder={placeholder} />}</label>;
 }

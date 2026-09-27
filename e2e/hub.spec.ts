@@ -222,6 +222,53 @@ test.describe('portero de acceso', () => {
   });
 });
 
+test.describe('crear una idea', () => {
+  test('el brief se lee ANTES de guardar, no escondido detrás de un desplegable', async ({ page }) => {
+    await abrir(page, `/${PROYECTO}/ideas/nueva`);
+
+    // El pedido fue "cuando lo autorrellene tiene que ver y entender antes el
+    // contenido". Antes el brief era un <details> con los tres campos de
+    // cámara/talento/edición dentro: quien creaba no veía lo que el equipo iba
+    // a ejecutar hasta después de enviarlo.
+    const panel = page.getByRole('heading', { name: /brief que se genera al guardar/i });
+    await expect(panel).toBeVisible();
+
+    for (const campo of ['// CÁMARA', '// TALENTO / MODELAJE', '// EDICIÓN']) {
+      await expect(page.getByText(campo, { exact: true })).toBeVisible();
+    }
+
+    // Y son visibles de verdad, no "visibles" para el filtro de Playwright.
+    expect(await desplegado(page, 'text=TALENTO / MODELAJE')).toBe(true);
+  });
+
+  test('pegar un reel muestra el video real en un iframe y arma un brief específico', async ({ page }) => {
+    await abrir(page, `/${PROYECTO}/ideas/nueva`);
+
+    await page.getByLabel(/REFERENCIA VISUAL/i).fill('https://www.instagram.com/reel/DcN2tugtTc-/');
+
+    // El embed va en un iframe, no en una imagen: Instagram no da miniatura
+    // pública. El CSP del proyecto tiene que permitirlo o el marco no carga.
+    const marco = page.locator('iframe[src*="instagram.com"]').first();
+    await expect(marco).toHaveCount(1, { timeout: 15_000 });
+
+    // El guion tiene que decir QUÉ se copia del reel, no repetir "la referencia".
+    await page.getByText(/VER TAMBIÉN EL GUION/).click();
+    await expect(page.getByText('QUÉ ESTAMOS COPIANDO DE LA REFERENCIA')).toBeVisible();
+    await expect(page.getByText(/Reel vertical/)).toBeVisible();
+  });
+
+  test('un enlace inválido se dice antes de intentar guardar', async ({ page }) => {
+    await abrir(page, `/${PROYECTO}/ideas/nueva`);
+
+    await page.getByLabel(/REFERENCIA VISUAL/i).fill('esto no es un enlace');
+    await expect(page.getByRole('alert').first()).toContainText('no parece un enlace válido');
+
+    // El botón de crear queda deshabilitado: no se puede mandar una idea sin
+    // referencia, que es lo que la validación del servidor exige.
+    await expect(page.getByRole('button', { name: /CREAR IDEA/ })).toBeDisabled();
+  });
+});
+
 test.describe('modo guía', () => {
   test('se abre sola la primera vez y explica el primer botón', async ({ page }) => {
     await page.goto(`/${PROYECTO}`);
