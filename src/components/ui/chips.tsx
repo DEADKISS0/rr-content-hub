@@ -55,15 +55,23 @@ const ACTOR_TEXT: Record<ChipTone, string> = {
   neutro: 'text-blanco-60', mostaza: 'text-mostaza', fucsia: 'text-fucsia', orquidea: 'text-orquidea', blanco: 'text-blanco',
 };
 
-/** A quién le toca actuar: iniciales + rol, con tono estable por rol. */
+/**
+ * A quién le toca actuar.
+ *
+ * El color vuelve en la inicial, pero el texto cambió: antes decía `ACTÚA` y
+ * debajo el nombre en dos renglones, que en pantalla se leía como dos datos
+ * sueltos y en accesibilidad partía la frase ("ACTÚA CREATIVA"). Ahora es una
+ * sola línea "ACTÚA · CREATIVA", y la inicial tintada da el color sin obligar a
+ * aprender una tabla: el nombre siempre está al lado.
+ */
 export function ActorChip({ who, prefix = 'ACTÚA' }: { who: string; prefix?: string }) {
   const first = who.split(/[·|]/)[0].trim();
   const tone = ROLE_TONE[first.toUpperCase()] ?? 'neutro';
   return (
-    <span className="inline-flex items-center gap-2">
-      <Initials label={first} tone={tone} size={22} />
-      <span className="font-mono text-[10px] uppercase leading-3 tracking-[0.08em] text-blanco-50">
-        {prefix}<br /><b className={`text-[10px] ${ACTOR_TEXT[tone]}`}>{first}</b>
+    <span className="inline-flex items-center gap-1.5" title={`${prefix} ${first}`}>
+      <Initials label={first} tone={tone} size={20} />
+      <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-blanco-50">
+        {prefix} <b className={ACTOR_TEXT[tone]}>{first}</b>
       </span>
     </span>
   );

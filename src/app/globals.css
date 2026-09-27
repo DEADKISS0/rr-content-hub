@@ -46,7 +46,23 @@
   --negro-60: rgba(7, 0, 1, 0.6);
   --blanco-10: rgba(255, 255, 243, 0.1);
   --blanco-05: rgba(255, 255, 243, 0.05);
-  
+
+  /* Los blancos intermedios (20 a 80) vivían SOLO como `--color-blanco-N` del
+     bloque @theme de Tailwind, pero unas 40 reglas de este archivo los leen
+     como `var(--blanco-N)`, sin el prefijo `color-`. Todas caían al fallback
+     #3a3a37 o directamente a nada: los bordes y hovers de medio sitio salían
+     con un gris inventado que no existe en la marca. Se duplican aquí como
+     alias, con los MISMOS valores del @theme de arriba. Si alguno cambia allí,
+     cambia aquí: los dos bloques tienen que decir lo mismo o el mismo borde se
+     ve distinto según si la regla usa clase o var(). */
+  --blanco-20: rgba(255, 255, 243, 0.2);
+  --blanco-30: rgba(255, 255, 243, 0.3);
+  --blanco-40: rgba(255, 255, 243, 0.4);
+  --blanco-50: rgba(255, 255, 243, 0.62);
+  --blanco-60: rgba(255, 255, 243, 0.6);
+  --blanco-70: rgba(255, 255, 243, 0.78);
+  --blanco-80: rgba(255, 255, 243, 0.86);
+
   --status-approved: #ded116;
   --status-pending: #973d8f;
   --status-rejected: #be076d;

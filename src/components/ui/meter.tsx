@@ -69,14 +69,19 @@ export function briefState(idea: {
   ];
 }
 
-/** Riel de completitud con íconos: verde de marca cuando está, apagado cuando falta. */
+/**
+ * Riel de completitud: el color va en lo que está LISTO, y se apaga en lo que
+ * falta. Es el acento con más carga informativa del tablero — cinco casillas
+ * que dicen "¿qué le falta a esta pieza?" — así que vuelve a la marca: quien
+ * mira de reojo ve dónde está el trabajo incompleto sin leer nada.
+ */
 export function BriefRail({ states }: { states: BriefState[] }) {
   const done = states.filter((state) => state.done).length;
   return (
     <div className="flex items-center gap-2">
       <div className="flex items-center gap-[3px]">
         {states.map((state) => (
-          <span key={state.key} title={`${state.label}: ${state.done ? 'listo' : 'falta'}`} className={`flex h-6 w-6 items-center justify-center border ${state.done ? 'border-blanco-40 bg-blanco-10 text-blanco' : 'border-blanco-20 bg-negro text-blanco-30'}`}>
+          <span key={state.key} title={`${state.label}: ${state.done ? 'listo' : 'falta'}`} className={`flex h-6 w-6 items-center justify-center border ${state.done ? 'border-orquidea bg-orquidea text-negro' : 'border-blanco-20 bg-negro text-blanco-30'}`}>
             <Icon name={state.icon} size={12} />
           </span>
         ))}

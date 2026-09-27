@@ -266,11 +266,11 @@ export const TONE_HEX: Record<ToneKey, string> = {
   neutro: '#6a6a64',
 };
 
-export const TONE_CLASS: Record<ToneKey, { border: string; bg: string; text: string; dot: string }> = {
-  mostaza: { border: 'border-mostaza/50', bg: 'bg-blanco-05', text: 'text-mostaza', dot: 'bg-mostaza' },
-  fucsia: { border: 'border-fucsia/50', bg: 'bg-blanco-05', text: 'text-fucsia', dot: 'bg-fucsia' },
-  orquidea: { border: 'border-orquidea/50', bg: 'bg-blanco-05', text: 'text-orquidea', dot: 'bg-orquidea' },
-  neutro: { border: 'border-blanco-20', bg: 'bg-blanco-05', text: 'text-blanco-60', dot: 'bg-blanco-40' },
+export const TONE_CLASS: Record<ToneKey, { border: string; borderLeft: string; bg: string; text: string; dot: string }> = {
+  mostaza: { border: 'border-mostaza/50', borderLeft: 'border-l-mostaza/70 hover:border-l-mostaza', bg: 'bg-blanco-05', text: 'text-mostaza', dot: 'bg-mostaza' },
+  fucsia: { border: 'border-fucsia/50', borderLeft: 'border-l-fucsia/70 hover:border-l-fucsia', bg: 'bg-blanco-05', text: 'text-fucsia', dot: 'bg-fucsia' },
+  orquidea: { border: 'border-orquidea/50', borderLeft: 'border-l-orquidea/70 hover:border-l-orquidea', bg: 'bg-blanco-05', text: 'text-orquidea', dot: 'bg-orquidea' },
+  neutro: { border: 'border-blanco-20', borderLeft: 'border-l-blanco-30 hover:border-l-blanco-60', bg: 'bg-blanco-05', text: 'text-blanco-60', dot: 'bg-blanco-40' },
 };
 
 /** The four visible steps of production, from approved script to ready-to-publish. */

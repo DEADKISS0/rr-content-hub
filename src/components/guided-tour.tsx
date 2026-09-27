@@ -45,7 +45,7 @@ const PASOS_TABLERO: Paso[] = [
   {
     target: '.idea-card',
     titulo: 'Cada tarjeta es una pieza',
-    texto: 'Arriba a la izquierda está su código: O1, P7. El color te dice de quién es el turno. Toca la tarjeta y se abre completa.',
+    texto: 'Arriba a la izquierda está su código: O1, P7. La franja de color del borde te dice de quién es el turno. Toca la tarjeta y se abre completa.',
   },
   {
     target: 'a[href$="/aprobaciones"]',
@@ -224,11 +224,16 @@ export function GuidedTour() {
         <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="guia-titulo">
           {/* El recuadro que se posa sobre el botón. La sombra gigante atenúa
               el resto lo justo para que el foco se lea, sin borrar la página:
-              el objetivo es explicar lo que ya se ve, no taparlo. */}
-          {caja && (
+              el objetivo es explicar lo que ya se ve, no taparlo.
+              El `pointer-events-none` NO está en este div a propósito: sin él,
+              el recuadro gigante se come los clics de toda la pantalla y el
+              usuario queda encerrado en la guía. Por eso el overlay tampoco
+              cierra al hacer clic fuera — cerrarlo sería un descuido. Lo que
+              se puede es saltar, con Escape o el botón. */}
+              {caja && (
             <div
               aria-hidden="true"
-              className="pointer-events-none fixed border border-blanco-40"
+              className="pointer-events-none fixed border-2 border-mostaza"
               style={{
                 top: Math.max(4, caja.top - 6),
                 left: Math.max(4, caja.left - 6),
@@ -238,7 +243,7 @@ export function GuidedTour() {
               }}
             />
           )}
-          {!caja && <div aria-hidden="true" className="fixed inset-0 bg-negro/45" />}
+          {!caja && <div aria-hidden="true" className="pointer-events-none fixed inset-0 bg-negro/45" />}
 
           <div
             ref={tarjeta}

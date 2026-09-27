@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { actGroup, BOARD_COLUMNS, daysSince, statusMeta, type WorkflowStatus } from '@/lib/flow';
+import { actGroup, BOARD_COLUMNS, daysSince, statusMeta, TONE_CLASS, type WorkflowStatus } from '@/lib/flow';
 import { BoardControls, type BoardFilters } from './board-controls';
 import { FlowGuide } from './flow-guide';
 import { StartHere } from './start-here';
@@ -141,12 +141,13 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
                     const meta = statusMeta(idea.status);
                     const format = formatOf(idea.category, idea.content_type);
                     const days = daysSince(idea.updated_at ?? idea.created_at);
+                    const tono = TONE_CLASS[meta.tone];
                     return (
                       <Link
                         key={idea.id}
                         href={`/${projectSlug}/ideas/${idea.id}`}
                         style={{ ['--delay' as string]: `${cardIndex * 45}ms` }}
-                        className="idea-card cascade sheen group block border border-blanco-20 bg-negro transition-all duration-200 hover:border-blanco-40"
+                        className={`idea-card cascade sheen group block border border-l-[3px] bg-negro transition-all duration-200 hover:border-blanco-40 ${tono.borderLeft}`}
                       >
                         <PublicationPreview url={idea.reference_url} code={idea.code} title={idea.title} format={format.icon} />
                         <div className="space-y-3 p-3">
@@ -180,8 +181,8 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
         </div>
       ) : (
         <div key="list-view" className="view-in border border-blanco-20">
-          <div className="hidden grid-cols-[6rem_1fr_auto_auto_auto] gap-4 border-b border-blanco-20 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.08em] text-blanco-60 lg:grid">
-            <span>CÓDIGO</span><span>PIEZA</span><span>INFO</span><span>ESPERA A</span><span>ESTADO</span>
+          <div className="hidden grid-cols-[6rem_1fr_auto_auto_2px_auto] gap-4 border-b border-blanco-20 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.08em] text-blanco-60 lg:grid">
+            <span>CÓDIGO</span><span>PIEZA</span><span>INFO</span><span>ESPERA A</span><span /><span>ESTADO</span>
           </div>
           {visible.map((idea, rowIndex) => {
             const meta = statusMeta(idea.status);
@@ -193,7 +194,7 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
                 key={idea.id}
                 href={`/${projectSlug}/ideas/${idea.id}`}
                 style={{ ['--delay' as string]: `${Math.min(rowIndex, 12) * 28}ms` }}
-                className="idea-row cascade grid grid-cols-1 items-center gap-3 px-4 py-3 transition-colors hover:bg-blanco-05 lg:grid-cols-[6rem_1fr_auto_auto_auto] lg:gap-4"
+                className="idea-row cascade grid grid-cols-1 items-center gap-3 px-4 py-3 transition-colors hover:bg-blanco-05 lg:grid-cols-[6rem_1fr_auto_auto_2px_auto] lg:gap-4"
               >
                 <span className="w-24 shrink-0 overflow-hidden">
                   <PublicationPreview url={idea.reference_url} code={null} title={idea.title} format={format.icon} size="sm" />
@@ -202,10 +203,13 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
                   <b className="block truncate font-display text-base font-bold text-blanco">{idea.code ?? 'IDEA'} · {idea.title}</b>
                   <small className="font-mono text-[10px] uppercase tracking-[0.06em] text-blanco-60">{format.label}{days !== null ? ` · ${days}D` : ''}{idea.priority === 'high' ? ' · ALTA' : ''}</small>
                 </span>
-                <span className="flex items-center gap-1">
-                  {states.map((state) => <span key={state.key} title={state.label} className={`h-4 w-4 border ${state.done ? 'border-blanco-40 bg-blanco-10' : 'border-blanco-30'}`} />)}
+                <span className="flex items-center gap-1" title="Qué información clave tiene cargada">
+                  {states.map((state) => (
+                    <span key={state.key} title={state.label} className={`h-4 w-4 border ${state.done ? 'border-blanco-50 bg-blanco-30' : 'border-blanco-30 bg-negro'}`} />
+                  ))}
                 </span>
                 <span className="font-mono text-[10px] text-blanco-60">{meta.who}</span>
+                <span className={`block h-4 w-1 shrink-0 ${TONE_CLASS[meta.tone].dot}`} aria-hidden />
                 <StatusBadge status={idea.status} compact />
               </Link>
             );
