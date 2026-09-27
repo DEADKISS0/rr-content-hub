@@ -32,8 +32,8 @@ function embedSource(url: string) {
  */
 export function ReferenceWithBrief({ url, title, brief }: { url?: string; title: string; brief: VisualBrief }) {
   if (!url) {
-    return <section className="border-2 border-dashed border-blanco-20 p-8 text-center">
-      <p className="mono-label text-mostaza">[REFERENCIA PENDIENTE]</p>
+    return <section className="border border-dashed border-blanco-20 p-8 text-center">
+      <p className="mono-label text-blanco-50">[REFERENCIA PENDIENTE]</p>
       <p className="mt-3 text-sm leading-6 text-blanco-60">Esta idea no tiene un referente visual todavía. El owner debe agregarlo antes de enviarla al cliente.</p>
     </section>;
   }
@@ -44,23 +44,23 @@ export function ReferenceWithBrief({ url, title, brief }: { url?: string; title:
     { label: 'CÁMARA', value: brief.camera },
     { label: 'TALENTO', value: brief.talent },
     { label: 'EDICIÓN', value: brief.edit },
-    { label: 'QUÉ NO HACER', value: brief.avoid, tone: 'text-fucsia' },
+    { label: 'QUÉ NO HACER', value: brief.avoid, tone: 'text-blanco-60' },
   ].filter((row) => row.value);
 
-  return <section className="overflow-hidden border-2 border-fucsia anim-fade">
-    <header className="flex flex-wrap items-center justify-between gap-2 border-b-2 border-fucsia bg-fucsia/10 px-5 py-3">
-      <p className="eyebrow text-fucsia">[REFERENCIA VISUAL · {platform(url)}]</p>
-      <Link href={url} target="_blank" rel="noreferrer" className="font-mono text-[10px] text-fucsia underline">ABRIR ORIGINAL ↗</Link>
+  return <section className="overflow-hidden border border-blanco-20 anim-fade">
+    <header className="flex flex-wrap items-center justify-between gap-2 border-b border-blanco-10 bg-blanco-05 px-5 py-3">
+      <p className="eyebrow text-blanco-50">[REFERENCIA VISUAL · {platform(url)}]</p>
+      <Link href={url} target="_blank" rel="noreferrer" className="font-mono text-[10px] text-blanco-50 underline">ABRIR ORIGINAL ↗</Link>
     </header>
     <div className="grid gap-px bg-blanco-10 lg:grid-cols-2">
       <div className="bg-black">
-        {source ? <iframe title={`Referencia visual de ${title}`} src={source} className="h-[360px] w-full bg-white sm:h-[480px]" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" /> : <div className="grid h-[360px] place-items-center p-8 text-center sm:h-[480px]"><div><p className="font-mono text-xs text-blanco-60">PREVIEW NO DISPONIBLE PARA ESTE ORIGEN.</p><Link href={url} target="_blank" rel="noreferrer" className="mt-4 inline-block font-mono text-xs text-mostaza underline">VER REFERENCIA ORIGINAL ↗</Link></div></div>}
+        {source ? <iframe title={`Referencia visual de ${title}`} src={source} className="h-[360px] w-full bg-white sm:h-[480px]" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" /> : <div className="grid h-[360px] place-items-center p-8 text-center sm:h-[480px]"><div><p className="font-mono text-xs text-blanco-60">PREVIEW NO DISPONIBLE PARA ESTE ORIGEN.</p><Link href={url} target="_blank" rel="noreferrer" className="mt-4 inline-block font-mono text-xs text-blanco-50 underline">VER REFERENCIA ORIGINAL ↗</Link></div></div>}
       </div>
       <div className="bg-negro p-6">
-        <h3 className="font-display text-2xl font-bold text-blanco">¿POR QUÉ<br /><em className="text-fucsia">ESTA REFERENCIA?</em></h3>
+        <h3 className="font-display text-2xl font-bold text-blanco">¿Por qué<br /><em className="text-blanco-80">esta referencia?</em></h3>
         {rows.length ? <dl className="mt-6 space-y-5">
           {rows.map((row) => <div key={row.label}>
-            <dt className="mono-label text-mostaza">// {row.label}</dt>
+            <dt className="mono-label text-blanco-50">// {row.label}</dt>
             <dd className={`mt-2 text-sm leading-7 ${row.tone ?? 'text-blanco-60'}`}>{row.value}</dd>
           </div>)}
         </dl> : <p className="mt-6 text-sm leading-7 text-blanco-40">El brief visual aún no se ha completado. El equipo debe documentar la dirección (intención, cámara, talento y edición) para que la referencia comunique una decisión y no solo un enlace.</p>}

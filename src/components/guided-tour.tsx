@@ -215,7 +215,7 @@ export function GuidedTour() {
       <button
         type="button"
         onClick={() => setPaso(0)}
-        className="fixed bottom-4 right-4 z-40 inline-flex items-center gap-2 border-2 border-mostaza bg-negro px-3 py-2 font-mono text-xs text-mostaza shadow-[4px_4px_0_0_rgba(222,209,22,0.35)] transition-colors hover:bg-mostaza hover:text-negro"
+        className="fixed bottom-4 right-4 z-40 inline-flex items-center gap-2 border border-blanco-20 bg-negro px-3 py-2 font-mono text-xs text-blanco-70 transition-colors hover:border-blanco-40 hover:bg-blanco-10 hover:text-blanco"
         aria-label="Abrir la guía: te explica cada botón"
       >
         <Icon name="eye" size={14} /> ¿CÓMO SE USA?
@@ -228,7 +228,7 @@ export function GuidedTour() {
           {caja && (
             <div
               aria-hidden="true"
-              className="pointer-events-none fixed border-2 border-fucsia"
+              className="pointer-events-none fixed border-2 border-blanco-40"
               style={{
                 top: Math.max(4, caja.top - 6),
                 left: Math.max(4, caja.left - 6),
@@ -243,12 +243,12 @@ export function GuidedTour() {
           <div
             ref={tarjeta}
             tabIndex={-1}
-            className="anim-pop fixed bottom-4 left-1/2 w-[min(34rem,calc(100vw-2rem))] -translate-x-1/2 border-2 border-blanco bg-negro p-5 outline-none sm:bottom-8"
+            className="anim-pop fixed bottom-4 left-1/2 w-[min(34rem,calc(100vw-2rem))] -translate-x-1/2 border border-blanco-30 bg-negro p-5 outline-none sm:bottom-8"
             style={caja && caja.top < window.innerHeight / 2
               ? { top: Math.min(caja.top + caja.height + 24, window.innerHeight - 220), bottom: 'auto' }
               : undefined}
           >
-            <p className="font-mono text-xs tracking-[0.1em] text-mostaza">
+            <p className="font-mono text-xs tracking-[0.1em] text-blanco-50">
               PASO {paso! + 1} DE {pasos.length}
             </p>
             <h2 id="guia-titulo" className="mt-2 font-display text-2xl font-bold leading-tight text-blanco">
@@ -276,7 +276,7 @@ export function GuidedTour() {
               <button
                 type="button"
                 onClick={() => cerrar(false)}
-                className="font-mono text-xs text-blanco-50 underline transition-colors hover:text-mostaza"
+                className="font-mono text-xs text-blanco-50 underline transition-colors hover:text-blanco"
               >
                 {ultimo ? 'VOLVER A MOSTRARLA LA PRÓXIMA VEZ' : 'SALTAR'}
               </button>

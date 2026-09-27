@@ -41,18 +41,18 @@ export function BoardControls({
     : ACT_GROUPS.find((group) => group.key === filters.act)?.label ?? filters.act.toUpperCase();
 
   return (
-    <div className="sticky top-[68px] z-20 -mx-5 mb-6 border-y-2 border-blanco bg-negro/95 px-5 py-3 backdrop-blur md:-mx-10 md:px-10">
+    <div className="sticky top-[68px] z-20 -mx-5 mb-6 border-y border-blanco-20 bg-negro/95 px-5 py-3 backdrop-blur md:-mx-10 md:px-10">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <details className="group/buscar" open={dirty || undefined}>
-          <summary className="inline-flex cursor-pointer list-none items-center gap-2 border-2 border-blanco-20 px-3 py-2 font-mono text-sm text-blanco-60 transition-colors hover:border-fucsia hover:text-fucsia">
+          <summary className="inline-flex cursor-pointer list-none items-center gap-2 border border-blanco-20 px-3 py-2 font-mono text-sm text-blanco-60 transition-colors hover:border-blanco-40 hover:text-blanco">
             <Icon name="search" size={14} />
             BUSCAR Y ORDENAR
             <Icon name="chevron" size={12} className="transition-transform group-open/buscar:rotate-180" />
           </summary>
 
-          <div className="anim-slide-down mt-3 flex flex-wrap items-center gap-3 border-l-2 border-fucsia pl-3">
-            <label className="group flex min-w-[15rem] flex-1 items-center gap-2 border-2 border-blanco-20 bg-negro px-3 py-2 transition-colors focus-within:border-fucsia">
-              <Icon name="search" size={14} className="text-blanco-50 transition-colors group-focus-within:text-fucsia" />
+          <div className="anim-slide-down mt-3 flex flex-wrap items-center gap-3 border-l-2 border-blanco-20 pl-3">
+            <label className="group flex min-w-[15rem] flex-1 items-center gap-2 border border-blanco-20 bg-negro px-3 py-2 transition-colors focus-within:border-blanco-40">
+              <Icon name="search" size={14} className="text-blanco-50 transition-colors group-focus-within:text-blanco" />
               <input
                 value={filters.query}
                 onChange={(event) => onChange({ query: event.target.value })}
@@ -61,13 +61,13 @@ export function BoardControls({
                 className="w-full bg-transparent font-mono text-sm text-blanco outline-none placeholder:text-blanco-50"
               />
               {filters.query && (
-                <button type="button" aria-label="Limpiar búsqueda" onClick={() => onChange({ query: '' })} className="anim-pop text-blanco-60 transition-colors hover:text-fucsia">
+                <button type="button" aria-label="Limpiar búsqueda" onClick={() => onChange({ query: '' })} className="anim-pop text-blanco-60 transition-colors hover:text-blanco">
                   <Icon name="close" size={13} />
                 </button>
               )}
             </label>
 
-            <div className="flex items-center gap-1 border-2 border-blanco-20 p-0.5" role="group" aria-label="Vista">
+            <div className="flex items-center gap-1 border border-blanco-20 p-0.5" role="group" aria-label="Vista">
               {(['map', 'list'] as BoardView[]).map((view) => {
                 const active = filters.view === view;
                 return (
@@ -76,7 +76,7 @@ export function BoardControls({
                     type="button"
                     onClick={() => onChange({ view })}
                     aria-pressed={active}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 font-mono text-xs transition-colors ${active ? 'bg-mostaza text-negro' : 'text-blanco-60 hover:text-mostaza'}`}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 font-mono text-xs transition-colors ${active ? 'bg-blanco text-negro' : 'text-blanco-60 hover:text-blanco'}`}
                   >
                     <Icon name={view === 'map' ? 'grid' : 'list'} size={13} />
                     {view === 'map' ? 'TARJETAS' : 'LISTA'}
@@ -90,9 +90,9 @@ export function BoardControls({
                 está filtrando. Sin estado controlado a propósito — así el
                 navegador maneja el abrir/cerrar y no pelea con React. */}
             <details className="group/act">
-              <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 border border-blanco-20 px-2.5 py-1.5 font-mono text-xs uppercase tracking-[0.06em] text-blanco-60 transition-colors hover:border-fucsia hover:text-fucsia">
+              <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 border border-blanco-20 px-2.5 py-1.5 font-mono text-xs uppercase tracking-[0.06em] text-blanco-60 transition-colors hover:border-blanco-40 hover:text-blanco">
                 <Icon name="filter" size={12} />
-                QUIÉN ACTÚA: <b className={filters.act === 'all' ? 'text-blanco' : 'text-fucsia'}>{activeGroup}</b>
+                QUIÉN ACTÚA: <b className={filters.act === 'all' ? 'text-blanco-60' : 'text-blanco'}>{activeGroup}</b>
                 <Icon name="chevron" size={12} className="transition-transform group-open/act:rotate-180" />
               </summary>
               <div className="anim-slide-down mt-2 flex flex-wrap items-center gap-1.5">
@@ -106,14 +106,13 @@ export function BoardControls({
                 </button>
                 {ACT_GROUPS.map((group) => {
                   const active = filters.act === group.key;
-                  const isClient = group.key === 'cliente';
                   return (
                     <button
                       key={group.key}
                       type="button"
                       onClick={() => onChange({ act: active ? 'all' : group.key, phase: 'all' })}
                       aria-pressed={active}
-                      className={`border px-2.5 py-1.5 font-mono text-xs uppercase tracking-[0.06em] transition-colors ${active ? (isClient ? 'border-mostaza bg-mostaza text-negro' : 'border-fucsia bg-fucsia text-blanco') : 'border-blanco-20 text-blanco-60 hover:border-fucsia hover:text-fucsia'}`}
+                      className={`border px-2.5 py-1.5 font-mono text-xs uppercase tracking-[0.06em] transition-colors ${active ? 'border-blanco bg-blanco text-negro' : 'border-blanco-20 text-blanco-60 hover:border-blanco hover:text-blanco'}`}
                     >
                       {group.label}
                     </button>
@@ -126,14 +125,14 @@ export function BoardControls({
 
         <div className="flex items-center gap-3">
           <span aria-live="polite" className="font-mono text-xs text-blanco-60">
-            <b className="anim-count text-blanco">{shown}</b>/{total} PIEZAS · <b className="anim-count text-mostaza">{waiting}</b> ESPERANDO
+            <b className="anim-count text-blanco">{shown}</b>/{total} PIEZAS · <b className="anim-count text-blanco">{waiting}</b> ESPERANDO
           </span>
 
           {dirty && (
             <button
               type="button"
               onClick={() => onChange({ query: '', phase: 'all', act: 'all' })}
-              className="anim-pop inline-flex items-center gap-1 border border-fucsia px-2.5 py-1.5 font-mono text-xs text-fucsia transition-colors hover:bg-fucsia hover:text-blanco"
+              className="anim-pop inline-flex items-center gap-1 border border-blanco-20 px-2.5 py-1.5 font-mono text-xs text-blanco-60 transition-colors hover:border-blanco-40 hover:bg-blanco-10 hover:text-blanco"
             >
               <Icon name="close" size={12} /> VER TODAS OTRA VEZ
             </button>

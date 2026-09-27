@@ -112,7 +112,7 @@ export function WorkspaceShell({ children, project }: { children: React.ReactNod
       )}
 
       <aside
-        className={`shell-aside fixed inset-y-0 left-0 z-40 flex flex-col overflow-y-auto border-r-2 border-blanco bg-negro transition-transform md:sticky md:top-0 md:h-screen md:translate-x-0 ${menuOpen ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'md:w-[4.5rem] p-3' : 'w-72 p-6'}`}
+        className={`shell-aside fixed inset-y-0 left-0 z-40 flex flex-col overflow-y-auto border-r border-blanco-20 bg-negro transition-transform md:sticky md:top-0 md:h-screen md:translate-x-0 ${menuOpen ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'md:w-[4.5rem] p-3' : 'w-72 p-6'}`}
       >
         <div className={`mb-6 flex items-center gap-3 ${collapsed ? 'md:flex-col md:gap-2' : 'justify-between'}`}>
           <Link href={`/${slug}`} title={project.name} className="flex items-center gap-3">
@@ -125,7 +125,7 @@ export function WorkspaceShell({ children, project }: { children: React.ReactNod
             aria-expanded={!collapsed}
             aria-label={collapsed ? 'Expandir el menú' : 'Compactar el menú'}
             title={collapsed ? 'Expandir el menú' : 'Compactar el menú'}
-            className="hidden h-8 w-8 shrink-0 items-center justify-center border border-blanco-20 text-blanco-60 transition-colors hover:border-mostaza hover:text-mostaza md:flex"
+            className="hidden h-8 w-8 shrink-0 items-center justify-center border border-blanco-20 text-blanco-60 transition-colors hover:border-blanco-40 hover:text-blanco md:flex"
           >
             <span className={`transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`}>
               <Icon name="chevron" size={14} />
@@ -140,7 +140,7 @@ export function WorkspaceShell({ children, project }: { children: React.ReactNod
               ocupar los cuatro lugares principales. */}
           {!collapsed && (
             <details className="group/mas pt-2">
-              <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 px-3 font-mono text-xs text-blanco-50 transition-colors hover:text-mostaza">
+              <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 px-3 font-mono text-xs text-blanco-50 transition-colors hover:text-blanco">
                 <Icon name="chevron" size={11} className="transition-transform group-open/mas:rotate-180" />
                 VER MÁS
               </summary>
@@ -160,9 +160,9 @@ export function WorkspaceShell({ children, project }: { children: React.ReactNod
       </aside>
 
       <div className="min-w-0 flex-1">
-        <header className="sticky top-0 z-20 border-b-2 border-blanco bg-negro/95 backdrop-blur">
+        <header className="sticky top-0 z-20 border-b border-blanco-20 bg-negro/95 backdrop-blur">
           <div className="flex items-center justify-between gap-3 px-5 py-3 md:px-10">
-            <button onClick={() => setMenuOpen(true)} className="inline-flex items-center gap-2 border border-blanco-20 px-2 py-1.5 font-mono text-xs text-mostaza md:hidden">
+            <button onClick={() => setMenuOpen(true)} className="inline-flex items-center gap-2 border border-blanco-20 px-2 py-1.5 font-mono text-xs text-blanco-70 md:hidden">
               <Icon name="list" size={14} /> MENÚ
             </button>
             <Link href={`/${slug}`} className="hidden font-mono text-xs text-blanco-60 transition-colors hover:text-blanco md:block">

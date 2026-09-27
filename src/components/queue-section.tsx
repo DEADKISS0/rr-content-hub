@@ -53,29 +53,29 @@ export function QueueSection({ title, eyebrow, description, guide, ideas, projec
       <div className="anim-rise mb-8 flex flex-wrap items-end justify-between gap-6 border-b border-blanco-10 pb-8">
         <div>
           <p className="eyebrow">{eyebrow}</p>
-          <h1 className="display-title">{title}<br /><em>EN CONTROL.</em></h1>
+          <h1 className="display-title">{title} en control.</h1>
           <p className="mt-5 max-w-xl text-sm leading-7 text-blanco-70">{description}</p>
           <div className="mt-5 flex flex-wrap gap-2">
             <Chip icon="pieces" tone="blanco"><b className="anim-count">{sorted.length}</b>&nbsp;EN ESTA COLA</Chip>
-            {oldest > 0 && <Chip icon="clock" tone={oldest > 14 ? 'fucsia' : 'mostaza'} className={oldest > 14 ? 'anim-pulse' : ''}><b className="anim-count">{oldest}</b>&nbsp;DÍAS LA MÁS VIEJA</Chip>}
-            <Chip icon="alert" tone={incomplete ? 'mostaza' : 'neutro'}><b className="anim-count">{incomplete}</b>&nbsp;CON INFO FALTANTE</Chip>
+            {oldest > 0 && <Chip icon="clock" tone="neutro"><b className="anim-count">{oldest}</b>&nbsp;DÍAS LA MÁS VIEJA</Chip>}
+            <Chip icon="alert" tone="neutro"><b className="anim-count">{incomplete}</b>&nbsp;CON INFO FALTANTE</Chip>
           </div>
         </div>
         <Link href={`/${projectSlug}/ideas`} className="btn-brutal inline-flex items-center gap-2">VER BANCO <Icon name="arrow" size={14} /></Link>
       </div>
 
-      <section className="anim-rise mb-8 flex items-start gap-3 border-2 border-mostaza bg-mostaza/5 p-5">
-        <span className="mt-[2px] text-mostaza"><Icon name="eye" size={16} /></span>
+      <section className="anim-rise mb-8 flex items-start gap-3 border border-blanco-20 bg-blanco-05 p-5">
+        <span className="mt-[2px] text-blanco-50"><Icon name="eye" size={16} /></span>
         <div>
-          <p className="mono-label text-mostaza">[QUÉ PASA AQUÍ]</p>
+          <p className="mono-label text-blanco-50">[QUÉ PASA AQUÍ]</p>
           <p className="mt-2 text-sm leading-6 text-blanco-70">{guide}</p>
         </div>
       </section>
 
-      {notice && <section className="anim-rise mb-8 flex items-start gap-3 border-2 border-orquidea bg-orquidea/10 p-5">
-        <span className="mt-[2px] text-orquidea"><Icon name="alert" size={16} /></span>
+      {notice && <section className="anim-rise mb-8 flex items-start gap-3 border border-blanco-20 bg-blanco-05 p-5">
+        <span className="mt-[2px] text-blanco-50"><Icon name="alert" size={16} /></span>
         <div>
-          <p className="mono-label text-orquidea">{notice.title}</p>
+          <p className="mono-label text-blanco-50">{notice.title}</p>
           <p className="mt-2 text-sm leading-6 text-blanco-70">{notice.body}</p>
         </div>
       </section>}
@@ -90,16 +90,16 @@ export function QueueSection({ title, eyebrow, description, guide, ideas, projec
           const format = formatOf(idea.category, idea.content_type);
           const meta = statusMeta(idea.status);
           const age = ageOf(idea);
-          return <Link key={idea.id} href={`/${projectSlug}/ideas/${idea.id}`} className="idea-card cascade sheen group block border-2 border-blanco-20 bg-negro transition-all duration-200 hover:-translate-y-1 hover:border-fucsia">
+          return <Link key={idea.id} href={`/${projectSlug}/ideas/${idea.id}`} className="idea-card cascade sheen group block border border-blanco-20 bg-negro transition-all duration-200 hover:border-blanco-40">
             <PublicationPreview url={idea.reference_url} code={idea.code} title={idea.title} format={format.icon} />
             <div className="space-y-3 p-4">
               <div className="flex flex-wrap items-center gap-1.5">
                 <StatusBadge status={idea.status} showStep={showPipeline} />
-                {idea.priority === 'high' && <Chip icon="bolt" tone="mostaza">ALTA</Chip>}
-                {age !== null && <Chip icon="clock" tone={age > 14 ? 'fucsia' : 'neutro'} className={age > 14 ? 'anim-pulse' : ''} title={`Última actividad hace ${age} días`}>{age}D</Chip>}
+                {idea.priority === 'high' && <Chip icon="bolt" tone="neutro">ALTA</Chip>}
+                {age !== null && <Chip icon="clock" tone="neutro" title={`Última actividad hace ${age} días`}>{age}D</Chip>}
                 <Chip icon={format.icon} tone="neutro">{format.label}</Chip>
               </div>
-              <h2 className="font-display text-xl font-bold leading-tight text-blanco group-hover:text-mostaza">{idea.title}</h2>
+              <h2 className="font-display text-xl font-bold leading-tight text-blanco group-hover:text-blanco-90">{idea.title}</h2>
               {idea.description && <p className="line-clamp-2 text-xs leading-5 text-blanco-60">{idea.description}</p>}
               {showPipeline && <ProductionPipeline status={idea.status} compact />}
               <BriefRail states={briefState(idea)} />
@@ -107,14 +107,11 @@ export function QueueSection({ title, eyebrow, description, guide, ideas, projec
                 {meta.who === '—'
                   ? <Chip icon="check" tone="neutro">CERRADA · NADIE ESPERA</Chip>
                   : <ActorChip who={meta.who} prefix="AQUÍ ACTÚA" />}
-                <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap font-mono text-[10px] text-fucsia">
-                  ABRIR <Icon name="arrow" size={12} className="transition-transform group-hover:translate-x-0.5" />
-                </span>
               </div>
             </div>
           </Link>;
         })}
-      </div> : <section className="border-2 border-dashed border-blanco-20 p-6">
+      </div> : <section className="border border-dashed border-blanco-20 p-6">
         <p className="eyebrow mb-4">[COLA VACÍA]</p>
         <EmptyState icon="decisions" title={empty} hint="Cuando una pieza llegue a esta fase aparecerá aquí, con su responsable y su brief." action={{ href: `/${projectSlug}/ideas`, label: 'IR AL BANCO DE IDEAS' }} />
       </section>}

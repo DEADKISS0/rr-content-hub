@@ -142,12 +142,12 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId }: EnhancedIdeaC
 
   const lastMove = timeline[0];
 
-  return <section className="mt-8 border-t-2 border-blanco pt-8" aria-labelledby="collaboration-title">
+  return <section className="mt-8 border-t border-blanco-20 pt-8" aria-labelledby="collaboration-title">
     {/* Movimiento real, no simulado: sale de rr_hub_events. */}
     {lastMove && (
-      <div className="mb-4 flex flex-wrap items-center gap-3 border-2 border-mostaza bg-mostaza/10 px-3 py-2">
-        <span className="inline-flex h-2 w-2 shrink-0 bg-mostaza anim-pulse" aria-hidden />
-        <span className="font-mono text-[10px] text-mostaza">ÚLTIMO MOVIMIENTO · {lastMove.createdAt}</span>
+      <div className="mb-4 flex flex-wrap items-center gap-3 border border-blanco-20 bg-blanco-05 px-3 py-2">
+        <span className="inline-flex h-2 w-2 shrink-0 bg-blanco-50 anim-pulse" aria-hidden />
+        <span className="font-mono text-[10px] text-blanco-50">ÚLTIMO MOVIMIENTO · {lastMove.createdAt}</span>
         <span className="font-mono text-[10px] text-blanco">{lastMove.actor} → {statusMeta(lastMove.status).label.toUpperCase()}</span>
         {timeline.length > 1 && <span className="font-mono text-[10px] text-blanco-50">· {timeline.length} MOVIMIENTOS REGISTRADOS</span>}
       </div>
@@ -156,21 +156,21 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId }: EnhancedIdeaC
     <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
       <div>
         <p className="eyebrow">[SHARED_CONTEXT]</p>
-        <h2 id="collaboration-title" className="section-heading mt-2 text-3xl">COLABORACIÓN SIN PÉRDIDA.</h2>
+        <h2 id="collaboration-title" className="section-heading mt-2 text-3xl">Colaboración sin pérdida.</h2>
       </div>
-      <span className="font-mono text-[10px] text-mostaza">
+      <span className="font-mono text-[10px] text-blanco-50">
         {comments.filter((comment) => !comment.resolved).length} ABIERTOS · TODOS VEN EL MISMO HILO
       </span>
     </div>
 
-    <p className="mb-3 border-2 border-mostaza bg-mostaza/10 p-2 font-mono text-[10px] leading-5 text-blanco anim-fade">
+    <p className="mb-3 border border-blanco-20 bg-blanco-05 p-2 font-mono text-[10px] leading-5 text-blanco-60 anim-fade">
       [ESPACIO COLABORATIVO] Todo cambio queda guardado en la base y visible para todos desde cualquier dispositivo.
     </p>
 
     {/* Panel de comentarios */}
-    <div className="border-2 border-blanco bg-blanco-05 p-4 sm:p-6">
+    <div className="border border-blanco-20 bg-blanco-05 p-4 sm:p-6">
       <div className="mb-4 flex items-center justify-between">
-        <span className="mono-label text-mostaza">HILO DE DECISIONES</span>
+        <span className="mono-label text-blanco-50">HILO DE DECISIONES</span>
         {comments.length > 0 && (
           <button 
             onClick={() => setShowResolved((value) => !value)} 
@@ -186,18 +186,18 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId }: EnhancedIdeaC
           <article 
             key={comment.id} 
             className={`border-l-4 p-3 anim-slide transition-all duration-200 ${
-              comment.resolved ? 'border-blanco-20 opacity-60' : 'border-mostaza'
+              comment.resolved ? 'border-blanco-20 opacity-60' : 'border-blanco-40'
             }`}
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="font-mono text-[10px] text-blanco">{comment.author}</span>
-              <span className="border border-mostaza px-2 py-0.5 font-mono text-[10px] text-mostaza">{comment.role}</span>
+              <span className="border border-blanco-20 px-2 py-0.5 font-mono text-[10px] text-blanco-60">{comment.role}</span>
             </div>
             <p className="mt-2 text-sm leading-6 text-blanco-60">{comment.text}</p>
             <p className="mt-2 font-mono text-[10px] text-blanco-40">{comment.createdAt}</p>
             <button 
               onClick={() => toggleResolved(comment)} 
-              className="mt-3 font-mono text-[10px] text-orquidea underline hover:text-orquidea/80"
+              className="mt-3 font-mono text-[10px] text-blanco-60 underline hover:text-blanco"
             >
               {comment.resolved ? 'REABRIR' : 'MARCAR RESUELTO'}
             </button>
@@ -219,19 +219,19 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId }: EnhancedIdeaC
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            className="input-brutal w-full min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-mostaza/20"
+            className="input-brutal w-full min-h-[80px] resize-none focus:outline-none focus:border-blanco-40"
             placeholder="Escribe una decisión, duda o ajuste..."
           />
           {busy && (
             <div className="absolute inset-0 flex items-center justify-center bg-negro/70">
-              <span className="font-mono text-[10px] text-mostaza anim-pulse">PUBLICANDO…</span>
+              <span className="font-mono text-[10px] text-blanco-60 anim-pulse">PUBLICANDO…</span>
             </div>
           )}
         </div>
         <div className="mt-2 flex justify-end">
           <button
             disabled={busy || !text.trim()}
-            className="btn-brutal text-[10px] px-3 py-1.5 disabled:opacity-50 hover:scale-[1.02] transition-transform"
+            className="btn-brutal text-[10px] px-3 py-1.5 disabled:opacity-50 transition-transform hover:scale-[1.02]"
           >
             {busy ? 'ENVIANDO…' : 'ENVIAR COMENTARIO →'}
           </button>
@@ -241,7 +241,7 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId }: EnhancedIdeaC
 
     {/* Panel de archivos simplificado */}
     <div className="mt-5 border-t border-blanco-10 pt-5">
-      <p className="mono-label text-mostaza">VERSIONES Y ARCHIVOS</p>
+      <p className="mono-label text-blanco-50">VERSIONES Y ARCHIVOS</p>
       <p className="mt-2 text-sm leading-6 text-blanco-60">
         Centraliza referencia, guion, crudo y entregables. Cada carga deja una versión y nunca reemplaza la anterior.
       </p>
@@ -250,7 +250,7 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId }: EnhancedIdeaC
         {/* Controles de selección de tipo */}
         <div>
           <label className="block">
-            <span className="mono-label mb-1 block text-mostaza">// TIPO DE ENTREGA</span>
+            <span className="mono-label mb-1 block text-blanco-50">// TIPO DE ENTREGA</span>
             <select 
               value={stage} 
               onChange={(e) => setStage(e.target.value as AssetStage)} 
@@ -264,7 +264,7 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId }: EnhancedIdeaC
         </div>
         
         {/* Zona de carga de archivos por input */}
-        <label className="mt-3 flex min-h-32 cursor-pointer flex-col items-center justify-center border-2 border-dashed border-mostaza p-4 text-center hover:bg-mostaza/10 transition-all duration-200">
+        <label className="mt-3 flex min-h-32 cursor-pointer flex-col items-center justify-center border border-dashed border-blanco-20 p-4 text-center transition-all duration-200 hover:border-blanco-40 hover:bg-blanco-05">
           <input 
             type="file" 
             className="sr-only" 
@@ -272,7 +272,7 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId }: EnhancedIdeaC
             disabled={busy} 
             accept="image/*,video/*,.pdf,.doc,.docx"
           />
-          <span className="font-display text-lg font-bold text-mostaza">
+          <span className="font-display text-lg font-bold text-blanco-70">
             {busy ? 'SUBIENDO…' : `+ CARGAR ${stageLabel(stage)}`}
           </span>
           <span className="mt-1 font-mono text-[10px] text-blanco-40">
@@ -283,7 +283,7 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId }: EnhancedIdeaC
         {notice && (
           <p 
             role="status" 
-            className="mt-2 border border-mostaza bg-mostaza/10 p-1 font-mono text-[10px] leading-4 text-blanco"
+            className="mt-2 border border-blanco-20 bg-blanco-05 p-1 font-mono text-[10px] leading-4 text-blanco"
           >
             {notice}
           </p>
@@ -292,17 +292,17 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId }: EnhancedIdeaC
       
       {/* Historial de entregas simplificado */}
       <div className="mt-4 border-t border-blanco-10 pt-3">
-        <p className="mono-label text-mostaza">HISTORIAL DE ENTREGAS</p>
+        <p className="mono-label text-blanco-50">HISTORIAL DE ENTREGAS</p>
         <div className="mt-2 space-y-1">
           {assets.map((asset) => (
             <button 
               key={asset.id} 
               onClick={() => openAsset(asset)} 
-              className="block w-full text-left font-mono text-[10px] text-blanco-60 hover:text-mostaza transition-colors duration-150"
+              className="block w-full text-left font-mono text-[10px] text-blanco-60 transition-colors duration-150 hover:text-blanco"
             >
               <div className="flex items-center justify-between gap-1 mb-0.5">
                 <span className="truncate text-blanco-60">{asset.kind} // {asset.name}</span>
-                <span className="text-mostaza">{asset.version}</span>
+                <span className="text-blanco-60">{asset.version}</span>
               </div>
               <span className="text-blanco-40 text-[10px]">{stageLabel(asset.stage)} · {asset.createdAt}</span>
             </button>

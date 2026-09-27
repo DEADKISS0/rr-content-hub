@@ -32,17 +32,17 @@ export function ProjectDashboard({ project, projectSlug, ideas, role }: { projec
   return (
     <main className="min-h-screen bg-negro">
       <div className="mx-auto max-w-[1440px] px-5 py-8 md:px-10 md:py-12">
-        <header className="anim-rise mb-10 grid gap-8 border-b-2 border-blanco pb-10 lg:grid-cols-[1fr_auto] lg:items-end">
+        <header className="anim-rise mb-10 grid gap-8 border-b border-blanco-20 pb-10 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
             <p className="eyebrow">[{project.name.toUpperCase()} · OPERACIÓN VIVA]</p>
-            <h1 className="display-title">EL TRABAJO<br /><em>VISIBLE.</em></h1>
+            <h1 className="display-title">El trabajo visible.</h1>
             <p className="mt-6 max-w-2xl text-base leading-8 text-blanco-70">
               {project.description ?? 'Cada pieza avanza de izquierda a derecha. El ícono, el color y el texto te dicen quién tiene la pelota.'}
             </p>
             <div className="mt-6 flex flex-wrap items-center gap-2">
               <Chip icon="user" tone="blanco">TU ROL: {roleLabel}</Chip>
               <Chip icon="pieces" tone="neutro">{ideas.length} PIEZAS EN EL HUB</Chip>
-              <Chip icon="alert" tone={waiting.length ? 'mostaza' : 'neutro'}>{waiting.length} PIEZAS PARADAS</Chip>
+              <Chip icon="alert" tone="neutro">{waiting.length} PIEZAS PARADAS</Chip>
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -53,25 +53,25 @@ export function ProjectDashboard({ project, projectSlug, ideas, role }: { projec
         <ProjectMap ideas={ideas} projectSlug={projectSlug} />
 
         <section className="mt-10 grid gap-5 lg:grid-cols-[1.2fr_1fr]">
-          <div className="border-2 border-fucsia bg-fucsia/10 p-6 sm:p-8">
+          <div className="border border-blanco-20 bg-blanco-05 p-6 sm:p-8">
             <p className="eyebrow">[QUÉ ESTÁ DETENIDO]</p>
             <p className="mt-3 font-display text-6xl font-bold leading-none text-blanco">{waiting.length}</p>
-            <h2 className="mt-2 font-display text-2xl font-bold text-blanco">{waiting.length ? 'PIEZAS PARADAS.' : 'TODO AVANZA.'}</h2>
+            <h2 className="mt-2 font-display text-2xl font-bold text-blanco">{waiting.length ? 'Piezas paradas.' : 'Todo avanza.'}</h2>
             <p className="mt-3 text-sm leading-6 text-blanco-70">
               {waiting.length
                 ? `Ninguna avanza sin que alguien responda: ${waiting.filter((idea) => statusMeta(idea.status).who === 'CLIENTE').length} esperan al cliente y ${waiting.filter((idea) => statusMeta(idea.status).who !== 'CLIENTE').length} al equipo de RR.`
                 : 'No hay bloqueos pendientes en este momento.'}
             </p>
-            <Link href={`/${projectSlug}/aprobaciones`} className="mt-5 inline-flex items-center gap-2 font-mono text-xs text-mostaza underline">VER DECISIONES <Icon name="arrow" size={13} /></Link>
+            <Link href={`/${projectSlug}/aprobaciones`} className="mt-5 inline-flex items-center gap-2 font-mono text-xs text-blanco-60 underline hover:text-blanco">VER DECISIONES <Icon name="arrow" size={13} /></Link>
           </div>
 
-          <div className="border-2 border-blanco p-5 sm:p-6">
+          <div className="border border-blanco-20 p-5 sm:p-6">
             <p className="eyebrow">[QUIÉN ESTÁ ESPERANDO QUÉ]</p>
             {waiting.length ? (
               <ul className="mt-4 space-y-3">
                 {Object.entries(byActor).map(([who, items]) => (
                   <li key={who} className="flex items-start gap-3 border-b border-blanco-10 pb-3 last:border-0 last:pb-0">
-                    <Initials label={who} tone={who === 'CLIENTE' ? 'mostaza' : 'orquidea'} size={30} />
+                    <Initials label={who} tone="neutro" size={30} />
                     <div className="min-w-0">
                       <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-blanco-50">{who} · {items.length} PIEZA{items.length === 1 ? '' : 'S'}</p>
                       <p className="mt-1 truncate font-display text-sm font-bold text-blanco">

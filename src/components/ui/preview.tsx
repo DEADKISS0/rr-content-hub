@@ -82,14 +82,14 @@ export function PublicationPreview({
 
       {/* Aviso honesto, pequeño: la miniatura no es pública, se ve al abrir. */}
       {!showReal && !compact && (
-        <span className="absolute right-2 top-2 border border-mostaza/60 bg-negro/85 px-1.5 py-1 font-mono text-[10px] tracking-[0.06em] text-mostaza">
+        <span className="absolute right-2 top-2 border border-blanco-20 bg-negro/85 px-1.5 py-1 font-mono text-[10px] tracking-[0.06em] text-blanco-50">
           SIN MINIATURA
         </span>
       )}
 
       <span className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 bg-gradient-to-t from-negro via-negro/70 to-transparent p-2">
         <span className="font-mono text-[10px] font-bold tracking-[0.1em] text-blanco">{code ?? 'PIEZA'}</span>
-        <span className="inline-flex items-center gap-1 font-mono text-[10px] text-mostaza opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+        <span className="inline-flex items-center gap-1 font-mono text-[10px] text-blanco-60 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
           VER <Icon name="arrow" size={11} />
         </span>
       </span>
@@ -115,7 +115,7 @@ function PostMock({ source, code, title, compact = false }: { source: ReferenceS
 
       <div className="relative flex h-full flex-col justify-between p-2">
         <div className="flex items-center gap-2">
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center border border-fucsia bg-fucsia/20 font-mono text-[10px] font-bold text-blanco">RR</span>
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center border border-blanco-30 bg-blanco-10 font-mono text-[10px] font-bold text-blanco">RR</span>
           <span className="min-w-0 leading-tight">
             <span className="block truncate font-mono text-[10px] text-blanco">
               {source.handle ? `@${source.handle}` : source.label.toLowerCase()}
