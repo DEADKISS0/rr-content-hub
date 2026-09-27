@@ -36,7 +36,7 @@ export function PhaseRail({ status, compact = false }: { status: string; compact
     <div className="flex items-stretch gap-[3px]">
       {PHASES.map((phase, index) => {
         const state = index < active ? 'done' : index === active ? 'live' : 'todo';
-        const skin = state === 'live' ? 'border-mostaza bg-mostaza text-negro' : state === 'done' ? 'border-blanco-30 bg-blanco-10 text-blanco-60' : 'border-blanco-30 bg-negro text-blanco-50';
+        const skin = state === 'live' ? 'border-blanco-40 bg-blanco-10 text-blanco' : state === 'done' ? 'border-blanco-30 bg-blanco-10 text-blanco-60' : 'border-blanco-30 bg-negro text-blanco-50';
         return (
           <span key={phase.key} className={`flex-1 border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.06em] ${skin}`} title={`${phase.label} · ${phase.detail}`}>
             {compact ? index + 1 : phase.label}

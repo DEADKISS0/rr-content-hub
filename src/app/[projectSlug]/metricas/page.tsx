@@ -35,27 +35,27 @@ export default async function Metrics({ params }: { params: Promise<{ projectSlu
       empty="No hay publicaciones registradas todavía. Cuando la primera pieza salga, aquí se cuenta."
     />
     {published.length > 0 && <section className="mx-auto mt-4 max-w-7xl px-5 md:px-10">
-      <p className="mono-label text-mostaza">[LO QUE SÍ PODEMOS MEDIR HOY]</p>
+      <p className="mono-label text-blanco-50">[LO QUE SÍ PODEMOS MEDIR HOY]</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         {[['PUBLICADAS', published.length], ['ORGÁNICO', organic.length], ['PAUTA', paid.length]].map(([label, n]) => (
-          <div key={String(label)} className="border-2 border-blanco-20 p-4">
+          <div key={String(label)} className="border border-blanco-20 p-4">
             <p className="font-mono text-[10px] text-blanco-60">{label}</p>
-            <p className="mt-1 font-display text-3xl font-bold text-fucsia">{n}</p>
+            <p className="mt-1 font-display text-3xl font-bold text-blanco">{n}</p>
           </div>
         ))}
       </div>
-      {top.length > 0 && <div className="mt-4 border-2 border-blanco-20 p-4">
-        <p className="mono-label text-mostaza">[REPARTO POR CATEGORÍA]</p>
+      {top.length > 0 && <div className="mt-4 border border-blanco-20 p-4">
+        <p className="mono-label text-blanco-50">[REPARTO POR CATEGORÍA]</p>
         <ul className="mt-3 space-y-2">
           {top.map(([cat, n]) => (
             <li key={cat} className="flex items-center justify-between border-b border-blanco-10 pb-2 font-mono text-xs">
               <span className="text-blanco">{cat}</span>
-              <span className="text-mostaza">{n}</span>
+              <span className="text-blanco-60">{n}</span>
             </li>
           ))}
         </ul>
       </div>}
-      <p className="mt-4 border-l-4 border-mostaza bg-mostaza/10 p-4 text-xs leading-6 text-blanco-60">
+      <p className="mt-4 border-l-4 border-blanco-20 bg-blanco-05 p-4 text-xs leading-6 text-blanco-60">
         Alcance, interacción y conversión no se miden todavía: ninguna tabla registra
         ese dato. Hasta que exista, esta página solo cuenta piezas, no rendimiento.
       </p>

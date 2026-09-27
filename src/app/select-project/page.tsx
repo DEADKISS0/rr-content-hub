@@ -13,9 +13,9 @@ export default async function SelectProject() {
 
   if (!project) {
     return <main className="grid min-h-screen place-items-center bg-negro px-5 py-20">
-      <div className="w-full max-w-2xl border-2 border-mostaza p-8 anim-rise">
+      <div className="w-full max-w-2xl border border-blanco-20 p-8 anim-rise">
         <p className="eyebrow">[RR CONTENT HUB]</p>
-        <h1 className="mt-4 font-display text-4xl font-bold text-blanco">SIN DATOS DISPONIBLES.</h1>
+        <h1 className="mt-4 font-display text-4xl font-bold text-blanco">Sin datos disponibles.</h1>
         <p className="mt-5 text-sm leading-7 text-blanco-60">No pudimos leer el proyecto. Revisa la conexión con la base o avisa al administrador.</p>
       </div>
     </main>;
@@ -30,24 +30,24 @@ export default async function SelectProject() {
 
   return <main className="min-h-screen bg-negro px-5 py-10 md:px-12">
     <div className="mx-auto max-w-5xl">
-      <header className="mb-12 border-b-2 border-blanco pb-10 anim-rise">
+      <header className="mb-12 border-b border-blanco-20 pb-10 anim-rise">
         <p className="eyebrow">[RR CONTENT HUB · ESPACIO ÚNICO]</p>
-        <h1 className="display-title">{project.name?.toUpperCase() ?? 'PROYECTO'}<br /><em>EN MARCHA.</em></h1>
+        <h1 className="display-title">{project.name ?? 'Proyecto'} en marcha.</h1>
         <p className="mt-6 max-w-xl text-base leading-8 text-blanco-60">Aquí vive toda la operación de contenido. Una sola marca, un solo tablero, un siguiente paso claro.</p>
       </header>
 
-      <Link href={`/${project.slug}`} className="group block border-2 border-fucsia bg-fucsia/10 p-7 shadow-brutal-lg transition-transform duration-300 hover:-translate-y-1 anim-rise md:p-10" style={{ animationDelay: '120ms' }}>
-        <p className="mono-label text-mostaza">[PROYECTO ACTIVO · {(access.role_in_project ?? 'OWNER').toUpperCase()}]</p>
+      <Link href={`/${project.slug}`} className="group block border border-blanco-20 bg-blanco-05 p-7 transition-colors duration-300 hover:border-blanco-40 anim-rise md:p-10" style={{ animationDelay: '120ms' }}>
+        <p className="mono-label text-blanco-50">[PROYECTO ACTIVO · {(access.role_in_project ?? 'OWNER').toUpperCase()}]</p>
         <div className="mt-6 flex flex-wrap items-end justify-between gap-6">
           <div>
             <h2 className="font-display text-5xl font-bold text-blanco md:text-7xl">{project.name}</h2>
             <p className="mt-3 font-mono text-xs text-blanco-60">{project.client_name}</p>
           </div>
-          <span className="inline-flex items-center gap-2 font-mono text-sm text-mostaza">ABRIR EL MAPA <Icon name="arrow" size={15} /></span>
+          <span className="inline-flex items-center gap-2 font-mono text-sm text-blanco-60">ABRIR EL MAPA <Icon name="arrow" size={15} /></span>
         </div>
-        <ol className="mt-8 grid gap-px border-t-2 border-fucsia/40 pt-6 sm:grid-cols-2 lg:grid-cols-4">
+        <ol className="mt-8 grid gap-px border-t border-blanco-20 pt-6 sm:grid-cols-2 lg:grid-cols-4">
           {steps.map((step, index) => <li key={step.label} className="flex items-start gap-3 pr-4">
-            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center border border-mostaza/60 text-mostaza"><Icon name={step.icon} size={13} /></span>
+            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center border border-blanco-20 text-blanco-40"><Icon name={step.icon} size={13} /></span>
             <span>
               <strong className="block font-mono text-[10px] tracking-[0.08em] text-blanco">{String(index + 1).padStart(2, '0')} · {step.label}</strong>
               <small className="mt-1 block font-mono text-[10px] leading-5 text-blanco-60">{step.text}</small>
@@ -58,7 +58,7 @@ export default async function SelectProject() {
 
       <p className="mt-8 font-mono text-[10px] text-blanco-50">
         {(projects as any[]).length > 1 ? `${(projects as any[]).length} PROYECTOS VISIBLES EN ESTE HUB.` : 'ESTE ES EL ÚNICO PROYECTO VISIBLE EN ESTE HUB.'}
-        {' '}¿Solo necesitas revisar? <Link href={`/audit/${project.slug}`} className="text-mostaza underline">ABRE LA AUDITORÍA</Link>.
+        {' '}¿Solo necesitas revisar? <Link href={`/audit/${project.slug}`} className="text-blanco-60 underline hover:text-blanco">ABRE LA AUDITORÍA</Link>.
       </p>
     </div>
   </main>;

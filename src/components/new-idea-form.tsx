@@ -69,11 +69,11 @@ export function NewIdeaForm({ projectSlug }: { projectSlug: string }) {
   }
 
   return <form onSubmit={submit} className="mt-10 space-y-6">
-    <div className="border-l-2 border-orquidea bg-orquidea/10 px-4 py-3 font-mono text-[10px] leading-5 text-blanco-60">[CAPTURA GUIADA] Pega la referencia, escribe título y objetivo. El sistema prepara un primer brief para cámara, modelo, edición y guion; cada rol lo puede afinar después.</div>
-    {notice && <p role="alert" className="border-2 border-fucsia bg-fucsia/10 p-3 font-mono text-xs text-blanco anim-pop">{notice}</p>}
+    <div className="border-l-2 border-blanco-20 bg-blanco-05 px-4 py-3 font-mono text-[10px] leading-5 text-blanco-60">[CAPTURA GUIADA] Pega la referencia, escribe título y objetivo. El sistema prepara un primer brief para cámara, modelo, edición y guion; cada rol lo puede afinar después.</div>
+    {notice && <p role="alert" className="border border-blanco-20 bg-blanco-05 p-3 font-mono text-xs text-blanco anim-pop">{notice}</p>}
 
     <div className="grid gap-6 md:grid-cols-[120px_1fr]">
-      <label className="block"><span className="mono-label mb-2 block text-mostaza">// CÓDIGO</span><input value={code || '—'} disabled className="input-brutal bg-blanco-10 text-center font-display text-xl text-mostaza" /><span className="mt-2 block font-mono text-[10px] text-blanco-40">Se genera solo</span></label>
+      <label className="block"><span className="mono-label mb-2 block text-blanco-50">// CÓDIGO</span><input value={code || '—'} disabled className="input-brutal bg-blanco-10 text-center font-display text-xl text-blanco" /><span className="mt-2 block font-mono text-[10px] text-blanco-40">Se genera solo</span></label>
       <Field label="TÍTULO *" value={form.title} onChange={(value) => update('title', value)} placeholder="Ej. La textura que se siente" />
     </div>
 
@@ -85,10 +85,10 @@ export function NewIdeaForm({ projectSlug }: { projectSlug: string }) {
     <Field label="DESCRIPCIÓN / CONCEPTO" value={form.description} onChange={(value) => update('description', value)} textarea placeholder="Describe la idea en lenguaje claro para el cliente y el equipo..." />
     <div>
       <Field label="REFERENCIA VISUAL (INSTAGRAM, TIKTOK, YOUTUBE O FACEBOOK)" value={form.reference} onChange={(value) => update('reference', value)} placeholder="Pega un enlace: la previsualización aparece abajo" />
-      {!referenceValid && <p role="alert" className="mt-2 border-2 border-fucsia bg-fucsia/10 p-2 font-mono text-[10px] text-blanco">Ese texto no parece un enlace válido. Debe empezar por https://</p>}
+      {!referenceValid && <p role="alert" className="mt-2 border border-blanco-20 bg-blanco-05 p-2 font-mono text-[10px] text-blanco">Ese texto no parece un enlace válido. Debe empezar por https://</p>}
     </div>
-    {form.reference.trim() && referenceValid && <section aria-live="polite"><p className="mono-label mb-2 text-mostaza">// PREVISUALIZACIÓN AUTOMÁTICA</p><ReferenceWithBrief url={form.reference.trim()} title={form.title || 'Nueva idea'} brief={{ intention: form.objective, camera: form.camera, talent: form.talent, edit: form.edit }} /></section>}
-    <details className="border-2 border-blanco-20 p-5" open><summary className="cursor-pointer font-mono text-[10px] text-mostaza">BRIEF AUTOMÁTICO · PUEDES AJUSTARLO ANTES DE GUARDAR</summary>
+    {form.reference.trim() && referenceValid && <section aria-live="polite"><p className="mono-label mb-2 text-blanco-50">// PREVISUALIZACIÓN AUTOMÁTICA</p><ReferenceWithBrief url={form.reference.trim()} title={form.title || 'Nueva idea'} brief={{ intention: form.objective, camera: form.camera, talent: form.talent, edit: form.edit }} /></section>}
+    <details className="border border-blanco-20 p-5" open><summary className="cursor-pointer font-mono text-[10px] text-blanco-50">BRIEF AUTOMÁTICO · PUEDES AJUSTARLO ANTES DE GUARDAR</summary>
       <div className="mt-5 grid gap-6 md:grid-cols-3">
         <Field label="CÁMARA" value={form.camera} onChange={(value) => update('camera', value)} textarea placeholder={generated.camera} />
         <Field label="TALENTO / MODELAJE" value={form.talent} onChange={(value) => update('talent', value)} textarea placeholder={generated.talent} />
@@ -103,5 +103,5 @@ export function NewIdeaForm({ projectSlug }: { projectSlug: string }) {
 }
 
 function Field({ label, value, onChange, placeholder, textarea, select, options }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; textarea?: boolean; select?: boolean; options?: string[] }) {
-  return <label className="block"><span className="mono-label mb-2 block text-mostaza">// {label}</span>{select ? <select value={value} onChange={(event) => onChange(event.target.value)} className="input-brutal">{options?.map((option) => <option key={option}>{option}</option>)}</select> : textarea ? <textarea value={value} onChange={(event) => onChange(event.target.value)} className="input-brutal min-h-28" placeholder={placeholder} /> : <input value={value} onChange={(event) => onChange(event.target.value)} className="input-brutal" placeholder={placeholder} />}</label>;
+  return <label className="block"><span className="mono-label mb-2 block text-blanco-50">// {label}</span>{select ? <select value={value} onChange={(event) => onChange(event.target.value)} className="input-brutal">{options?.map((option) => <option key={option}>{option}</option>)}</select> : textarea ? <textarea value={value} onChange={(event) => onChange(event.target.value)} className="input-brutal min-h-28" placeholder={placeholder} /> : <input value={value} onChange={(event) => onChange(event.target.value)} className="input-brutal" placeholder={placeholder} />}</label>;
 }

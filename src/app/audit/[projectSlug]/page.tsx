@@ -37,26 +37,26 @@ export default async function AuditOverview({ params }: { params: Promise<{ proj
     <section className="mb-10 flex flex-wrap items-end justify-between gap-6 border-b border-blanco-10 pb-8">
       <div>
         <p className="eyebrow">[AUDIT_MODE] · {project.client_name as string}</p>
-        <h1 className="display-title">{project.name as string}<br/><em>PANORAMA.</em></h1>
+        <h1 className="display-title">{project.name as string} en panorama.</h1>
         <p className="mt-5 max-w-2xl text-sm leading-7 text-blanco-60">{(project.description as string) ?? 'Vista pública del flujo completo de contenido.'}</p>
       </div>
       <div className="flex gap-8">
-        <div><p className="font-display text-5xl font-bold text-mostaza">{total}</p><p className="mt-2 font-mono text-[10px] text-blanco-60">IDEAS TOTALES</p></div>
-        <div><p className="font-display text-5xl font-bold text-fucsia">{active}</p><p className="mt-2 font-mono text-[10px] text-blanco-60">EN CURSO</p></div>
+        <div><p className="font-display text-5xl font-bold text-blanco">{total}</p><p className="mt-2 font-mono text-[10px] text-blanco-60">IDEAS TOTALES</p></div>
+        <div><p className="font-display text-5xl font-bold text-blanco-60">{active}</p><p className="mt-2 font-mono text-[10px] text-blanco-60">EN CURSO</p></div>
       </div>
     </section>
 
     <section aria-label="Fases del flujo" className="mb-12">
       <p className="eyebrow mb-5">[FLUJO EN CINCO FASES]</p>
-      <ol className="grid gap-px border-2 border-blanco bg-blanco sm:grid-cols-2 lg:grid-cols-5">
+      <ol className="grid gap-px border border-blanco-20 bg-blanco-10 sm:grid-cols-2 lg:grid-cols-5">
         {PHASES.map((phase, index) => <li key={phase.key} className="bg-negro p-5">
-          <div className="flex items-center justify-between"><span className="mono-label text-mostaza">{String(index + 1).padStart(2, '0')} · {phase.label}</span><span className="font-display text-3xl font-bold text-blanco">{phaseCount(phase.statuses)}</span></div>
+          <div className="flex items-center justify-between"><span className="mono-label text-blanco-50">{String(index + 1).padStart(2, '0')} · {phase.label}</span><span className="font-display text-3xl font-bold text-blanco">{phaseCount(phase.statuses)}</span></div>
           <p className="mt-3 text-xs leading-5 text-blanco-60">{phase.detail}</p>
         </li>)}
       </ol>
     </section>
 
-    <section className="mb-12 grid gap-px border-2 border-blanco-20 bg-blanco-10 sm:grid-cols-2 lg:grid-cols-4">
+    <section className="mb-12 grid gap-px border border-blanco-20 bg-blanco-10 sm:grid-cols-2 lg:grid-cols-4">
       {AUDIT_TILES.map(({ label, statuses }) => <div key={label} className="bg-negro p-5"><p className="font-display text-4xl font-bold text-blanco">{phaseCount(statuses)}</p><p className="mt-2 font-mono text-[10px] text-blanco-60">{label}</p></div>)}
     </section>
 
@@ -66,7 +66,7 @@ export default async function AuditOverview({ params }: { params: Promise<{ proj
         {Object.entries(STATUS_META).map(([status, meta]) => {
           const value = counts[status] ?? 0;
           if (!value) return null;
-          return <div key={status} className="flex items-center justify-between border border-blanco-20 px-4 py-3"><StatusBadge status={status} /><span className="font-display text-xl font-bold text-mostaza">{value}</span></div>;
+          return <div key={status} className="flex items-center justify-between border border-blanco-20 px-4 py-3"><StatusBadge status={status} /><span className="font-display text-xl font-bold text-blanco-60">{value}</span></div>;
         })}
         {total === 0 && <p className="font-mono text-xs text-blanco-40">SIN IDEAS REGISTRADAS.</p>}
       </div>
@@ -74,16 +74,16 @@ export default async function AuditOverview({ params }: { params: Promise<{ proj
 
     <section>
       <div className="mb-5 flex items-end justify-between border-b border-blanco-10 pb-3">
-        <div><p className="eyebrow">[BANCO COMPLETO · READ ONLY]</p><h2 className="section-heading mt-2">TODAS LAS PIEZAS.</h2></div>
+        <div><p className="eyebrow">[BANCO COMPLETO · READ ONLY]</p><h2 className="section-heading mt-2">Todas las piezas.</h2></div>
         <span className="font-mono text-[10px] text-blanco-40">{sorted.length} REGISTROS</span>
       </div>
       <div className="stagger grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {sorted.map((idea: any) => <Link key={idea.id} href={`/audit/${projectSlug}/ideas/${idea.id}`} className="brutal-panel group">
-          <div className="mb-5 flex flex-wrap items-start justify-between gap-3"><span className="mono-label text-mostaza">[{idea.code} · {idea.content_type === 'organic' ? 'ORGÁNICO' : 'PAUTA'}]</span><StatusBadge status={idea.status} showStep /></div>
-          <h3 className="font-display text-2xl font-bold text-blanco group-hover:text-fucsia">{idea.title}</h3>
+          <div className="mb-5 flex flex-wrap items-start justify-between gap-3"><span className="mono-label text-blanco-50">[{idea.code} · {idea.content_type === 'organic' ? 'ORGÁNICO' : 'PAUTA'}]</span><StatusBadge status={idea.status} showStep /></div>
+          <h3 className="font-display text-2xl font-bold text-blanco group-hover:text-blanco-90">{idea.title}</h3>
           <p className="mt-3 line-clamp-3 text-sm leading-6 text-blanco-60">{idea.description}</p>
           {productionStep(idea.status as WorkflowStatus) >= 0 && <div className="mt-5"><ProductionPipeline status={idea.status} compact /></div>}
-          <div className="mt-6 border-t border-blanco-10 pt-4 font-mono text-[10px] text-blanco-40">{idea.category} <span className="float-right text-fucsia">VER FICHA →</span></div>
+          <div className="mt-6 border-t border-blanco-10 pt-4 font-mono text-[10px] text-blanco-40">{idea.category} <span className="float-right text-blanco-60">VER FICHA →</span></div>
         </Link>)}
       </div>
     </section>

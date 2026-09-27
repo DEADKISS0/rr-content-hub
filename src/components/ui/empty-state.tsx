@@ -16,7 +16,7 @@ export function EmptyState({ icon = 'pieces', title, hint, action }: { icon?: Ic
       <span className="flex h-10 w-10 items-center justify-center border border-blanco-20 text-blanco-30"><Icon name={icon} size={18} /></span>
       <p className="font-display text-base font-bold text-blanco-60">{title}</p>
       <p className="max-w-[16rem] text-[11px] leading-4 text-blanco-60">{hint}</p>
-      {action && <Link href={action.href} className="mt-1 inline-flex items-center gap-2 border border-mostaza px-3 py-2 font-mono text-[10px] text-mostaza transition-colors hover:bg-mostaza hover:text-negro"><Icon name="plus" size={12} />{action.label}</Link>}
+      {action && <Link href={action.href} className="mt-1 inline-flex items-center gap-2 border border-blanco-20 px-3 py-2 font-mono text-[10px] text-blanco-60 transition-colors hover:border-blanco-40 hover:bg-blanco-10 hover:text-blanco"><Icon name="plus" size={12} />{action.label}</Link>}
     </div>
   );
 }

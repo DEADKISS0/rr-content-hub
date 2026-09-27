@@ -55,9 +55,9 @@ export default async function AuditIdeaDetail({ params }: { params: Promise<{ pr
     </div>
 
     <section aria-label="Fase del flujo" className="mb-8">
-      <ol className="grid gap-px border-2 border-blanco-20 bg-blanco-20 sm:grid-cols-5">
-        {PHASES.map((phase, index) => <li key={phase.key} className={`p-3 ${index < currentPhase ? 'bg-mostaza/20' : index === currentPhase ? 'bg-fucsia/20' : 'bg-negro'}`}>
-          <p className={`font-mono text-[10px] ${index === currentPhase ? 'text-fucsia' : 'text-blanco-60'}`}>{String(index + 1).padStart(2, '0')} {phase.label}</p>
+      <ol className="grid gap-px border border-blanco-20 bg-blanco-10 sm:grid-cols-5">
+        {PHASES.map((phase, index) => <li key={phase.key} className={`p-3 ${index < currentPhase ? 'bg-blanco-10' : index === currentPhase ? 'bg-blanco-10' : 'bg-negro'}`}>
+          <p className={`font-mono text-[10px] ${index === currentPhase ? 'text-blanco' : 'text-blanco-60'}`}>{String(index + 1).padStart(2, '0')} {phase.label}</p>
         </li>)}
       </ol>
     </section>
@@ -70,11 +70,11 @@ export default async function AuditIdeaDetail({ params }: { params: Promise<{ pr
         <div className="mt-6 flex flex-wrap items-center gap-2">
           <Chip icon={formatOf(idea.category, idea.content_type).icon as IconName} tone="blanco">{formatOf(idea.category, idea.content_type).label}</Chip>
           <Chip icon="pieces" tone="neutro">{idea.category ?? 'SIN CATEGORÍA'}</Chip>
-          <Chip icon="eye" tone="mostaza">SOLO LECTURA</Chip>
+          <Chip icon="eye" tone="neutro">SOLO LECTURA</Chip>
         </div>
       </div>
       <div>
-        <p className="mono-label mb-3 text-mostaza">// COMO SE VERÁ PUBLICADO</p>
+        <p className="mono-label mb-3 text-blanco-50">// COMO SE VERÁ PUBLICADO</p>
         <PublicationPreview url={raw} code={idea.code} title={idea.title} format={formatOf(idea.category, idea.content_type).icon as IconName} size="lg" />
       </div>
     </header>
@@ -83,24 +83,24 @@ export default async function AuditIdeaDetail({ params }: { params: Promise<{ pr
       <section className="space-y-5">
         <ReferenceWithBrief url={raw} title={idea.title} brief={{ intention: idea.objective, camera: idea.camera, talent: idea.talent, edit: idea.edit }}/>
         <Block title="OBJETIVO">{idea.objective}</Block>
-        <div className="grid gap-px border-2 border-blanco-20 bg-blanco-10 md:grid-cols-3">
+        <div className="grid gap-px border border-blanco-20 bg-blanco-10 md:grid-cols-3">
           <Block title="CÁMARA">{idea.camera}</Block>
           <Block title="TALENTO">{idea.talent}</Block>
           <Block title="EDICIÓN">{idea.edit}</Block>
         </div>
 
-        <section className="border-2 border-blanco bg-blanco-05 p-5">
-          <p className="mono-label text-mostaza">HILO DE DECISIONES ({comments.length})</p>
+        <section className="border border-blanco-20 bg-blanco-05 p-5">
+          <p className="mono-label text-blanco-50">HILO DE DECISIONES ({comments.length})</p>
           <div className="mt-4 space-y-3">
-            {comments.map((comment: any) => <article key={comment.id} className={`border-l-2 p-3 ${comment.resolved ? 'border-blanco-20 opacity-60' : 'border-fucsia'}`}><div className="flex flex-wrap justify-between gap-2 font-mono text-[10px]"><span className="text-mostaza">{comment.author} · {comment.role}</span><span className="text-blanco-40">{comment.resolved ? 'RESUELTO' : 'ABIERTO'}</span></div><p className="mt-2 text-sm leading-6 text-blanco-60">{comment.body}</p></article>)}
+            {comments.map((comment: any) => <article key={comment.id} className={`border-l-2 p-3 ${comment.resolved ? 'border-blanco-20 opacity-60' : 'border-blanco-40'}`}><div className="flex flex-wrap justify-between gap-2 font-mono text-[10px]"><span className="text-blanco-50">{comment.author} · {comment.role}</span><span className="text-blanco-40">{comment.resolved ? 'RESUELTO' : 'ABIERTO'}</span></div><p className="mt-2 text-sm leading-6 text-blanco-60">{comment.body}</p></article>)}
             {comments.length === 0 && <p className="py-4 font-mono text-[10px] text-blanco-40">SIN COMENTARIOS REGISTRADOS.</p>}
           </div>
         </section>
 
-        <section className="border-2 border-mostaza bg-mostaza/5 p-5">
-          <p className="mono-label text-mostaza">HISTORIAL DE ENTREGAS ({assets.length})</p>
+        <section className="border border-blanco-20 bg-blanco-05 p-5">
+          <p className="mono-label text-blanco-50">HISTORIAL DE ENTREGAS ({assets.length})</p>
           <div className="mt-4 space-y-2">
-            {assets.map((asset: any) => <div key={asset.id} className="flex items-center justify-between gap-3 border-b border-blanco-20 py-3 font-mono text-[10px]"><span className="truncate text-blanco-60">{asset.name}</span><span className="shrink-0 text-mostaza">{stageLabel[asset.stage] ?? asset.stage} · {asset.version}</span></div>)}
+            {assets.map((asset: any) => <div key={asset.id} className="flex items-center justify-between gap-3 border-b border-blanco-20 py-3 font-mono text-[10px]"><span className="truncate text-blanco-60">{asset.name}</span><span className="shrink-0 text-blanco-60">{stageLabel[asset.stage] ?? asset.stage} · {asset.version}</span></div>)}
             {assets.length === 0 && <p className="py-4 font-mono text-[10px] text-blanco-40">SIN ARCHIVOS CARGADOS.</p>}
           </div>
         </section>
@@ -109,7 +109,7 @@ export default async function AuditIdeaDetail({ params }: { params: Promise<{ pr
       <aside className="space-y-5">
         <div className="brutal-panel">
           <p className="eyebrow">[QUIÉN ACTÚA AHORA]</p>
-          <h2 className="mt-3 font-display text-2xl font-bold text-blanco">ESPERANDO A<br/><span className="text-mostaza">{waitingOn(status).toUpperCase()}</span></h2>
+          <h2 className="mt-3 font-display text-2xl font-bold text-blanco">Esperando a<br/><span className="text-blanco-80">{waitingOn(status).toUpperCase()}</span></h2>
           {nextMoves.length > 0 && <div className="mt-5 border-t border-blanco-20 pt-4"><p className="mono-label text-blanco-40">SIGUIENTES PASOS POSIBLES</p><ul className="mt-3 space-y-2">{nextMoves.map((move) => <li key={move.to} className="font-mono text-[10px] text-blanco-60">→ {move.label}</li>)}</ul></div>}
         </div>
 
@@ -125,7 +125,7 @@ export default async function AuditIdeaDetail({ params }: { params: Promise<{ pr
           <p className="eyebrow">[TRAZABILIDAD]</p>
           <p className="mt-2 font-mono text-[10px] text-blanco-40">{timeline.length} EVENTOS REGISTRADOS</p>
           <ol className="mt-4 space-y-3">
-            {timeline.map((event: any) => <li key={event.id} className="border-l border-fucsia pl-3"><p className="font-mono text-[10px] text-mostaza">{new Intl.DateTimeFormat('es-CO', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(event.createdAt))} · {event.actor}</p><p className="mt-1 font-mono text-[10px] text-blanco">[{STATUS_LABEL[event.status as WorkflowStatus] ?? event.status}]</p>{event.note && <p className="mt-1 text-xs leading-5 text-blanco-60">{event.note}</p>}</li>)}
+            {timeline.map((event: any) => <li key={event.id} className="border-l border-blanco-20 pl-3"><p className="font-mono text-[10px] text-blanco-50">{new Intl.DateTimeFormat('es-CO', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(event.createdAt))} · {event.actor}</p><p className="mt-1 font-mono text-[10px] text-blanco">[{STATUS_LABEL[event.status as WorkflowStatus] ?? event.status}]</p>{event.note && <p className="mt-1 text-xs leading-5 text-blanco-60">{event.note}</p>}</li>)}
             {timeline.length === 0 && <li className="font-mono text-[10px] text-blanco-40">SIN EVENTOS REGISTRADOS TODAVÍA.</li>}
           </ol>
         </div>
@@ -135,5 +135,5 @@ export default async function AuditIdeaDetail({ params }: { params: Promise<{ pr
 }
 
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
-  return <div className="border border-blanco-10 bg-blanco-05 p-5"><p className="mono-label mb-3 text-mostaza">// {title}</p><div className="text-sm leading-6 text-blanco-60">{children}</div></div>;
+  return <div className="border border-blanco-10 bg-blanco-05 p-5"><p className="mono-label mb-3 text-blanco-50">// {title}</p><div className="text-sm leading-6 text-blanco-60">{children}</div></div>;
 }

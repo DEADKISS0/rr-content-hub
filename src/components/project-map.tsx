@@ -173,8 +173,8 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
           })}
         </div>
       ) : (
-        <div key="list-view" className="view-in border-2 border-blanco">
-          <div className="hidden grid-cols-[6rem_1fr_auto_auto_auto] gap-4 border-b-2 border-blanco px-4 py-2 font-mono text-[10px] uppercase tracking-[0.08em] text-blanco-60 lg:grid">
+        <div key="list-view" className="view-in border border-blanco-20">
+          <div className="hidden grid-cols-[6rem_1fr_auto_auto_auto] gap-4 border-b border-blanco-20 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.08em] text-blanco-60 lg:grid">
             <span>CÓDIGO</span><span>PIEZA</span><span>INFO</span><span>ESPERA A</span><span>ESTADO</span>
           </div>
           {visible.map((idea, rowIndex) => {
@@ -197,7 +197,7 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
                   <small className="font-mono text-[10px] uppercase tracking-[0.06em] text-blanco-60">{format.label}{days !== null ? ` · ${days}D` : ''}{idea.priority === 'high' ? ' · ALTA' : ''}</small>
                 </span>
                 <span className="flex items-center gap-1">
-                  {states.map((state) => <span key={state.key} title={state.label} className={`h-4 w-4 border ${state.done ? 'border-fucsia bg-fucsia' : 'border-blanco-30'}`} />)}
+                  {states.map((state) => <span key={state.key} title={state.label} className={`h-4 w-4 border ${state.done ? 'border-blanco-40 bg-blanco-10' : 'border-blanco-30'}`} />)}
                 </span>
                 <span className="font-mono text-[10px] text-blanco-60">{meta.who}</span>
                 <StatusBadge status={idea.status} compact />

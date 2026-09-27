@@ -44,7 +44,7 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
   const days = daysSince(idea.updated_at ?? idea.created_at);
 
   return <main className="min-h-screen bg-negro">
-    <header className="border-b-2 border-blanco px-5 py-4 md:px-10">
+    <header className="border-b border-blanco-20 px-5 py-4 md:px-10">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
         <Breadcrumbs items={[
           { label: project.name, href: `/${projectSlug}` },
