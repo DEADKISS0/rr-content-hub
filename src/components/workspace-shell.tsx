@@ -7,6 +7,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { GuidedTour } from './guided-tour';
 import { Icon, type IconName } from './ui/icons';
 import { createClient } from '@/lib/supabase/client';
+import { AUTH_ENABLED } from '@/lib/mode';
 
 /**
  * Cascarón del proyecto.
@@ -215,10 +216,11 @@ export function WorkspaceShell({ children, project, role, email, puedeEscribir =
               {project.name.toUpperCase()} · TODO EL CONTENIDO EN UN LUGAR
             </Link>
             <div className="flex items-center gap-2">
-              {/* Acceso. No existía en ninguna parte de la interfaz: no había
-                  forma de entrar desde el hub ni de ver con qué cuenta se
-                  estaba. Con la sesión puesta, esto dice quién eres. */}
-              {sesion.correo ? (
+              {/* El hub está en modo abierto mientras el login de Google se
+                  resuelve: el acceso no se pide, así que aquí ya no hay nada
+                  que entrar. El botón se guardó en el código, no se borra —
+                  vuelve con `NEXT_PUBLIC_AUTH_ENABLED=true`. */}
+              {AUTH_ENABLED && (sesion.correo ? (
                 <details className="relative">
                   <summary className="inline-flex cursor-pointer list-none items-center gap-2 border border-blanco-20 px-2 py-1.5 font-mono text-[10px] text-blanco-70 hover:border-blanco-40">
                     <span className="inline-block h-4 w-4 border border-blanco-40 text-center leading-4 text-blanco-80">
@@ -241,11 +243,8 @@ export function WorkspaceShell({ children, project, role, email, puedeEscribir =
                 <Link href={`/login?next=${encodeURIComponent(`/${slug}/ideas/nueva`)}`} className="inline-flex items-center gap-2 border border-blanco-20 px-2 py-1.5 font-mono text-[10px] text-blanco-70 hover:border-blanco-40">
                   <Icon name="user" size={14} /> INICIAR SESIÓN
                 </Link>
-              )}
+              ))}
 
-              {/* Crear. Solo se ofrece si el servidor dice que el rol puede
-                  escribir. Antes el botón era idéntico para todos y el 401
-                  llegaba después del clic, sin explicación. */}
               {puedeEscribir ? (
                 <Link href={`/${slug}/ideas/nueva`} className="btn-brutal inline-flex items-center gap-2">
                   <Icon name="plus" size={14} /> NUEVA PIEZA

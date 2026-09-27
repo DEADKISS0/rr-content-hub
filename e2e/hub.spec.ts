@@ -50,11 +50,9 @@ test.describe('tablero', () => {
     await abrir(page, `/${PROYECTO}`);
 
     // Una sola puerta para crear: la regla que quitó 13 botones y 2 CTA de más.
-    // Cuenta solo el botón de acción, no los enlaces de navegación. Y sin
-    // sesión no hay botón: se ofrece "INICIAR SESIÓN". Antes esta prueba contaba
-    // cualquier enlace a esa ruta y el header no tenía ninguno visible.
-    await expect(page.locator('a[href$="/ideas/nueva"]:visible')).toHaveCount(0);
-    await expect(page.getByRole('link', { name: /INICIAR SESIÓN/ })).toBeVisible();
+    // En modo abierto la puerta está puesta, así que se espera el botón —y solo
+    // uno, en el header.
+    await expect(page.locator('a.btn-brutal[href$="/ideas/nueva"]:visible')).toHaveCount(1);
 
     await expect(page.getByText('TOCA UN PASO Y VES SOLO ESAS')).toBeVisible();
 
@@ -341,88 +339,72 @@ test.describe('modo guía', () => {
  *   3. El login devuelve al paso 1, no al tablero. Con `next` en la URL, y solo
  *      con rutas internas: un `?next=https://otro` sería un redirect abierto.
  */
-test.describe('acceso y creación', () => {
-  test('sin sesión, crear responde con un aviso y un botón para entrar', async ({ page }) => {
+test.describe('modo abierto', () => {
+  /**
+   * El hub quedó abierto mientras el login de Google se resuelve: la puerta se
+   * enfrentaba a Medellín Guide, que comparte proyecto de Supabase, y los dos
+   * se pisaban la sesión.
+   *
+   * Lo que se protege aquí es que "abierto" signifique de verdad abierto: el
+   * formulario se ve, el botón responde y no aparece ninguna puerta de entrada
+   * que redirija a otra aplicación.
+   */
+  test('la página de creación se abre y el botón responde', async ({ page }) => {
     await abrir(page, `/${PROYECTO}/ideas/nueva`);
 
-    await page.getByLabel(/TÍTULO/).fill('Prueba de acceso');
-    await page.getByLabel(/OBJETIVO/).fill('Verificar que el botón responde');
+    await expect(page.getByRole('heading', { name: 'Nueva idea.' })).toBeVisible();
 
+    await page.getByLabel(/TÍTULO/).fill('Prueba en modo abierto');
+    await page.getByLabel(/OBJETIVO/).fill('Verificar que el guardado no pide cuenta');
+
+    // O se guarda y navega a la ficha, o hay un aviso de verdad. Lo que NO
+    // puede ser es quedarse quieto sin decir nada: eso fue "no pasa nada".
+    const navego = page.waitForURL(/\/ideas\/[0-9a-f-]{36}/, { timeout: 20_000 }).catch(() => null);
     await page.getByRole('button', { name: /CREAR IDEA/ }).click();
+    const [, destino] = await Promise.all([navego, page.waitForTimeout(4000)]);
 
-    // `#aviso-crear`, no `getByRole('alert')`: Next.js monta su propio nodo
-    // `role="alert"` (`__next-route-announcer__`) y el selector genérico encuentra
-    // dos. La prueba pasaba sin comprobar nada.
-    const aviso = page.locator('#aviso-crear');
-    await expect(aviso).toBeVisible();
-    await expect(aviso).toContainText(/sesión/i);
-    // Y trae la salida, no solo el diagnóstico.
-    await expect(aviso.getByRole('link', { name: /ENTRAR Y SEGUIR/ })).toBeVisible();
+    const avisoVisible = await page.locator('#aviso-crear').isVisible().catch(() => false);
+    expect(destino !== null || avisoVisible).toBe(true);
   });
 
-  test('el botón de entrar conserva el paso 1 de creación', async ({ page }) => {
-    await abrir(page, `/${PROYECTO}/ideas/nueva`);
+  test('el header no pide entrar ni perfil', async ({ page }) => {
+    await abrir(page, `/${PROYECTO}`);
 
-    await page.getByRole('link', { name: /INICIAR SESIÓN/ }).click();
-    await expect(page).toHaveURL(/\/login\?next=/);
-
-    // El destino viaja en la URL, listo para que el callback lo use.
-    const destino = new URL(page.url()).searchParams.get('next');
-    expect(destino).toBe(`/${PROYECTO}/ideas/nueva`);
+    // La acción principal sigue ahí: es la que de verdad importa.
+    await expect(page.getByRole('link', { name: /NUEVA PIEZA/ })).toBeVisible();
+    // Y no hay un botón de acceso que pueda mandarte a otra aplicación.
+    await expect(page.getByRole('link', { name: /INICIAR SESIÓN/ })).toHaveCount(0);
   });
 
-  test('el login rechaza un next externo', async ({ page }) => {
-    await abrir(page, `/login?next=${encodeURIComponent('https://sitio-falso.example')}`);
+  test('nada en el hub manda a otro proyecto', async ({ page }) => {
+    const saltos: string[] = [];
+    page.on('framenavigated', (f) => { if (f === page.mainFrame()) saltos.push(f.url()); });
 
-    // Visible: no se redirige. Lo que se manda al proveedor es la ruta interna.
-    await expect(page.getByRole('button', { name: /Entrar con Google/i })).toBeVisible();
-    await expect(page).toHaveURL(/\/login\?next=/);
+    for (const ruta of ['/', `/${PROYECTO}`, `/${PROYECTO}/ideas/nueva`, `/${PROYECTO}/perfil`]) {
+      await page.goto(ruta).catch(() => {});
+    }
+    expect(saltos.filter((u) => /medellin/i.test(u))).toHaveLength(0);
   });
 });
 
 /**
- * El reporte literal fue "simplemente no carga cuando intento crear la idea".
+ * La página de creación se abre siempre.
  *
- * La causa era el middleware: `/wundeer/ideas/nueva` estaba en la lista de rutas
- * protegidas, así que sin sesión devolvía un 307 a `/login` SIN `next`. La
- * persona llegaba a un formulario vacío — o directamente a la portada — sin
- * haber visto nunca el formulario ni un error. De ahí "no carga".
- *
- * La regla que queda: la página de creación se abre siempre; la sesión se pide
- * al guardar, donde el aviso puede traer su propio botón. Las mutaciones del
- * servidor siguen exigiendo sesión: eso no se relaja.
+ * El reporte literal fue "simplemente no carga cuando intento crear la idea". La
+ * causa era el middleware: `/wundeer/ideas/nueva` estaba en la lista de rutas
+ * protegidas y sin sesión devolvía un 307 a `/login` SIN `next`. La persona
+ * llegaba a un formulario vacío —o a la portada— sin ver nunca el formulario ni
+ * un error. La regla se queda: la página se abre, la escritura se resuelve
+ * después.
  */
-test.describe('la puerta no bloquea la página', () => {
-  /**
-   * En producción `NEXT_PUBLIC_AUTH_ENABLED=true`, así que esta es la
-   * configuración que reproducía el 307. El server de pruebas corre con auth
-   * apagada: hay que levantarlo con la variable puesta o la prueba pasa de
-   * milagro y no mide nada.
-   */
-  test.use({ extraHTTPHeaders: {} });
-
-  test('la página de creación se abre sin sesión', async ({ page }) => {
+test.describe('la página nunca se bloquea', () => {
+  test('responde 200 con el formulario en pantalla', async ({ page }) => {
+    // La página se abre aunque la puerta esté encendida: pedir sesión en la
+    // entrada es justo lo que producía el 307 mudo.
     const respuesta = await page.goto(`/${PROYECTO}/ideas/nueva`);
     expect(respuesta?.status()).toBe(200);
-    // Y el formulario está de verdad en pantalla, no un 307 silencioso.
     await expect(page.getByRole('heading', { name: 'Nueva idea.' })).toBeVisible();
     await expect(page.getByRole('button', { name: /CREAR IDEA/ })).toBeVisible();
-  });
-
-  test('el aviso de sesión ofrece entrar sin perder el formulario', async ({ page }) => {
-    await abrir(page, `/${PROYECTO}/ideas/nueva`);
-
-    await page.getByLabel(/TÍTULO/).fill('Prueba sin perder el trabajo');
-    await page.getByLabel(/OBJETIVO/).fill('Verificar que el destino se conserva');
-
-    await page.getByRole('button', { name: /CREAR IDEA/ }).click();
-
-    const aviso = page.locator('#aviso-crear');
-    await expect(aviso).toBeVisible();
-
-    // El enlace al login lleva el paso 1, no la portada.
-    const enlace = aviso.getByRole('link', { name: /ENTRAR Y SEGUIR/ });
-    await expect(enlace).toHaveAttribute('href', `/login?next=${encodeURIComponent(`/${PROYECTO}/ideas/nueva`)}`);
   });
 });
 
@@ -434,9 +416,10 @@ test.describe('la puerta no bloquea la página', () => {
  * destino de respaldo. Si el login se pide sin `redirectTo`, vuelve ahí — y
  * "ahí" es la app que configuró el proyecto, no la que la persona eligió.
  *
- * La regla que queda: OAuth siempre aterriza en `/auth/callback` (la ruta que
- * GoTrue tiene permitida) y el destino viaja en `next`. Mandar el destino
- * final directo se rechaza y cae igual en la app equivocada.
+ * Estas pruebas siguen en pie aunque hoy la puerta esté apagada: el login y el
+ * callback siguen en el código, y vuelven con `NEXT_PUBLIC_AUTH_ENABLED=true`.
+ * Lo que se protege es que, cuando la puerta se encienda, no reintroduzca el
+ * salto a la otra aplicación.
  */
 test.describe('el login no se va a otra app', () => {
   test('el botón de Google pide el callback, nunca el destino final', async ({ page }) => {

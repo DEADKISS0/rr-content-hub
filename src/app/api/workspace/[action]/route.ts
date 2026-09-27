@@ -54,12 +54,45 @@ function unauthorized() {
   return error('Necesitas una sesión con acceso a este proyecto para hacer eso.', 401);
 }
 
+/**
+ * Modo abierto.
+ *
+ * El hub está detrás de un login de Google que comparte proyecto de Supabase con
+ * Medellín Guide, y los dos se pisan la sesión: entrar a uno te manda al otro.
+ * Mientras eso no se resuelve en el otro lado, `NEXT_PUBLIC_AUTH_ENABLED=false`
+ * deja el hub utilizable sin cuenta.
+ *
+ * Por qué el mismo interruptor apaga las dos cosas: si la puerta se abriera
+ * pero el servidor siguiera exigiendo sesión, la persona vería el formulario y
+ * el guardado fallaría igual — o peor, quien tenga una sesión abierta en el
+ * otro proyecto escribiría con el rol de este.
+ *
+ * El riesgo es real y conviene decirlo: abierto, cualquiera con la URL puede
+ * crear y mover piezas, y los cambios quedan sin rastro de quién los hizo. Es
+ * una medida temporal; para volver, `NEXT_PUBLIC_AUTH_ENABLED=true` y la
+ * lista de roles en `rr_hub_access` siguen siendo la autoridad.
+ */
+const ABIERTO = process.env.NEXT_PUBLIC_AUTH_ENABLED !== 'true';
+
+/** Quien figura en las piezas cuando no hay sesión: explícito, nunca inventado. */
+const ABIERTO_ACTOR = 'sin-sesion';
+
 async function context(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !anonKey || !serviceKey) {
     return { response: error('El servidor no tiene la configuración de Supabase.', 500) as NextResponse };
+  }
+
+  // The service client is what actually performs the write, because the anon
+  // client cannot write to the workflow tables while RLS is closed. In open mode
+  // it is also the identity: there is no one to ask, so writes go through with
+  // a marker instead of pretending to be somebody.
+  const service = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+
+  if (ABIERTO) {
+    return { service, supabase: service, userId: null, email: null, abierto: true };
   }
 
   // The caller's own client, carrying their session cookie. Its RLS applies,
@@ -71,11 +104,7 @@ async function context(request: NextRequest) {
   const { data } = await supabase.auth.getUser();
   if (!data.user?.email) return { response: unauthorized() as NextResponse };
 
-  // The service client is what actually performs the write, because the anon
-  // client cannot write to the workflow tables while RLS is closed. Both
-  // checks below happen before it is used.
-  const service = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  return { supabase, service, userId: data.user.id, email: data.user.email.toLowerCase() };
+  return { supabase, service, userId: data.user.id, email: data.user.email.toLowerCase(), abierto: false };
 }
 
 /** The caller's real role in the project that owns this idea. Never from the body. */
@@ -108,8 +137,10 @@ type Body = Record<string, unknown>;
 type Ctx = {
   supabase: SupabaseClient;
   service: SupabaseClient;
-  userId: string;
-  email: string;
+  userId: string | null;
+  email: string | null;
+  /** Modo abierto: no hay sesión que comprobar y el rol no se consulta. */
+  abierto: boolean;
 };
 
 const str = (value: unknown, max = 4000) => (typeof value === 'string' ? value.trim().slice(0, max) : '');
@@ -133,7 +164,11 @@ export async function POST(request: NextRequest) {
   const ideaId = str(body.ideaId, 64);
   if (!ideaId) return error('Falta ideaId.', 400);
 
-  const role = await roleForIdea(supabase, userId, email, ideaId);
+  // En modo abierto no hay a quién preguntar: se opera con el rol de
+  // administración, que es el más alto de la escalera que ya existe. No se
+  // inventa un rol nuevo, y en cuanto la puerta vuelva a encenderse este
+  // camino deja de alcanzarse.
+  const role: RoleKey | null = ctx.abierto ? 'owner' : await roleForIdea(supabase, userId!, email!, ideaId);
   if (!role) return unauthorized();
 
   if (action === 'transition') {
@@ -203,7 +238,10 @@ export async function POST(request: NextRequest) {
     // RLS on storage.objects decided whether that was allowed. The service
     // client only writes the metadata row, after checking the path belongs to
     // this idea and to this session.
-    const check = validateAssetPath(str(body.path, 300), ideaId, userId);
+    // En modo abierto no hay id de sesión que atar a la ruta: se usa un
+    // marcador fijo y explícito. Así el path sigue siendo verificable y además
+    // dice a simple vista que la subida vino sin sesión.
+    const check = validateAssetPath(str(body.path, 300), ideaId, userId ?? ABIERTO_ACTOR);
     if ('pathError' in check) return error(check.pathError, 400);
 
     const { error: insertError } = await service.from('rr_hub_assets').insert({
@@ -257,11 +295,13 @@ async function createIdea(body: Body, ctx: Ctx): Promise<NextResponse> {
     .from('rr_hub_projects').select('id').eq('slug', projectSlug).maybeSingle();
   if (!project) return error('Ese proyecto no existe.', 404);
 
-  const { data: access } = await supabase
-    .from('rr_hub_access').select('role_in_project')
-    .eq('user_id', userId).eq('project_id', project.id).maybeSingle();
+  const { data: access } = ctx.abierto
+    ? { data: { role_in_project: 'owner' } }
+    : await supabase
+      .from('rr_hub_access').select('role_in_project')
+      .eq('user_id', userId!).eq('project_id', project.id).maybeSingle();
   const creatorRole = (access?.role_in_project as RoleKey | undefined)
-    ?? (isSuperAdmin(email) ? 'owner' : undefined);
+    ?? (email && isSuperAdmin(email) ? 'owner' : undefined);
   if (!creatorRole) return unauthorized();
 
   const title = str(body.title, 160);
@@ -300,7 +340,7 @@ async function createIdea(body: Body, ctx: Ctx): Promise<NextResponse> {
       await service.from('rr_hub_events').insert({
         idea_id: idea.id, to_status: 'draft',
         comment: 'Idea creada con referencia, brief automático y guion inicial.',
-        actor_label: `${email} · ${ROLE_LABEL[creatorRole]}`,
+        actor_label: `${email ?? 'sin sesión'} · ${ROLE_LABEL[creatorRole]}`,
       });
       return NextResponse.json({ success: true, id: idea.id });
     }

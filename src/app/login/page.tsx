@@ -51,9 +51,12 @@ function FormularioLogin() {
    * que si el login se pide sin `redirectTo`, Google devuelve a la otra
    * aplicación — de eso venía "entro al hub y me abre Medellín Under".
    *
-   * Mandar el destino final directamente también falla: GoTrue lo compara con
-   * su allowlist y lo rechaza, y entonces vuelve al SITE_URL. El callback es la
-   * ruta que siempre está permitida.
+   * Probado: `authorize` sin destino manda `redirect_to` VACÍO a Google, y
+   * entonces manda el SITE_URL, que es único para las dos apps. Por eso el
+   * destino no puede faltar nunca, ni aunque se pierda el estado.
+   *
+   * Mandar el destino final directamente también falla: si se rechaza, cae
+   * igual al SITE_URL equivocado. El callback es la ruta estable.
    */
   const callback = () => `${window.location.origin}/auth/callback?next=${encodeURIComponent(destino)}`;
 

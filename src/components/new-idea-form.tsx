@@ -22,7 +22,6 @@ export function NewIdeaForm({ projectSlug }: { projectSlug: string }) {
   const [form, setForm] = useState<FormState>(empty);
   const [notice, setNotice] = useState('');
   const [saving, setSaving] = useState(false);
-  const [faltaSesion, setFaltaSesion] = useState(false);
   const [projectId, setProjectId] = useState('');
   const [code, setCode] = useState('');
 
@@ -68,31 +67,18 @@ export function NewIdeaForm({ projectSlug }: { projectSlug: string }) {
       editBrief: form.edit.trim() || generated.edit,
       script: generated.script,
     });
-    if (error || !id) { setSaving(false); setAvisoDeFallo(error ?? 'No se guardó la idea.'); return; }
+    if (error || !id) { setSaving(false); avisar(error ?? 'No se guardó la idea.'); return; }
     router.push(`/${projectSlug}/ideas/${id}`);
   }
 
   /**
    * Un fallo que aparece 800 px más abajo del botón que lo provocó se lee como
-   * "no pasa nada". Por eso el aviso sube a la vista y el botón baja hasta él.
-   * Y cuando el problema es que no hay sesión, el aviso trae su propio botón:
-   * mandar a /login sin más devolvía a la persona al tablero, con el formulario
-   * perdido y la referencia escrita.
+   * "no pasa nada". Por eso el aviso sube a la vista y la página se desplaza
+   * hasta él. Con el hub en modo abierto ya no hay el caso de "falta sesión",
+   * así que el aviso es solo el motivo y nada más.
    */
   function avisar(texto: string) {
     setNotice(texto);
-    window.setTimeout(() => {
-      document.getElementById('aviso-crear')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    }, 40);
-  }
-
-  /** Un 401 significa "no hay sesión": en vez de un texto muerto, un botón. */
-  function setAvisoDeFallo(texto: string) {
-    const sinSesion = /sesión/i.test(texto);
-    setNotice(sinSesion
-      ? `${texto} Entra con tu cuenta y vuelve: tu referencia y el brief se conservan.`
-      : texto);
-    setFaltaSesion(sinSesion);
     window.setTimeout(() => {
       document.getElementById('aviso-crear')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }, 40);
@@ -107,7 +93,6 @@ export function NewIdeaForm({ projectSlug }: { projectSlug: string }) {
     {notice && (
       <div id="aviso-crear" role="alert" className="anim-pop border-l-4 border-l-mostaza bg-blanco-05 px-4 py-3">
         <p className="text-sm leading-6 text-blanco-80">{notice}</p>
-        {faltaSesion && <BotonEntrar projectSlug={projectSlug} />}
       </div>
     )}
 
@@ -173,25 +158,6 @@ export function NewIdeaForm({ projectSlug }: { projectSlug: string }) {
       <span className="font-mono text-[10px] text-blanco-50">{supabase ? `SE GUARDARÁ COMO ${code || 'NUEVA IDEA'}` : 'GUARDADO COMPARTIDO NO DISPONIBLE'}</span>
     </div>
   </form>;
-}
-
-/**
- * Entrar sin perder el trabajo.
- *
- * El `next` no es un adorno: sin él, el login devolvía a la persona al tablero
- * con el formulario vacío y la referencia escrita — la mitad del trabajo
- * perdida por un clic. Con él, el callback devuelve a este mismo paso.
- */
-function BotonEntrar({ projectSlug }: { projectSlug: string }) {
-  const destino = `/${projectSlug}/ideas/nueva`;
-  return (
-    <Link
-      href={`/login?next=${encodeURIComponent(destino)}`}
-      className="btn-brutal mt-3 inline-flex items-center gap-2"
-    >
-      <Icon name="user" size={14} /> ENTRAR Y SEGUIR
-    </Link>
-  );
 }
 
 function Field({ label, value, onChange, placeholder, textarea, select, options, className = '' }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; textarea?: boolean; select?: boolean; options?: string[]; className?: string }) {
