@@ -144,11 +144,26 @@ export function IdeaActions({ ideaId, currentStatus = 'pending_approval', role =
 
     {history.length > 0 && <details className="border-t border-blanco-20 pt-4" open>
       <summary className="cursor-pointer font-mono text-[10px] text-blanco-60">VER TRAZABILIDAD ({history.length})</summary>
-      <ol className="mt-3 space-y-3">{history.map((event) => <li key={event.id} className="border-l-2 border-blanco-20 pl-3 anim-slide">
+      <ol className="mt-3 space-y-3">{history.map((event) => {
+        /**
+         * Un evento con `from_status === to_status` NO es una transición: es un
+         * cambio de metadata (asignar un responsable, por ejemplo). Mostrarlo
+         * como un movimiento de fase mentiría: se vería "[BORRADOR] → [BORRADOR]"
+         * y alguien leería que la pieza retrocedió y volvió. Por eso se marca
+         * aparte, y con orquídea: es información, no un cambio de turno.
+         */
+        const soloMetadata = event.fromStatus !== undefined
+          && event.fromStatus !== null
+          && event.fromStatus === event.status;
+        return <li key={event.id} className="border-l-2 border-blanco-20 pl-3 anim-slide">
         <p className="font-mono text-[10px] text-blanco-50">{event.createdAt} · <span className="text-blanco">{event.actor}</span></p>
-        <p className="mt-1 font-mono text-[10px] text-blanco-60">[{STATUS_META[event.status as WorkflowStatus]?.label ?? event.status}]</p>
+        <p className="mt-1 font-mono text-[10px] text-blanco-60">
+          {soloMetadata
+            ? <span className="text-orquidea">SIN CAMBIO DE FASE</span>
+            : <>[{STATUS_META[event.status as WorkflowStatus]?.label ?? event.status}]</>}
+        </p>
         <p className="mt-1 text-xs leading-5 text-blanco-60">{event.note}</p>
-      </li>)}</ol>
+      </li>; })}</ol>
     </details>}
   </div>;
 }

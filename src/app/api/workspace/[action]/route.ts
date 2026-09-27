@@ -262,9 +262,24 @@ export async function POST(request: NextRequest) {
     if (updateError) return error(updateError.message, 500);
 
     const nombre = perfil?.full_name ?? 'RR Aliados';
+
+    // `to_status` es NOT NULL y `from_status` es nullable, sin CHECK que
+    // compruebe nada: es la tabla de transiciones, no un log genérico. La
+    // primera versión mandaba `to_status: null` y el alta entera fallaba con
+    // "violates not-null constraint" — la asignación escribía el responsable y
+    // el evento se caía, dejando la pieza con un cambio sin rastro.
+    //
+    // La solución NO es relajar la columna: es escribir el estado REAL de la
+    // pieza, para que `from_status = to_status` se lea como "no cambió de fase".
+    // Así el evento sigue siendo legible en la línea de tiempo y la tabla
+    // conserva su contrato.
+    const { data: estadoActual } = await service
+      .from('rr_hub_ideas').select('status').eq('id', ideaId).maybeSingle();
+    const estado = (estadoActual?.status as string) ?? 'draft';
+
     const { error: eventError } = await service.from('rr_hub_events').insert({
-      idea_id: ideaId, from_status: null, to_status: null,
-      comment: `Responsable asignado: ${nombre}${perfil?.email ? ` (${perfil.email})` : ''}.`,
+      idea_id: ideaId, from_status: estado, to_status: estado,
+      comment: `Responsable asignado: ${nombre}${perfil?.email ? ` (${perfil.email})` : ''}. No cambió de fase.`,
       actor_label: `${email ?? 'sin sesión'} · ${ROLE_LABEL[role]}`,
       actor_id: userId,
     });

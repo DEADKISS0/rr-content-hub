@@ -26,6 +26,13 @@ export const STORAGE_BUCKET = process.env.NEXT_PUBLIC_STORAGE_BUCKET || 'rr-cont
 export type TimelineEvent = {
   id: string;
   status: string;
+  /**
+   * Estado de partida. Cuando es igual a `status`, el evento NO es una
+   * transición: es un cambio de metadata (asignar un responsable). La línea de
+   * tiempo lo muestra aparte para que nadie lea "[BORRADOR] → [BORRADOR]" como
+   * una pieza que retrocedió y volvió.
+   */
+  fromStatus?: string | null;
   actor: string;
   note: string;
   createdAt: string;
@@ -60,12 +67,13 @@ export async function loadTimeline(ideaId: string): Promise<TimelineEvent[]> {
   if (!supabase) return [];
   const { data } = await supabase
     .from('rr_hub_events')
-    .select('id, to_status, comment, actor_label, created_at')
+    .select('id, from_status, to_status, comment, actor_label, created_at')
     .eq('idea_id', ideaId)
     .order('created_at', { ascending: false });
   return (data ?? []).map((row: any) => ({
     id: row.id,
     status: row.to_status,
+    fromStatus: row.from_status ?? null,
     actor: row.actor_label || 'RR ALIADOS',
     note: row.comment || 'Sin nota registrada.',
     createdAt: stamp(row.created_at),
