@@ -21,10 +21,40 @@ const WAITING_STATUSES: readonly string[] = QUEUES.aprobaciones.statuses;
  * responsable delante.
  */
 export function ProjectDashboard({ project, projectSlug, ideas, role }: { project: Project; projectSlug: string; ideas: BoardIdea[]; role: string }) {
-  const waiting = ideas.filter((idea) => WAITING_STATUSES.includes(idea.status));
-  const byActor = waiting.reduce<Record<string, BoardIdea[]>>((groups, idea) => {
+  /**
+   * Lo que el equipo tiene pendiente, que NO es lo mismo que "paradas".
+   *
+   * `WAITING_STATUSES` es la cola de aprobaciones: espera a alguien de fuera. El
+   * chip decía "N PIEZAS PARADAS" y ese número era 6 mientras 19 piezas más
+   * esperaban una acción interna. La palabra "paradas" además accusesa mal: una
+   * pieza esperando aprobación del cliente no está parada, está en manos de otro.
+   *
+   * La separación importa porque las dos cosas piden acciones distintas: una
+   * exige un empujón del equipo, la otra una respuesta del cliente.
+   * Presentarlas sumadas —o solo una— hace que el tablero diga una cosa y el
+   * trabajo real sea otro.
+   *
+   * Ojo con `WAITING_STATUSES`: esa cola incluye `needs_changes`, que NO espera
+   * al cliente — el cliente ya pidió cambios y le toca al equipo rehacerlo. Por
+   * eso aquí se filtra aparte y va a la cuenta de abajo: son 3 piezas que el
+   * tablero atributos al cliente y no lo son.
+   */
+  const ESPERA_CLIENTE = new Set(['pending_approval', 'pending_script_review']);
+  const esperandoCliente = ideas.filter((idea) => ESPERA_CLIENTE.has(idea.status));
+  const esperandoEquipo = ideas.filter((idea) => {
+    if (idea.status === 'closed' || idea.status === 'published') return false;
+    if (ESPERA_CLIENTE.has(idea.status)) return false;
+    return true;
+  });
+  const byActor = esperandoCliente.reduce<Record<string, BoardIdea[]>>((groups, idea) => {
     const who = statusMeta(idea.status).who;
     groups[who] = [...(groups[who] ?? []), idea];
+    return groups;
+  }, {});
+  /** Lo mismo, para la espera interna: agrupado por rol, no por "quién". */
+  const porRolEquipo = esperandoEquipo.reduce<Record<string, BoardIdea[]>>((groups, idea) => {
+    const rol = statusMeta(idea.status).who;
+    groups[rol] = [...(groups[rol] ?? []), idea];
     return groups;
   }, {});
   const roleLabel = ROLE_LABEL[role as RoleKey] ?? role.toUpperCase();
@@ -42,7 +72,11 @@ export function ProjectDashboard({ project, projectSlug, ideas, role }: { projec
             <div className="mt-6 flex flex-wrap items-center gap-2">
               <Chip icon="user" tone="blanco">TU ROL: {roleLabel}</Chip>
               <Chip icon="pieces" tone="neutro">{ideas.length} PIEZAS EN EL HUB</Chip>
-              <Chip icon="alert" tone="neutro">{waiting.length} PIEZAS PARADAS</Chip>
+              {/* El número que antes decía "PARADAS" era solo la espera externa.
+                  Las dos cuentas van separadas porque son dos trabajos: una la
+                  saca el cliente, la otra el equipo. */}
+              <Chip icon="alert" tone="neutro">{esperandoCliente.length} ESPERANDO AL CLIENTE</Chip>
+              <Chip icon="clock" tone="neutro">{esperandoEquipo.length} PARA QUE AVANCE EL EQUIPO</Chip>
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -54,20 +88,41 @@ export function ProjectDashboard({ project, projectSlug, ideas, role }: { projec
 
         <section className="mt-10 grid gap-5 lg:grid-cols-[1.2fr_1fr]">
           <div className="border border-blanco-20 bg-blanco-05 p-6 sm:p-8">
-            <p className="eyebrow">[QUÉ ESTÁ DETENIDO]</p>
-            <p className="mt-3 font-display text-6xl font-bold leading-none text-blanco">{waiting.length}</p>
-            <h2 className="mt-2 font-display text-2xl font-bold text-blanco">{waiting.length ? 'Piezas paradas.' : 'Todo avanza.'}</h2>
+            <p className="eyebrow">[QUIÉN TIENE LA PELOTA]</p>
+            <p className="mt-3 font-display text-6xl font-bold leading-none text-blanco">{esperandoCliente.length}</p>
+            <h2 className="mt-2 font-display text-2xl font-bold text-blanco">
+              {esperandoCliente.length ? 'Esperan a alguien de fuera.' : 'Nada espera al cliente.'}
+            </h2>
             <p className="mt-3 text-sm leading-6 text-blanco-70">
-              {waiting.length
-                ? `Ninguna avanza sin que alguien responda: ${waiting.filter((idea) => statusMeta(idea.status).who === 'CLIENTE').length} esperan al cliente y ${waiting.filter((idea) => statusMeta(idea.status).who !== 'CLIENTE').length} al equipo de RR.`
-                : 'No hay bloqueos pendientes en este momento.'}
+              {esperandoCliente.length
+                ? 'Estas piezas están en manos del cliente. Si no se mueven, no es un fallo del hub: es una decisión que no ha llegado.'
+                : 'Ninguna pieza depende hoy de una aprobación externa.'}
             </p>
-            <Link href={`/${projectSlug}/aprobaciones`} className="mt-5 inline-flex items-center gap-2 font-mono text-xs text-blanco-60 underline hover:text-blanco">VER DECISIONES <Icon name="arrow" size={13} /></Link>
+            <Link href={`/${projectSlug}/aprobaciones`} className="mt-5 inline-flex items-center gap-2 font-mono text-xs text-blanco-60 underline hover:text-blanco">
+              VER DECISIONES <Icon name="arrow" size={13} />
+            </Link>
+            {/* El equipo tiene su propia cuenta y su propia frase. Antes solo
+                existía el número externo, y el tablero parecía tranquilo con 14
+                piezas esperando un empujón interno. */}
+            {esperandoEquipo.length > 0 && (
+              <div className="mt-7 border-t border-blanco-20 pt-6">
+                <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-orquidea">
+                  Y ADEMÁS, {esperandoEquipo.length} ESPERANDO QUE EL EQUIPO LAS MUEVA
+                </p>
+                <p className="mt-2 text-sm leading-6 text-blanco-70">
+                  Estas no dependen de nadie de fuera: están listas para que alguien las empuje.
+                  Son el trabajo que depende de nosotros, no una espera.
+                </p>
+                <p className="mt-3 font-display text-sm font-bold text-blanco">
+                  {esperandoEquipo.map((idea) => idea.code ?? 'IDEA').join(' · ')}
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="border border-blanco-20 p-5 sm:p-6">
             <p className="eyebrow">[QUIÉN ESTÁ ESPERANDO QUÉ]</p>
-            {waiting.length ? (
+            {esperandoCliente.length ? (
               <ul className="mt-4 space-y-3">
                 {Object.entries(byActor).map(([who, items]) => (
                   <li key={who} className="flex items-start gap-3 border-b border-blanco-10 pb-3 last:border-0 last:pb-0">
@@ -82,7 +137,25 @@ export function ProjectDashboard({ project, projectSlug, ideas, role }: { projec
                 ))}
               </ul>
             ) : (
-              <p className="mt-4 text-sm leading-6 text-blanco-60">Nadie está bloqueado: el flujo avanza solo.</p>
+              <p className="mt-4 text-sm leading-6 text-blanco-60">Nadie espera al cliente: ninguna pieza depende hoy de una aprobación externa.</p>
+            )}
+
+            {esperandoEquipo.length > 0 && (
+              <div className="mt-6 border-t border-blanco-20 pt-5">
+                <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-orquidea">
+                  ESPERANDO QUE LAS MUEVA EL EQUIPO · {esperandoEquipo.length}
+                </p>
+                <ul className="mt-3 space-y-2">
+                  {Object.entries(porRolEquipo).map(([rol, items]) => (
+                    <li key={rol} className="flex items-baseline gap-2">
+                      <span className="w-24 shrink-0 font-mono text-[10px] text-blanco-50">{rol}</span>
+                      <span className="font-display text-sm font-bold text-blanco">
+                        {items.map((idea) => idea.code ?? 'IDEA').join(' · ')}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </div>
         </section>
