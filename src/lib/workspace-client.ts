@@ -178,6 +178,53 @@ export async function resolveComment(input: { commentId: string; ideaId: string;
 }
 
 /**
+ * Los campos que `update` acepta. Se repiten aquí a propósito: el cliente
+ * declara qué manda y el servidor decide qué escribe, y los dos lados tienen que
+ * poder discrepar sin romperse. Si el servidor acepta algo que esta lista no
+ * tiene, es una decisión suya y no un error del formulario.
+ */
+export type EditableIdea = {
+  title?: string;
+  description?: string;
+  objective?: string;
+  cameraBrief?: string;
+  talentBrief?: string;
+  editBrief?: string;
+  referenceUrls?: string[];
+};
+
+/**
+ * Guarda cambios de una pieza existente.
+ *
+ * Antes no había forma de corregir una idea: se creaba y ya. Una pieza sin
+ * referencia se quedaba sin referencia para siempre, y había 6 de 26 así, dos
+ * de ellas a punto de publicarse.
+ *
+ * Solo se manda lo que cambió. Mandar el objeto entero borraría los campos que
+ * vinieran vacíos.
+ */
+export async function updateIdea(
+  ideaId: string,
+  cambios: EditableIdea,
+): Promise<{ error?: string; actualizado?: string[] }> {
+  const cuerpo: Record<string, unknown> = { ideaId };
+
+  if (cambios.title !== undefined) cuerpo.title = cambios.title;
+  if (cambios.description !== undefined) cuerpo.description = cambios.description;
+  if (cambios.objective !== undefined) cuerpo.objective = cambios.objective;
+  if (cambios.cameraBrief !== undefined) cuerpo.camera_brief = cambios.cameraBrief;
+  if (cambios.talentBrief !== undefined) cuerpo.talent_brief = cambios.talentBrief;
+  if (cambios.editBrief !== undefined) cuerpo.edit_brief = cambios.editBrief;
+  // Array vacío es legítimo: es como se quita una referencia que ya no sirve.
+  if (cambios.referenceUrls !== undefined) cuerpo.referenceUrls = cambios.referenceUrls;
+
+  const response = await postWorkspaceAction('update', cuerpo);
+  if (!response) return { error: 'No se pudo contactar al servidor.' };
+  if (response.error) return { error: String(response.error) };
+  return { actualizado: (response.actualizado as string[]) ?? [] };
+}
+
+/**
  * El roster del proyecto, para nombrar a un responsable.
  *
  * Solo se devuelven perfiles que tienen `rr_hub_access` en ESTE proyecto: la

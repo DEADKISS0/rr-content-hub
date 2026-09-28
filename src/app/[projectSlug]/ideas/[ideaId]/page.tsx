@@ -5,6 +5,7 @@ import { StatusBadge, STATUS_ICON } from '@/components/status-badge';
 import { IdeaActions } from '@/components/idea-actions';
 import { EnhancedIdeaCollaboration } from '@/components/collaboration-enhanced';
 import { AssignOwner } from '@/components/assign-owner';
+import { IdeaEditor } from '@/components/idea-editor';
 import { ReferenceWithBrief } from '@/components/reference-with-brief';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { ProductionPipeline } from '@/components/production-pipeline';
@@ -40,7 +41,14 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
   const responsable = idea.created_by
     ? (await getProfileName(idea.created_by as string))
     : null;
-  const raw = idea.reference_url ?? idea.reference_urls?.[0] ?? idea.ref ?? '';
+  const raw = idea.reference_url ?? idea.ref ?? idea.reference_urls?.[0] ?? '';
+  // La lista completa, no solo la primera: el editor tiene que ofrecer lo que hay
+  // y poder quitarla. `reference_urls` es jsonb y siempre es una lista.
+  const referencias: string[] = Array.isArray(idea.reference_urls)
+    ? (idea.reference_urls as string[])
+    : raw
+      ? [raw]
+      : [];
   const meta = statusMeta(idea.status);
   const inProduction = productionStep(idea.status) >= 0;
   const format = formatOf(idea.category, idea.content_type);
@@ -136,6 +144,24 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
           <ReferenceWithBrief url={raw} title={idea.title} brief={{ intention: idea.objective, camera: idea.camera, talent: idea.talent, edit: idea.edit }} />
         </div>
       </section>
+
+      {/* El editor va pegado a la referencia, no escondido en un menú. Si lo que
+          falta es el link, el botón tiene que estar donde se ve que falta. */}
+      <div className="mb-8">
+        <IdeaEditor
+          ideaId={ideaId}
+          role={rol}
+          initial={{
+            title: idea.title,
+            description: idea.description,
+            objective: idea.objective,
+            camera: idea.camera,
+            talent: idea.talent,
+            edit: idea.edit,
+            references: referencias,
+          }}
+        />
+      </div>
 
       {inProduction && <section className="mb-8 anim-rise">
         <p className="eyebrow mb-3">[PIPELINE DE PRODUCCIÓN]</p>

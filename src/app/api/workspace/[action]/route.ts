@@ -215,6 +215,89 @@ export async function POST(request: NextRequest) {
   if (action === 'roster') return roster(body, ctx);
 
   /**
+   * Editar los datos de la pieza.
+   *
+   * Existía un hueco real: se podía crear una idea, moverla de fase, escribir el
+   * guion, comentar y asignar responsable, pero NO corregir un campo. Una pieza
+   * creada sin referencia se quedaba así para siempre — 6 de 26 en Wundeer, y
+   * dos de ellas ya estaban en `approved` y `ready_to_publish`, o sea a punto de
+   * salir sin la referencia que el brief da por hecha.
+   *
+   * Decisiones:
+   *
+   * - Solo una lista blanca de columnas. El body dice QUÉ cambiar, no EN QUÉ
+   *   columna: mandar `{"status": "published"}` no cambia nada, porque `status`
+   *   no está en la lista. `status`, `code`, `project_id`, `created_by` y
+   *   `created_at` quedan fuera a propósito: tienen acciones propias con sus
+   *   propias reglas.
+   * - La URL se valida antes de guardar. Un `javascript:` o un `data:` en
+   *   `reference_urls` llegaría a la ficha y a `ReferenceWithBrief`; solo se
+   *   acepta `http` y `https`, y se exige que tenga host.
+   * - No se escribe evento. Como el guion: corregir un campo no es un cambio de
+   *   fase, y un evento con `from_status = to_status` por cada coma sería ruido
+   *   en la trazabilidad.
+   */
+  if (action === 'update') {
+    if (role === 'client_viewer') {
+      return error('Tu rol es lectura: no puedes editar los datos de la pieza.', 403);
+    }
+
+    const cambios: Record<string, string | string[]> = {};
+
+    const titulo = str(body.title, 200);
+    if (titulo) cambios.title = titulo;
+
+    for (const [campo, largo] of [
+      ['description', 2000],
+      ['objective', 1000],
+      ['camera_brief', 2000],
+      ['talent_brief', 2000],
+      ['edit_brief', 2000],
+    ] as const) {
+      if (campo in body) {
+        const valor = str(body[campo], largo);
+        if (valor) cambios[campo] = valor;
+      }
+    }
+
+    if ('referenceUrls' in body) {
+      const crudo = Array.isArray(body.referenceUrls) ? body.referenceUrls : [body.referenceUrls];
+      const validas: string[] = [];
+      for (const u of crudo) {
+        const texto = str(u, 500);
+        if (!texto) continue;
+        let parseada: URL;
+        try {
+          parseada = new URL(texto.trim());
+        } catch {
+          return error(`"${texto}" no es una dirección válida.`, 400);
+        }
+        // Solo http(s). Un `javascript:` en la referencia se ejecutaría al
+        // pincharla, así que no se guarda aunque "parezca" una URL.
+        if (parseada.protocol !== 'http:' && parseada.protocol !== 'https:') {
+          return error(`Solo se aceptan direcciones http o https. "${texto}" es ${parseada.protocol}`, 400);
+        }
+        if (!parseada.host) return error(`"${texto}" no tiene dominio.`, 400);
+        validas.push(parseada.toString());
+      }
+      // Guardar la lista vacía SÍ vale: es como se quita una referencia mala.
+      cambios.reference_urls = validas;
+    }
+
+    if (!Object.keys(cambios).length) {
+      return error('No hay nada que actualizar.', 400);
+    }
+
+    const { error: updateError } = await service
+      .from('rr_hub_ideas')
+      .update({ ...cambios, updated_at: new Date().toISOString() })
+      .eq('id', ideaId);
+    if (updateError) return error(updateError.message, 500);
+
+    return NextResponse.json({ success: true, actualizado: Object.keys(cambios) });
+  }
+
+  /**
    * Asignar responsable.
    *
    * En modo abierto todo cambio queda como "sin sesión", y eso es honesto pero
