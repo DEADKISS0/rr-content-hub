@@ -4,19 +4,24 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ReferenceWithBrief } from '@/components/reference-with-brief';
+import { BotonBiblioteca } from '@/components/ad-library-picker';
 import { createClient } from '@/lib/supabase/client';
 import { buildIdeaPack, createIdea, looksLikeUrl, nextIdeaCode } from '@/lib/workspace-client';
 import { Icon } from './ui/icons';
 
-type FormState = { title: string; type: 'Orgánico' | 'Pauta'; category: string; objective: string; description: string; camera: string; talent: string; edit: string; reference: string };
-const empty: FormState = { title: '', type: 'Orgánico', category: '', objective: '', description: '', camera: '', talent: '', edit: '', reference: '' };
+type FormState = { title: string; type: 'Orgánico' | 'Pauta'; category: string; objective: string; description: string; camera: string; talent: string; edit: string; reference: string; adId: string; adName: string };
+const empty: FormState = { title: '', type: 'Orgánico', category: '', objective: '', description: '', camera: '', talent: '', edit: '', reference: '', adId: '', adName: '' };
 
 /**
  * Guided capture. Two things were added after the audit: the piece gets its
  * human code (O1, P1…) shown before saving, and a pasted reference is checked
  * so a broken link never reaches the client.
  */
-export function NewIdeaForm({ projectSlug }: { projectSlug: string }) {
+export function NewIdeaForm({ projectSlug, anuncios, usosPorAnuncio }: {
+  projectSlug: string;
+  anuncios: { id: string; name: string; platform: string; format: string; externalUrl: string; objective: string; brand: string }[];
+  usosPorAnuncio: Record<string, number>;
+}) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [form, setForm] = useState<FormState>(empty);
@@ -66,6 +71,11 @@ export function NewIdeaForm({ projectSlug }: { projectSlug: string }) {
       talentBrief: form.talent.trim() || generated.talent,
       editBrief: form.edit.trim() || generated.edit,
       script: generated.script,
+      // El puntero al anuncio, no su texto. La ficha se lee por relación: si
+      // mañana se corrige el copy en la biblioteca, las piezas que lo usan lo
+      // ven corregido. Copiarlo dejaría 3 textos desincronizados sin que nadie
+      // se entere. Por eso no se guarda el copy del anuncio en la idea.
+      adId: form.adId.trim() || null,
     });
     if (error || !id) { setSaving(false); avisar(error ?? 'No se guardó la idea.'); return; }
     router.push(`/${projectSlug}/ideas/${id}`);
@@ -108,6 +118,22 @@ export function NewIdeaForm({ projectSlug }: { projectSlug: string }) {
     <Field label="OBJETIVO *" value={form.objective} onChange={(value) => update('objective', value)} textarea placeholder="¿Qué debe conseguir esta pieza?" />
     <Field label="DESCRIPCIÓN / CONCEPTO" value={form.description} onChange={(value) => update('description', value)} textarea placeholder="Describe la idea en lenguaje claro para el cliente y el equipo..." />
     <div>
+      <BotonBiblioteca
+        anuncios={anuncios}
+        usosPorAnuncio={usosPorAnuncio}
+        onElegir={(elegido) => {
+          // La referencia se rellena siempre: es lo que se vino a buscar. El
+          // título y el objetivo SOLO si estaban vacíos: si la persona ya
+          // escribió algo, su texto manda. Un selector que pisa lo escrito es un
+          // selector que nadie usa dos veces.
+          update('reference', elegido.reference);
+          if (!form.title.trim()) update('title', elegido.tituloSugerido);
+          if (!form.objective.trim()) update('objective', elegido.objetivoSugerido);
+          update('adId', elegido.adId);
+          update('adName', elegido.adName);
+          avisar(`Anuncio: ${elegido.adName}. La pieza queda ligada a él, no copiada.`);
+        }}
+      />
       <Field label="REFERENCIA VISUAL (INSTAGRAM, TIKTOK, YOUTUBE O FACEBOOK)" value={form.reference} onChange={(value) => update('reference', value)} placeholder="Pega un enlace: la previsualización aparece abajo" />
       {!referenceValid && <p role="alert" className="mt-2 border border-blanco-20 bg-blanco-05 p-2 font-mono text-[10px] text-blanco">Ese texto no parece un enlace válido. Debe empezar por https://</p>}
     </div>

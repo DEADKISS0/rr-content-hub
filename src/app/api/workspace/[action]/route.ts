@@ -662,6 +662,35 @@ async function createIdea(body: Body, ctx: Ctx): Promise<NextResponse> {
     ? body.referenceUrls.map((value) => str(value, 300)).filter((value) => /^https?:\/\//.test(value)).slice(0, 10)
     : [];
 
+  /**
+   * El anuncio de la biblioteca, si se eligió uno al crear la pieza.
+   *
+   * Se guarda el PUNTERO, no el copy del anuncio, y se comprueba que el id sea
+   * de ESTE proyecto. Sin esa comprobación, cualquiera podría mandar el id de un
+   * anuncio de otro proyecto y colgarlo de una idea suya; y sin guardarlo, la
+   * biblioteca no sirve de nada: la idea quedaría con el texto copiado y
+   * desincronizado el día que el anuncio se corrija.
+   *
+   * Un id que no existe, o que es de otro proyecto, NO es un error: la idea se
+   * crea igual, sin puntero. Fallar aquí dejaría al equipo sin poder crear
+   * piezas por un catálogo que alguien está limpiando por debajo.
+   */
+  let adId: string | null = null;
+  const adPedido = str(body.adId, 64);
+  if (adPedido) {
+    const { data: anuncio } = await service
+      .from('rr_hub_ad_library')
+      .select('id, project_id, external_url')
+      .eq('id', adPedido)
+      .maybeSingle();
+    if (anuncio && anuncio.project_id === project.id) {
+      adId = anuncio.id as string;
+      // Si la pieza viene sin referencia pero con anuncio, la referencia del
+      // anuncio ES la referencia: es justo lo que el selector vino a buscar.
+      if (!references.length && anuncio.external_url) references.push(String(anuncio.external_url));
+    }
+  }
+
   // The code is assigned here, not by the browser, for the same reason as in
   // /api/ideas: a max+1 read in two places at once hands out the same number
   // twice, and the browser is not the only writer.
@@ -685,6 +714,7 @@ async function createIdea(body: Body, ctx: Ctx): Promise<NextResponse> {
       edit_brief: str(body.editBrief, 4000),
       script_content: str(body.script, 60_000),
       reference_urls: references,
+      ad_id: adId,
     }).select('id').single();
 
     if (!insertError && idea) {

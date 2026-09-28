@@ -335,6 +335,13 @@ export async function createIdea(input: {
   projectSlug: string; title: string; description: string; objective: string;
   contentType: 'organic' | 'paid'; category: string; referenceUrls: string[];
   cameraBrief: string; talentBrief: string; editBrief: string; script: string;
+  /**
+   * El puntero al anuncio de la biblioteca (`rr_hub_ad_library.id`), no su
+   * texto. Es lo que hace que la ficha se lea por relación: corregir el anuncio
+   * actualiza lo que dicen las piezas que lo usan. Va solo, y el servidor
+   * descarta un id que no pertenezca a este proyecto.
+   */
+  adId?: string | null;
 }): Promise<{ error?: string; id?: string }> {
   const supabase = createClient();
   // No se pide sesión: el hub está en modo abierto mientras el login de Google

@@ -1,6 +1,44 @@
 import { NewIdeaForm } from '@/components/new-idea-form';
+import { listarAnuncios, anunciosEnUso } from '@/lib/ad-library-server';
+import { createClient } from '@/lib/supabase/server';
 
 export default async function NewIdea({ params }: { params: Promise<{ projectSlug: string }> }) {
   const { projectSlug } = await params;
-  return <main className="min-h-screen bg-negro"><header className="border-b border-blanco-20 px-5 py-4 md:px-10"><div className="mx-auto flex max-w-6xl justify-between"><a href={`/${projectSlug}/ideas`} className="font-mono text-xs text-blanco-60 hover:text-blanco">← VOLVER</a><span className="mono-label text-blanco-50">[NUEVO REGISTRO]</span></div></header><div className="mx-auto max-w-4xl px-5 py-10 md:px-10"><p className="eyebrow">{projectSlug} · CAPTURA</p><h1 className="display-title">Nueva idea.</h1><NewIdeaForm projectSlug={projectSlug}/></div></main>;
+
+  // La biblioteca se lee en el servidor, no en el navegador: es una lectura de
+  // `rr_hub_ad_library`, que el guard de escritura no cubre, y el selector
+  // necesita saber a qué proyecto pertenece. Si el proyecto no existe, o el
+  // catálogo falla, el selector se renderiza vacío y el formulario sigue
+  // funcionando: crear una idea no puede depender de que un catálogo tenga filas.
+  let anuncios: Awaited<ReturnType<typeof listarAnuncios>> = [];
+  const usosPorAnuncio: Record<string, number> = {};
+  const supabase = await createClient();
+  if (supabase) {
+    const { data: project } = await supabase
+      .from('rr_hub_projects').select('id').eq('slug', projectSlug).maybeSingle();
+    if (project) {
+      try {
+        anuncios = await listarAnuncios(project.id);
+        for (const [id, n] of await anunciosEnUso(project.id)) usosPorAnuncio[id] = n;
+      } catch {
+        anuncios = [];
+      }
+    }
+  }
+
+  return (
+    <main className="min-h-screen bg-negro">
+      <header className="border-b border-blanco-20 px-5 py-4 md:px-10">
+        <div className="mx-auto flex max-w-6xl justify-between">
+          <a href={`/${projectSlug}/ideas`} className="font-mono text-xs text-blanco-60 hover:text-blanco">← VOLVER</a>
+          <span className="mono-label text-blanco-50">[NUEVO REGISTRO]</span>
+        </div>
+      </header>
+      <div className="mx-auto max-w-4xl px-5 py-10 md:px-10">
+        <p className="eyebrow">{projectSlug} · CAPTURA</p>
+        <h1 className="display-title">Nueva idea.</h1>
+        <NewIdeaForm projectSlug={projectSlug} anuncios={anuncios} usosPorAnuncio={usosPorAnuncio} />
+      </div>
+    </main>
+  );
 }
