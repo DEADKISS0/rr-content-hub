@@ -22,10 +22,27 @@ export const ROLE_KEYS: readonly RoleKey[] = [
   'publisher', 'media_buyer', 'client_approver', 'client_viewer',
 ] as const;
 
-/** Narrows an untrusted string to a real role; anything else becomes a viewer. */
-export function toRoleKey(value?: string | null): RoleKey {
-  return ROLE_KEYS.includes(value as RoleKey) ? (value as RoleKey) : 'client_viewer';
-}
+/**
+ * Quién puede tocar qué.
+ *
+ * Esto vive en UN solo archivo a propósito. Antes había tres listas distintas
+ * de "quién escribe": la de las transiciones, la del guard, y la de la API, que
+ * era una lista NEGATIVA (bloquear a `client_viewer` y dejar pasar todo lo
+ * demás). Con esa, `client_approver` —el rol del cliente, cuya función es
+ * aprobar— podía reescribir el guion y cambiar las referencias de una pieza.
+ *
+ * La lista negativa es el problema: cualquier rol nuevo, o un valor con una
+ * errata en la base, entra por descarte. Aquí la lista es positiva: lo que no
+ * está aquí, no escribe.
+ */
+export const PUEDE_EDITAR: readonly RoleKey[] = ['owner', 'creator', 'camera', 'model', 'editor'] as const;
+/** El guion es de quien produce, no de quien aprueba ni de quien solo mira. */
+export const PUEDE_ESCRIBIR_GUION: readonly RoleKey[] = ['owner', 'creator', 'editor'] as const;
+/** Comentar es de cualquiera del equipo: es la vía para pedir un cambio. */
+export const PUEDE_COMENTAR: readonly RoleKey[] = [
+  'owner', 'creator', 'camera', 'model', 'editor', 'publisher', 'media_buyer',
+  'client_approver', 'client_viewer',
+] as const;
 
 export const STATUS_ORDER: WorkflowStatus[] = [
   'draft', 'internal_review', 'voting', 'pending_approval', 'needs_changes', 'approved',

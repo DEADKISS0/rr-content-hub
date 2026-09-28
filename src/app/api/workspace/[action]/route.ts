@@ -1,8 +1,8 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
-import { allowedTransitions, ganoLaVotacion, ROLE_LABEL, salidaDeLaVotacion, type RoleKey, type WorkflowStatus } from '@/lib/flow';
+import { allowedTransitions, ganoLaVotacion, ROLE_LABEL, salidaDeLaVotacion, type RoleKey, type WorkflowStatus, PUEDE_EDITAR, PUEDE_ESCRIBIR_GUION, PUEDE_COMENTAR } from '@/lib/flow';
+import { rolEnProyecto } from '@/lib/project-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -202,6 +202,9 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === 'script') {
+    if (!PUEDE_ESCRIBIR_GUION.includes(role)) {
+      return error('Tu rol no escribe el guion. Pídeselo a quien/edite la pieza.', 403);
+    }
     const script = str(body.script, 60_000);
     if (!script) return error('El guion está vacío.', 400);
     const { error: updateError } = await service
@@ -238,8 +241,11 @@ export async function POST(request: NextRequest) {
    *   en la trazabilidad.
    */
   if (action === 'update') {
-    if (role === 'client_viewer') {
-      return error('Tu rol es lectura: no puedes editar los datos de la pieza.', 403);
+    // Lista positiva, no "bloquear al que no puede". La negativa dejaba pasar a
+    // `client_approver` (rol de aprobar) y a cualquier rol con una errata en la
+    // base. Lo que no está en la lista, no edita.
+    if (!PUEDE_EDITAR.includes(role)) {
+      return error('Tu rol no edita la pieza. Puedes comentar para pedir el cambio.', 403);
     }
 
     const cambios: Record<string, string | string[]> = {};
@@ -507,6 +513,12 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === 'comment') {
+    // Comentar es la vía para pedir un cambio, así que es de cualquiera del
+    // equipo — incluido quien solo mira. Lo que no se permite es que un rol sin
+    // acceso (o con una errata) escriba: para eso está la lista positiva.
+    if (!PUEDE_COMENTAR.includes(role)) {
+      return error('Tu rol no está en el equipo de este proyecto.', 403);
+    }
     const text = str(body.body, 4000);
     if (!text) return error('El comentario está vacío.', 400);
     const { error: insertError } = await service.from('rr_hub_comments').insert({
@@ -605,6 +617,25 @@ async function roster(body: Body, ctx: Ctx): Promise<NextResponse> {
   const { data: proyecto } = await ctx.service
     .from('rr_hub_projects').select('id').eq('slug', slug).maybeSingle();
   if (!proyecto) return error('Ese proyecto no existe.', 404);
+
+  // Que la lista "no sea un secreto" no significa que cualquier sesión la pueda
+  // leer. Esta acción salta el chequeo de ideaId porque no va sobre una pieza, y
+  // usaba el service role (que ignora RLS) sin mirar quién pregunta. Con solo
+  // tener sesión, cualquier cuenta de Supabase se llevaba los 18 correos del
+  // equipo. Se cierra exigiendo que la persona sea del equipo de ESE proyecto.
+  const veredicto = await rolEnProyecto(proyecto.id);
+  if (!veredicto.puedeEscribir && veredicto.rol === 'sin_rol') {
+    return error('Necesitas ser parte del equipo para ver la lista.', 403);
+  }
+  const { data: propio } = await ctx.service
+    .from('rr_hub_access')
+    .select('user_id')
+    .eq('project_id', proyecto.id)
+    .eq('user_id', ctx.userId ?? '')
+    .maybeSingle();
+  if (!propio) {
+    return error('Necesitas ser parte del equipo para ver la lista.', 403);
+  }
 
   const { data: accesos, error: accesoError } = await ctx.service
     .from('rr_hub_access')

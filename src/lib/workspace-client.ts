@@ -344,15 +344,19 @@ export async function createIdea(input: {
   adId?: string | null;
 }): Promise<{ error?: string; id?: string }> {
   const supabase = createClient();
-  // No se pide sesión: el hub está en modo abierto mientras el login de Google
-  // se resuelve. El check se quitó porque devolvía "Necesitas una sesión" y
-  // bloqueaba el guardado sin decir por qué — la puerta que lo causaba ya no
-  // está. La autorización real la aplica el servidor.
   if (!supabase) return { error: 'Supabase no está configurado en este entorno.' };
 
+  // El token de sesión va en la CABECERA, no en el cuerpo. Antes no se mandaba
+  // porque el hub vivía en modo abierto; esa premisa murió cuando se encendió
+  // el login, y el comentario se quedó mintiendo. Sin `authorization` el
+  // servidor ve a nadie y devuelve 401: crear ideas quedaba roto.
+  const { data: sesion } = await supabase.auth.getSession();
   const response = await fetch('/api/workspace/create-idea', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      ...(sesion.session?.access_token ? { authorization: `Bearer ${sesion.session.access_token}` } : {}),
+    },
     body: JSON.stringify(input),
   });
   const payload = (await response.json().catch(() => null)) as { error?: string; id?: string } | null;
