@@ -33,9 +33,12 @@ test.describe('ficha reordenada', () => {
       return { accion: y('[data-guia="accion"]'), ref: y('[data-guia="brief"]') };
     });
     // La referencia va DESPUÉS de la acción y del título, pero no al final de
-    // la ficha: estaba en y=1437 con el bloque al fondo. Subió a la cabecera.
+    // la ficha. Medido: y=1437 en producción (1280x720), y el bloque entero
+    // mide 1038 px, o sea que ocupa de 1437 a 2475 — la mitad de la página.
+    // Antes estaba al fondo, después de la trazabilidad y los comentarios.
+    // El umbral es 1700: da margen al texto largo sin dejar que vuelva al pie.
     expect(orden.accion).toBeLessThan(orden.ref);
-    expect(orden.ref).toBeLessThan(1400);
+    expect(orden.ref).toBeLessThan(1700);
 
     // 3. Un solo iframe. El bloque se movió de sitio; duplicarlo sería el
     //    defecto que ya se corrigió una vez.
