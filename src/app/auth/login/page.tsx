@@ -24,27 +24,43 @@
  */
 
 import { useState, type FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
 const DESTINO = '/wundeer/ideas/nueva';
 
-export default function PaginaLogin() {
+function Contenido() {
   const router = useRouter();
+  const parametros = useSearchParams();
   const [correo, setCorreo] = useState('');
   const [clave, setClave] = useState('');
-  const [mensaje, setMensaje] = useState('');
+  const [mensajePropio, setMensajePropio] = useState('');
   const [ocupado, setOcupado] = useState(false);
+
+  // Dos motivos de vuelta distintos, y confundirlos es lo que hizo que el
+  // 2026-09-27 el equipo viera "entro al hub y me abre Medellín Guide": la
+  // pantalla queda igual tanto si "no has entrado" como si "no estás en la
+  // lista", y el segundo parece un fallo de contraseña que no es la contraseña.
+  //
+  // Se lee del `search` al render y no en un `useEffect`: el middleware manda
+  // `sinAcceso=1` y el aviso tiene que estar desde el primer cuadro. Ponerlo en
+  // un efecto que llama a `setState` es el antipatrón que ESLint marca, y además
+  // pinta un frame en blanco antes del mensaje.
+  const avisoDeRoster = parametros.get('sinAcceso') === '1';
+  const mensaje = mensajePropio || (avisoDeRoster
+    ? 'Tu cuenta está bien, pero ese correo no está en la lista del equipo. Escríbele a Dirección.'
+    : '');
 
   async function entrarConGoogle() {
     setOcupado(true);
-    setMensaje('');
+    setMensajePropio('');
     const supabase = createClient();
     // `createClient` devuelve null cuando faltan las variables publicas. Sin este
     // chequeo, TypeScript obliga a comprobarlo y un `null` sin avisar deja al
     // equipo mirando un boton que no hace nada.
     if (!supabase) {
-      setMensaje('El acceso no está configurado en este despliegue. Escríbele a Dirección.');
+      setMensajePropio('El acceso no está configurado en este despliegue. Escríbele a Dirección.');
       setOcupado(false);
       return;
     }
@@ -57,7 +73,7 @@ export default function PaginaLogin() {
       },
     });
     if (error) {
-      setMensaje(`Google no respondió: ${error.message}. Usá el correo y la contraseña.`);
+      setMensajePropio(`Google no respondió: ${error.message}. Usá el correo y la contraseña.`);
       setOcupado(false);
     }
     // Sin error, Google redirige: no hay nada que hacer aquí.
@@ -66,14 +82,14 @@ export default function PaginaLogin() {
   async function entrarConCorreo(evento: FormEvent) {
     evento.preventDefault();
     if (!correo || !clave) {
-      setMensaje('Escribí tu correo y tu contraseña.');
+      setMensajePropio('Escribí tu correo y tu contraseña.');
       return;
     }
     setOcupado(true);
-    setMensaje('');
+    setMensajePropio('');
     const supabase = createClient();
     if (!supabase) {
-      setMensaje('El acceso no está configurado en este despliegue. Escríbele a Dirección.');
+      setMensajePropio('El acceso no está configurado en este despliegue. Escríbele a Dirección.');
       setOcupado(false);
       return;
     }
@@ -81,7 +97,7 @@ export default function PaginaLogin() {
     if (error) {
       // El mensaje va genérico a propósito: decir "ese correo no existe"
       // confirmaría qué correos están dados de alta.
-      setMensaje('No pude entrar con ese correo y esa contraseña.');
+      setMensajePropio('No pude entrar con ese correo y esa contraseña.');
       setOcupado(false);
       return;
     }
@@ -155,5 +171,15 @@ export default function PaginaLogin() {
         </p>
       </footer>
     </main>
+  );
+}
+
+// `useSearchParams` obliga a envolver en Suspense: sin esto Next avisa y, en
+// algunas versiones, la pagina entera no renderiza.
+export default function PaginaLogin() {
+  return (
+    <Suspense fallback={null}>
+      <Contenido />
+    </Suspense>
   );
 }

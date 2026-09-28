@@ -67,6 +67,50 @@ export async function updateSession(request: NextRequest) {
         return NextResponse.redirect(url);
       }
     }
+
+    // Tener sesión NO es ser del equipo, y son dos cosas distintas.
+    //
+    // Cualquiera puede abrirse una cuenta en Supabase por su cuenta (Google,
+    // correo, lo que sea) sin pasar por la app. Si la puerta se cierra solo con
+    // "hay sesión", cualquiera que registre un Gmail cualquiera entra al hub a ver
+    // y a escribir. La lista blanca tiene que comprobarse contra
+    // `rr_hub_profiles`, que es lo que Dirección controla: 18 correos, a mano.
+    //
+    // Por eso esto va en el middleware y no solo en el guard de la API: el guard
+    // protege las mutaciones, pero las páginas se sirven sin pasar por él.
+    if (path.startsWith('/login') || path.startsWith('/auth/')) {
+      return supabaseResponse;
+    }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const correo = (user.email ?? '').toLowerCase();
+      const { data: enEquipo } = await supabase
+        .from('rr_hub_profiles')
+        .select('email')
+        .eq('email', correo)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (!enEquipo) {
+        // Sesión válida de alguien que no es del equipo. Se cierra la sesión
+        // para que no pueda reentrar saltándose esto, y se le manda al login con
+        // un motivo: "no estás en la lista" es distinto de "no has entrado".
+        await supabase.auth.signOut();
+        const url = request.nextUrl.clone();
+        url.pathname = '/login';
+        url.search = '';
+        url.searchParams.set('sinAcceso', '1');
+        url.searchParams.set('next', path);
+        return NextResponse.redirect(url);
+      }
+    } else {
+      // Sin sesión, y ya en el login: se deja pasar para que pueda entrar.
+      if (path === '/login' || path === '/') return supabaseResponse;
+      const url = request.nextUrl.clone();
+      url.pathname = '/login';
+      url.search = '';
+      url.searchParams.set('next', path);
+      return NextResponse.redirect(url);
+    }
   }
 
   return supabaseResponse;
