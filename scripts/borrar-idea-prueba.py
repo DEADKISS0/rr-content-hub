@@ -36,10 +36,14 @@ def main() -> int:
         print("SQL vacío: no se ejecuta nada.", file=sys.stderr)
         return 1
 
+    # El método importa y no es obvio: la Management API ejecuta la sentencia
+    # con POST. Con DELETE + cuerpo responde 201 y NO borra — un 201 que miente.
+    # Se comprobó: la misma sentencia por POST borra, por DELETE no.
     peticion = urllib.request.Request(
         ENDPOINT,
         data=json.dumps({"query": sql}).encode("utf-8"),
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        method="POST",
     )
     try:
         with urllib.request.urlopen(peticion, timeout=25) as respuesta:
@@ -51,13 +55,21 @@ def main() -> int:
         print(f"falló la petición: {error}", file=sys.stderr)
         return 1
 
-    # La Management API devuelve 201 con `[]` cuando el DDL pasó. Cada sentencia
-    # borrada devuelve una lista; lo que importa es que ninguna haya fallado.
+    # La Management API devuelve 201 con `[]` cuando la sentencia pasó. Cada
+    # `delete` devuelve una lista con lo que borró; lo que importa es que no haya
+    # fallado y que el DELETE de ideas no venga vacío.
     if isinstance(cuerpo, dict) and "error" in cuerpo:
         print(f"error de Postgres: {cuerpo['error']}", file=sys.stderr)
         return 1
 
-    print("limpieza ok")
+    # 201 con `[]` no prueba que se borrara. El `delete` de ideas tiene que venir
+    # con filas: si no, se dice en vez de cantar "limpieza ok".
+    borradas = [c for c in cuerpo if isinstance(c, list) and c]
+    if "delete from rr_hub_ideas" in sql and not borradas:
+        print("la API respondió 201 pero no borró ninguna idea.", file=sys.stderr)
+        return 1
+
+    print(f"limpieza ok ({sum(len(c) for c in borradas)} filas)")
     return 0
 
 
