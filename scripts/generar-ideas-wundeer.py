@@ -442,11 +442,41 @@ def main() -> int:
     analizador = argparse.ArgumentParser()
     analizador.add_argument("--solo-organico", action="store_true")
     analizador.add_argument("--seco", action="store_true", help="genera pero no imprime el pack de WhatsApp")
+    analizador.add_argument(
+        "--tope-cola",
+        type=int,
+        default=20,
+        help="cuantas ideas sin revisar aguantamos antes de parar (default 20)",
+    )
     opciones = analizador.parse_args()
 
     proyecto = proyecto_id()
     responsable = responsable_id()
     ideario = ideario_reciente(proyecto)
+
+    # ── La pausa de seguridad ────────────────────────────────────────────────
+    # Un generador que produce más de lo que el equipo puede revisar deja de
+    # generar valor y empieza a generar ruido. A 4 ideas por corrida y 2 al día
+    # son 8 diarias, 240 al mes; sin tope, la cola crece sin que nadie la vacíe.
+    #
+    # Por eso se para ANTES de generar, no después: cuando el umbral se toca, no
+    # se avisa "ya llené más" sino "no llené nada porque estabas lleno". Es la
+    # diferencia entre un tope y un promedio.
+    #
+    # El umbral es un argumento, no una constante enterrada: con `--tope-alto`
+    # se puede subir a mano el día que haya más manos mirando.
+    en_cola = tamano_cola(proyecto)
+    print(f"[info] ideas sin revisar: {en_cola} (tope {opciones.tope_cola})", file=sys.stderr)
+    if en_cola >= opciones.tope_cola:
+        mensaje = (
+            f"⏸️ No generé ideas: hay {en_cola} esperando y el tope es {opciones.tope_cola}.\n\n"
+            "Ideas que más generan: revisar y sacar de la cola las que ya no "
+            "van a grabarse, o bajar el ritmo. Cuando baje de "
+            f"{opciones.tope_cola}, vuelve solo."
+        )
+        if not opciones.seco:
+            print(mensaje)
+        return 0
 
     # Sin este archivo, `--oneshot` se cuelga preguntando por la sesion. Se crea
     # aqui y no se asume que exista: el generador tiene que funcionar solo, que
@@ -516,6 +546,27 @@ def main() -> int:
 # Como se llama cada tipo en el mensaje de WhatsApp. El pack los muestra asi y
 # no como `paid` / `organic`, que son los codigos internos.
 ETIQUETA = {"paid": "pauta", "organic": "orgánico"}
+
+
+def tamano_cola(proyecto: str) -> int:
+    """Cuántas ideas están esperando a que alguien las mire.
+
+    Son las que están en `draft` (nadie las ha abierto), `internal_review` (el
+    equipo las está viendo) y `voting` (esperando votos). Las que ya pasaron a
+    `pending_approval` o más allá ya salieron del circuito: o las pidió el
+    cliente o están en producción, y en ambos casos alguien las está llevando.
+
+    Los estados salen de la misma fuente que la app usa: `internal_review` y
+    `voting` se leyeron de `flow.ts` al escribirlos. Si mañana se cambia el
+    flujo, esta lista hay que actualizarla también: no es la app la que falla si
+    no se hace, es este contador el que miente.
+    """
+    filas = sql(
+        "select count(*)::int n from rr_hub_ideas where project_id = '"
+        + proyecto
+        + "' and status in ('draft', 'internal_review', 'voting')"
+    )
+    return int(filas[0]["n"]) if filas else 0
 
 
 def empaquetar(creadas: list[tuple[str, str, str]], fallos: list[tuple[str, str]] | None = None) -> str:

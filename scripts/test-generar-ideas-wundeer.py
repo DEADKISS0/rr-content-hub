@@ -133,6 +133,38 @@ try:
 except RuntimeError:
     comprobar("sin ideas completas se avisa", True)
 
+# ── La pausa de seguridad ───────────────────────────────────────────────────
+# Un generador que produce más de lo que el equipo puede revisar deja de generar
+# valor. A 8 ideas diarias son 240 al mes, y sin tope la cola crece sola.
+comprobar("la cola cuenta lo que espera revision", "status in ('draft', 'internal_review', 'voting')"
+           in pathlib.Path(generador.__file__).read_text(), "no cuenta la cola")
+
+# El tope se comprueba ANTES de generar, no despues: si se llenara primero y se
+# avisara despues, el aviso seria "ya te llene mas" en vez de "no te llene nada".
+# Solo dentro de main(): buscar "crear_idea" en el archivo entero encuentra la
+# DEFINICION de la funcion, que esta antes, y hace fallar el test sin motivo.
+fuente = pathlib.Path(generador.__file__).read_text()
+cuerpo_main = fuente[fuente.find("def main"):]
+i_pausa = cuerpo_main.find("if en_cola >= opciones.tope_cola:")
+i_crea = cuerpo_main.find("crear_idea(proyecto")
+comprobar("la pausa va antes de crear", 0 < i_pausa < i_crea, f"pausa={i_pausa} crear={i_crea}")
+comprobar("la pausa se comprueba antes de pedirle nada al bot",
+           cuerpo_main.find("pedir_ideas(") > i_pausa, "pregunta al bot antes de mirar la cola")
+
+# El tope se puede cambiar a mano sin tocar codigo.
+comprobar("el tope es un argumento, no una constante", "--tope-cola" in fuente)
+comprobar("el tope tiene valor por defecto 20", "default=20" in fuente)
+
+# Los estados de la cola son los de flow.ts, no inventados.
+comprobar("la cola usa estados que existen en el flujo",
+           "'voting'" in fuente and "'internal_review'" in fuente, "revisar flow.ts")
+
+# Cuando para, se dice por que y cuando vuelve: un aviso sin siguiente paso
+# hace que el equipo piense que se rompió.
+aviso = "tope"
+comprobar("el aviso explica el tope", aviso in fuente)
+comprobar("el aviso dice cuando vuelve solo", "vuelve solo" in fuente)
+
 print()
 if fallos == 0:
     print("TODO OK")
