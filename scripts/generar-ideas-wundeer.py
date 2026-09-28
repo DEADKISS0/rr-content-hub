@@ -153,16 +153,22 @@ def pedir_ideas(tipo: str, cuantas: int, ideario: str) -> list[dict]:
     depurar un prompt mal escrito sin tener que adivinar.
     """
     tipo_legible = "pauta (con medios pagados, idea de pauta creativa)" if tipo == "paid" else "organico (sin pauta, para publicar en el feed)"
+    # Una idea POR LLAMADA, no varias. El 2026-09-28 a las 08:00 el redactor
+    # devolvió un array de 2 y se quedó sin aire a la mitad del primer objeto:
+    # la respuesta se corta y se pierde la corrida entera. Pedir una idea por
+    # vez hace que cada llamada quepa de sobra en lo que el bot puede responder,
+    # y el coste son 4 llamadas cortas en vez de 2 largas.
     encargue = (
-        f"Genera {cuantas} ideas de contenido para la marca WUNDEER, tipo {tipo_legible}.\n\n"
-        "Cada idea debe tener: title (corto, con gancho, max 60 caracteres), "
+        f"Genera 1 idea de contenido para la marca WUNDEER, tipo {tipo_legible}.\n\n"
+        "La idea debe tener: title (corto, con gancho, max 60 caracteres), "
         "description (una frase de por que funciona), objective (que se busca), "
         "camera_brief (plano/luz/encuadre), talent_brief (quien sale y como), "
         "edit_brief (ritmo, cortes, texto en pantalla).\n\n"
-        "Devuelve SOLO un array JSON, sin texto antes ni despues, con esta forma:\n"
+        "Cada texto va en UNA sola linea, sin saltos de linea dentro del valor.\n\n"
+        "Devuelve SOLO un array JSON de UN elemento, sin texto antes ni despues:\n"
         '[{"title":"...","description":"...","objective":"...","camera_brief":"...",'
         '"talent_brief":"...","edit_brief":"..."}]\n\n'
-        "Estas ideas YA existen, no las repitas ni las reformules:\n"
+        f"{TITULOS_REPETIR}\n"
         f"{ideario}\n\n"
         "Todo en español de Colombia. Sin emojis en los textos."
     )
@@ -201,6 +207,10 @@ def pedir_ideas(tipo: str, cuantas: int, ideario: str) -> list[dict]:
 
 PERFIL_REDACTOR = "redactor-b-u-c-m"
 
+# Se le recuerda que no repita, separado del ideario para que el mensaje se lea
+# sola: los titulos ya usados van como lista, no enterrados en un parrafo.
+TITULOS_REPETIR = "Estas ideas YA existen, no las repitas ni las reformules:"
+
 # Los codigos de escape del terminal (ANSI) que emite `hermes chat`. Se quitan
 # por patron, no caracter a caracter: un `\x1b[...letra` puede llevar parametros
 # intermedios (`\x1b[0m`, `\x1b[?2004h`, `\x1b[62C`).
@@ -223,6 +233,59 @@ def limpiar_salida_hermes(texto: str) -> str:
     """
     sin_ansi = ANSI.sub("", texto)
     return "".join(c for c in sin_ansi if c in "\n\t" or ord(c) >= 32).strip()
+
+
+def recuperar_objetos_completos(limpio: str, inicio: int) -> list[dict]:
+    """Saca los objetos JSON que SÍ están completos de un array truncado.
+
+    Cuando el bot se corta a mitad, el texto acaba en
+    `{"title":"Diez lavadas...","camera_brief":"Plano medio...` y el último
+    objeto está sin cerrar. Los anteriores sí están enteros y se pueden
+    recuperar sin inventar nada: se toma cada fragmento entre llaves y se
+    parsea por separado.
+
+    Solo se devuelven los que parsean. El último, a medias, se descarta: es
+    preferible una idea menos a una idea con el brief cortado por la mitad,
+    que es lo que leería el equipo en la ficha.
+    """
+    cuerpo = limpio[inicio + 1:]
+    objetos: list[dict] = []
+    profundidad = 0
+    comillas = False
+    escapado = False
+    inicio_objeto = 0
+    for posicion, caracter in enumerate(cuerpo):
+        if escapado:
+            escapado = False
+            continue
+        if caracter == "\\" and comillas:
+            escapado = True
+            continue
+        if caracter == '"':
+            comillas = not comillas
+            continue
+        if comillas:
+            continue
+        if caracter == "{":
+            if profundidad == 0:
+                inicio_objeto = posicion
+            profundidad += 1
+        elif caracter == "}":
+            profundidad -= 1
+            if profundidad == 0:
+                try:
+                    posible = json.loads(cuerpo[inicio_objeto:posicion + 1])
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(posible, dict) and posible.get("title"):
+                    objetos.append(posible)
+    if objetos:
+        print(
+            f"[aviso] La respuesta venia cortada. Se recuperaron {len(objetos)} "
+            f"idea(s) completas y se perdio el resto.",
+            file=sys.stderr,
+        )
+    return objetos
 
 
 def parsear_json_desde_texto(texto: str, tipo: str) -> list[dict]:
@@ -256,7 +319,11 @@ def parsear_json_desde_texto(texto: str, tipo: str) -> list[dict]:
     # es la unica conversion que puede dejar el JSON entero valido.
     limpio = limpio.replace(chr(0x201C), Q_JSON).replace(chr(0x201D), Q_JSON)
     simple_a_doble = limpio.replace(chr(0x2018), Q_JSON).replace(chr(0x2019), Q_JSON)
-    limpio = re.sub(re.escape(Q_JSON) + "{2,}", Q_JSON, simple_a_doble)
+    # El colapso de comillas pegadas tiene que RESPETAR un `\"` escapado: una
+    # idea cuyo texto dice `dice \"{raro}\"` es JSON valido, y al colapsar sin
+    # mirar se comia la barra y partia el objeto entero. Solo se colapsan las
+    # comillas que NO estan precedidas por una barra.
+    limpio = re.sub(r'(?<!\\)"(?=")', "", simple_a_doble)
 
     inicio = limpio.find("[" + "{")
     fin = limpio.rfind("]")
@@ -283,7 +350,22 @@ def parsear_json_desde_texto(texto: str, tipo: str) -> list[dict]:
         if isinstance(datos, list) and datos:
             break
     else:
-        raise RuntimeError(f"El array del redactor no es JSON valido. Texto:\n{texto[:500]}")
+        # El array NO cierra. Casi siempre es que el bot se cortó a mitad de
+        # escribir. Antes esto tiraba TODO, y con ello las ideas que YA venían
+        # enteras en la misma respuesta: si de 4 solo se cortó la última, la
+        # mitad del trabajo se perdía sin motivo.
+        #
+        # Se recuperan los objetos que SÍ cierran. Si no hay ninguno —un único
+        # objeto cortado a medias, que es el caso de un bot que se queda sin
+        # aire a la primera idea— no hay nada que rescatar y se avisa igual: es
+        # preferible un fallo dicho a una ficha con el brief a la mitad.
+        datos = recuperar_objetos_completos(limpio, inicio)
+        if not datos:
+            raise RuntimeError(
+                "La respuesta del redactor vino cortada antes de cerrar la idea. "
+                "El bot se quedo sin aire a mitad del array.\n"
+                f"Texto:\n{texto[:500]}"
+            )
 
     ideas = [i for i in datos if isinstance(i, dict) and i.get("title")]
     if not ideas:
@@ -384,28 +466,40 @@ def main() -> int:
     creadas: list[tuple[str, str, str]] = []  # (codigo, tipo, id)
     fallos: list[tuple[str, str]] = []  # (tipo, motivo) de lo que NO se pudo generar
     for tipo, cuantas in pedidos:
-        try:
-            ideas = pedir_ideas(tipo, cuantas, ideario)
-        except Exception as error:  # noqa: BLE001
-            # Un tipo que falla no puede tumbar el otro: se avisa y se sigue.
-            # El aviso va tambien al pack de WhatsApp; si no, media corrida
-            # desaparece sin que se note en el celular.
-            fallos.append((tipo, str(error)))
-            print(f"[aviso] No se pudieron generar ideas de {tipo}: {error}", file=sys.stderr)
-            continue
-        for idea in ideas[:cuantas]:
+        # Una idea por llamada, y cada una se crea apenas llega: si la tercera
+        # falla, las dos primeras ya estan en la base y no se pierden. Antes se
+        # pedian varias juntas y un corte del bot tumbaba la corrida entera.
+        for intento in range(1, cuantas + 1):
             try:
-                codigo = siguiente_codigo(tipo)
-                idea_id = crear_idea(proyecto, responsable, codigo, tipo, idea)
-                registrar_evento(
-                    idea_id,
-                    "GENERADOR AUTOMATICO",
-                    f"Idea generada automaticamente ({'pauta' if tipo == 'paid' else 'organico'}). Entra en revision interna.",
-                )
-                creadas.append((codigo, tipo, idea_id))
-                print(f"[ok] {codigo} — {idea.get('title', '')[:60]}", file=sys.stderr)
+                ideas = pedir_ideas(tipo, 1, ideario)
             except Exception as error:  # noqa: BLE001
-                print(f"[aviso] No se pudo crear una idea de {tipo}: {error}", file=sys.stderr)
+                # Un tipo que falla no puede tumbar el otro: se avisa y se sigue.
+                # El aviso va tambien al pack de WhatsApp; si no, media corrida
+                # desaparece sin que se note en el celular.
+                fallos.append((tipo, str(error)))
+                print(
+                    f"[aviso] No se pudo generar la idea {intento}/{cuantas} de {tipo}: {error}",
+                    file=sys.stderr,
+                )
+                break
+            for idea in ideas[:1]:
+                try:
+                    codigo = siguiente_codigo(tipo)
+                    idea_id = crear_idea(proyecto, responsable, codigo, tipo, idea)
+                    registrar_evento(
+                        idea_id,
+                        "GENERADOR AUTOMATICO",
+                        f"Idea generada automaticamente ({'pauta' if tipo == 'paid' else 'organico'}). Entra en revision interna.",
+                    )
+                    creadas.append((codigo, tipo, idea_id))
+                    print(f"[ok] {codigo} — {idea.get('title', '')[:60]}", file=sys.stderr)
+                    # El titulo recien creado entra al ideario de la SIGUIENTE
+                    # llamada, o las 2 de la misma corrida se parecen entre si.
+                    titulo = str(idea.get("title", "")).strip()
+                    if titulo:
+                        ideario = f"{ideario}\n- {titulo}".strip()
+                except Exception as error:  # noqa: BLE001
+                    print(f"[aviso] No se pudo crear una idea de {tipo}: {error}", file=sys.stderr)
 
     if not creadas:
         print("[error] No se creo ninguna idea. No se manda nada a WhatsApp.", file=sys.stderr)

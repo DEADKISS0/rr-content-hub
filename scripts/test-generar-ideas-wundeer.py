@@ -95,6 +95,44 @@ losdos = generador.empaquetar([], [("paid","x"),("organic","y")])
 comprobar("el aviso usa nombres legibles, no codigos", "pauta, orgánico" in losdos, losdos[:90])
 comprobar("'paid' y 'organic' no llegan al mensaje", "paid" not in losdos and "organic" not in losdos, losdos[:90])
 
+# ── Respuesta cortada a mitad ──────────────────────────────────────────────
+# Lo que pasó de verdad el 2026-09-28 a las 08:00: el redactor se cortó
+# escribiendo y el array no cerró. El parser tiraba TODO, y con él una idea
+# de pauta que ya venía bien escrita. Se rescatan las que sí cierran.
+entera = '{"title":"Entera","description":"d","objective":"o"}'
+cortada = '{"title":"Cortada","description":"d","objective":"o","camera_brief":"Plano medio'
+respuesta = "[" + entera + "," + cortada
+salvadas = generador.parsear_json_desde_texto(respuesta, "paid")
+comprobar("una respuesta cortada no se tira entera", len(salvadas) == 1, f"len={len(salvadas)}")
+comprobar("se recupera la idea que SI cerro", salvadas and salvadas[0]["title"] == "Entera", str(salvadas[:1]))
+comprobar("la idea a medias NO se inventa", all(i["title"] != "Cortada" for i in salvadas))
+
+# Con varias enteras y la ultima cortada: se recuperan todas las enteras.
+tres = ",".join([entera, entera, '{"title":"Media","description":"d"'])
+completas = generador.parsear_json_desde_texto("[" + tres, "paid")
+comprobar("se recuperan todas las completas", len(completas) == 2, f"len={len(completas)}")
+
+# Una llave DENTRO de un valor de texto no cuenta como objeto: elGuion puede
+# traer un ejemplo con corchetes y llaves, y no debe romper el conteo.
+conllaves = '[{"title":"Con llaves","description":"usa {y} dentro","objective":"o"}]'
+una = generador.parsear_json_desde_texto(conllaves, "paid")
+comprobar("las llaves dentro de un valor no rompen nada", len(una) == 1, str(una[:1]))
+
+# Comillas escapadas de verdad (backslash + comilla en el TEXTO): un valor que
+# las lleve no debe partir el objeto ni hacer que se cuente una llave de mas.
+escapado = r'[{"title":"Escapado","description":"dice \"{raro}\"","objective":"o"}]'
+dos = generador.parsear_json_desde_texto(escapado, "paid")
+comprobar("las comillas escapadas no parten el objeto", len(dos) == 1, str(dos[:1]))
+comprobar("el valor escapado llega intacto", dos and dos[0]["description"] == 'dice "{raro}"', str(dos[:1]))
+
+# Si NO hay ninguna idea completa, se sigue avisando: no se inventa nada.
+solo_cortada = '[{"title":"Solo cortada","desc'
+try:
+    generador.parsear_json_desde_texto(solo_cortada, "paid")
+    comprobar("sin ideas completas se avisa", False, "no lanzo error")
+except RuntimeError:
+    comprobar("sin ideas completas se avisa", True)
+
 print()
 if fallos == 0:
     print("TODO OK")
