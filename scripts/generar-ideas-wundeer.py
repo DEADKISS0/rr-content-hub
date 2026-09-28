@@ -103,21 +103,30 @@ def responsable_id() -> str:
     return filas[0]["id"]
 
 
-def siguiente_codigo() -> str:
-    """El siguiente codigo de idea del proyecto (O18, P4...).
+def siguiente_codigo(tipo: str) -> str:
+    """El siguiente codigo de idea del proyecto, por tipo de contenido.
 
-    Se calcula en el servidor con max() en vez de traer los codigos y contarlos
-    en Python: asi dos corridas simultaneas no producen el mismo codigo.
+    Dos bugs reales que se encontraron probando esto de verdad (2026-09-28):
+
+    # 1. Se calculaba con el ÚLTIMO por fecha. O17/O13/O14/O15/O16 son todas
+    #    `organic` y se crearon casi el mismo día, así que "la última" podía ser
+    #    O16 y el código siguiente salía O17, que ya existía. La clave no se
+    #    repitió.
+    2. Se tomaba el prefijo de ESE codigo, sin mirar el tipo. Como las ideas
+       existentes de Wundeer son organico (prefijo O), las nuevas salian
+       `O17`/`O18` con `content_type = paid`: mezcla de prefijo y tipo, y el
+       tablero y los filtros contaban mal.
+
+    Ahora: el prefijo sale del tipo (`O` para organic, `P` para paid) y el numero
+    del MAXIMO de ese prefijo, no del ultimo creado.
     """
+    prefijo = "P" if tipo == "paid" else "O"
     filas = sql(
-        "select code from rr_hub_ideas "
+        f"select max(substring(code from 2)::int) n from rr_hub_ideas "
         f"where project_id = (select id from rr_hub_projects where slug = '{CLIENTE}') "
-        "order by created_at desc limit 1"
+        f"and code like '{prefijo}%' and substring(code from 2) ~ '^[0-9]+$'"
     )
-    ultimo = filas[0]["code"] if filas else "O0"
-    prefijo = ultimo.rstrip("0123456789")
-    numero = int(ultimo[len(prefijo):] or 0)
-    return f"{prefijo}{numero + 1}"
+    return f"{prefijo}{(filas[0]['n'] or 0) + 1}"
 
 
 def ideario_reciente(proyecto: str, limite: int = 40) -> str:
@@ -158,19 +167,62 @@ def pedir_ideas(tipo: str, cuantas: int, ideario: str) -> list[dict]:
         "Todo en español de Colombia. Sin emojis en los textos."
     )
 
-    ruta = pathlib.Path.home() / ".hermes" / "skills" / "timon-bots" / "scripts" / "timon.sh"
-    if not ruta.exists():
-        raise RuntimeError(f"No se encontro timon.sh en {ruta}. La skill timon-bots debe estar instalada.")
-
+    # `--oneshot -q` es la unica forma limpia de hablar con un bot desde un cron,
+    # y los tres detalles importan (2026-09-28, tres bugs reales encontrados):
+    #
+    # 1. NO `timon.sh`: reanuda la sesion de Bot Chat del bot y el JSON salio
+    #    contaminado con la conversacion anterior ("Construirrecordacion de marca
+    #    y viralidad de paid social"). El generador hereda el hilo del bot y
+    #    produce ideas sobre lo que el bot discutia hace tres mensajes.
+    # 2. NO `hermes chat` sin `-q`: imprime el banner de caja, el eco del PROMPT
+    #    (que incluye el `[{` de ejemplo del encargo) y barras de progreso
+    #    `[░░░░░]`. El parser enganchaba ese corchete y el error que salia
+    #    ("Expecting value: line 1 column 2") no señalaba nada del banner.
+    # 3. `--oneshot` dispara la POLITICA DE SESIONES del operador, que pregunta
+    #    "¿pinto esta sesion?". Sin humano delante, eso se cuelga y la respuesta
+    #    del bot nunca llega. Se desactiva con el archivo `.session-keep-prompt-off`,
+    #    que es justamente lo que el propio hook documenta para las ejecuciones
+    #    sin humano delante. Sin ese archivo, un cron de generacion no funciona.
+    #
+    # Y aunque el bot devuelva basura (una vez metio 1000 caracteres de
+    # "0.8, 0.8, 0.8" en un campo), el parser exige que el JSON cierre: si no,
+    # esta corrida no crea nada y lo dice por stderr.
     proceso = subprocess.run(
-        ["bash", str(ruta), "redactor-b-u-c-m", encargue],
+        ["hermes", "chat", "-Q", "--oneshot", "-q", encargue],
         capture_output=True, text=True, timeout=600,  # 600 s: un bot de tier free tarda hasta 3 min
+        cwd=str(pathlib.Path.home() / ".hermes" / "profiles" / PERFIL_REDACTOR),
     )
-    salida = (proceso.stdout or "").strip()
+    salida = limpiar_salida_hermes(proceso.stdout or "")
     if not salida:
         raise RuntimeError(f"El redactor no devolvio nada. stderr: {(proceso.stderr or '')[:300]}")
 
     return parsear_json_desde_texto(salida, tipo)
+
+
+PERFIL_REDACTOR = "redactor-b-u-c-m"
+
+# Los codigos de escape del terminal (ANSI) que emite `hermes chat`. Se quitan
+# por patron, no caracter a caracter: un `\x1b[...letra` puede llevar parametros
+# intermedios (`\x1b[0m`, `\x1b[?2004h`, `\x1b[62C`).
+ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+
+# El hook de la politica de sesiones pregunta "¿pino esta sesion?" en el primer
+# turno de CADA sesion nueva. Un cron no tiene a nadie delante, asi que esa
+# pregunta se queda colgada y el bot nunca responde. Este archivo es el
+# interruptor que el propio hook documenta para las ejecuciones sin humano
+# delante; sin el, el generador no produce nada.
+MARCA_SIN_SESION = pathlib.Path.home() / ".hermes" / ".session-keep-prompt-off"
+
+
+def limpiar_salida_hermes(texto: str) -> str:
+    """Saca la respuesta del bot del ruido de `hermes chat`.
+
+    Con `--oneshot` la salida es casi solo la respuesta, pero aun asi puede
+    traer el aviso de "1457 commits behind" o un `Goodbye!`. Todo eso vive FUERA
+    del array JSON, asi que el parser lo tolera por construccion.
+    """
+    sin_ansi = ANSI.sub("", texto)
+    return "".join(c for c in sin_ansi if c in "\n\t" or ord(c) >= 32).strip()
 
 
 def parsear_json_desde_texto(texto: str, tipo: str) -> list[dict]:
@@ -206,15 +258,32 @@ def parsear_json_desde_texto(texto: str, tipo: str) -> list[dict]:
     simple_a_doble = limpio.replace(chr(0x2018), Q_JSON).replace(chr(0x2019), Q_JSON)
     limpio = re.sub(re.escape(Q_JSON) + "{2,}", Q_JSON, simple_a_doble)
 
-    inicio = limpio.find("[")
+    inicio = limpio.find("[" + "{")
     fin = limpio.rfind("]")
-    if inicio == -1 or fin == -1 or fin < inicio:
+
+    # La salida de `hermes chat` viene entrelazada con el eco del prompt y con
+    # barras de progreso como `[░░░░░░░░░░]`, que tambien abren y cierran con
+    # corchete. Por eso no se toma el PRIMER corchete: se busca el primero que
+    # abre un array de OBJETOS, que es `[{"`, y se prueban varios cierres.
+    #
+    # Probar varios, y no quedarse con el primero, es por seguridad: el eco del
+    # prompt puede dejar un `]` de un ejemplo antes del cierre real, y con el
+    # primer cierre se leeria un array truncado sin avisar.
+    if inicio == -1:
         raise RuntimeError(f"El redactor no devolvio un array JSON. Venia esto:\n{texto[:500]}")
 
-    try:
-        datos = json.loads(limpio[inicio:fin + 1])
-    except json.JSONDecodeError as error:
-        raise RuntimeError(f"El array del redactor no es JSON valido ({error}). Texto:\n{texto[:500]}") from error
+    ultimo_cierre = min(fin, len(limpio) - 1)
+    for corte in range(ultimo_cierre, inicio, -1):
+        if limpio[corte] != "]":
+            continue
+        try:
+            datos = json.loads(limpio[inicio:corte + 1])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(datos, list) and datos:
+            break
+    else:
+        raise RuntimeError(f"El array del redactor no es JSON valido. Texto:\n{texto[:500]}")
 
     ideas = [i for i in datos if isinstance(i, dict) and i.get("title")]
     if not ideas:
@@ -256,11 +325,22 @@ def crear_idea(proyecto: str, responsable: str, codigo: str, tipo: str, idea: di
     if not columnas["title"] or not columnas["objective"]:
         raise RuntimeError(f"La idea {codigo} vino sin titulo u objetivo: {idea}")
 
-    literales = ", ".join(
-        f"'{clave}' = '{str(valor).replace(chr(39), chr(39) * 2)}'" for clave, valor in columnas.items()
-    )
+    # El INSERT se arma como `values`, NO como `clave = valor`: se estaba
+    # construyendo un UPDATE y metido donde esperaba una lista de valores, y
+    # Postgres leia el texto completo como un solo booleano. El error de verdad
+    # ("project_id is of type uuid but expression is of type boolean") no
+    # señalaba nada sobre claves foraneas, porque la falla estaba una linea antes.
+    def literal(valor) -> str:
+        # None -> NULL de verdad, no la palabra 'None' entre comillas.
+        if valor is None:
+            return "null"
+        if isinstance(valor, bool):
+            return "true" if valor else "false"
+        return "'" + str(valor).replace("'", "''") + "'"
+
+    valores = ", ".join(literal(valor) for valor in columnas.values())
     filas = sql(
-        "insert into rr_hub_ideas (" + ", ".join(columnas) + f") values ({literales}) returning id, code"
+        "insert into rr_hub_ideas (" + ", ".join(columnas) + f") values ({valores}) returning id, code"
     )
     if not filas:
         raise RuntimeError(f"La insercion de {codigo} no devolvio id.")
@@ -286,6 +366,16 @@ def main() -> int:
     responsable = responsable_id()
     ideario = ideario_reciente(proyecto)
 
+    # Sin este archivo, `--oneshot` se cuelga preguntando por la sesion. Se crea
+    # aqui y no se asume que exista: el generador tiene que funcionar solo, que
+    # es justo lo que se le pide a un cron.
+    if not MARCA_SIN_SESION.exists():
+        try:
+            MARCA_SIN_SESION.touch()
+            print(f"[info] creada {MARCA_SIN_SESION.name} para poder correr sin humano delante", file=sys.stderr)
+        except OSError as error:
+            print(f"[aviso] No se pudo crear {MARCA_SIN_SESION.name}: {error}", file=sys.stderr)
+
     pedidos = []
     if not opciones.solo_organico:
         pedidos.append(("paid", CUANTAS_PAUTA))
@@ -301,7 +391,7 @@ def main() -> int:
             continue
         for idea in ideas[:cuantas]:
             try:
-                codigo = siguiente_codigo()
+                codigo = siguiente_codigo(tipo)
                 idea_id = crear_idea(proyecto, responsable, codigo, tipo, idea)
                 registrar_evento(
                     idea_id,
