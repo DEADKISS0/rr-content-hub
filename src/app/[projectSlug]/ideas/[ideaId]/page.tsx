@@ -67,7 +67,22 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
     </header>
 
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-5 md:px-10 md:py-10">
-      <div className="mb-8 grid gap-8 border-b border-blanco-10 pb-8 anim-rise lg:grid-cols-[1.35fr_1fr]">
+      {/*
+        La acción va PRIMERO, antes del título y antes de la referencia. Medido el
+        2026-09-28: pegada al bloque de estado caía en y=795 con el pliegue en
+        720 — 75 px por debajo, invisible. Y al ponerla en la columna derecha
+        tampoco cabía.
+
+        El orden que funciona es: acción, título, estado, referencia. Es lo que
+        corresponde a la pregunta que trae a alguien aquí: "¿qué hago?".
+      */}
+      <div data-guia="accion" className="brutal-panel anim-rise mb-7">
+        <p className="eyebrow">[TU SIGUIENTE ACCIÓN]</p>
+        <h2 className="mt-3 font-display text-2xl font-bold text-blanco">Qué hacer ahora.</h2>
+        <div className="mt-5"><IdeaActions projectSlug={projectSlug} ideaId={ideaId} currentStatus={idea.status} role={rol} /></div>
+      </div>
+
+      <div className="mb-8 border-b border-blanco-10 pb-8 anim-rise">
         <div>
           <p className="eyebrow">{idea.code ?? 'IDEA'} · {idea.content_type === 'organic' ? 'ORGÁNICO' : 'PAUTA'} · {idea.category}</p>
           <h1 className="display-title max-w-5xl">{idea.title}</h1>
@@ -98,27 +113,22 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
             </div>
           </div>
         </div>
-
-        <div className="space-y-5">
-          {/* La acción va PRIMERO en esta columna, antes del preview. Con el
-              preview delante, el botón caía en y≈736 y un portátil de 720 px de
-              alto lo cortaba justo ahí: la única acción de la ficha quedaba bajo
-              el pliegue. Lo cazó el recorrido e2e, no una revisión a ojo. */}
-          <div data-guia="accion" className="brutal-panel anim-rise">
-            <p className="eyebrow">[TU SIGUIENTE ACCIÓN]</p>
-            <h2 className="mt-3 font-display text-2xl font-bold text-blanco">Qué hacer ahora.</h2>
-            <div className="mt-5"><IdeaActions projectSlug={projectSlug} ideaId={ideaId} currentStatus={idea.status} role={rol} /></div>
-          </div>
-
-          {/* Un solo bloque de referencia, más abajo, dentro de
-              `ReferenceWithBrief`: ahí la referencia y el brief van juntos y el
-              iframe es el real. Este preview la mostraba por segunda vez, con
-              otro componente y otra etiqueta ("VISTA PREVIA DE LA REFERENCIA
-              REAL"), y quien leía la ficha veía la misma pieza dos veces. Para
-              cuando el embed no se pueda incrustar, `ReferenceWithBrief` ya
-              ofrece "ABRIR ORIGINAL". */}
-        </div>
       </div>
+
+      {/* La referencia va a ancho completo, justo debajo del título y el estado.
+          Estaba al final de la ficha, después de la trazabilidad: al abrir una
+          pieza había que bajar dos pantallas para ver qué se estaba tomando como
+          referencia.
+
+          Sacarla de la rejilla de dos columnas también la arregló de paso: con
+          media pantalla de ancho el brief se leía en una tira de 40 caracteres y
+          el bloque medía 2493 px de alto. A ancho completo son dos columnas
+          legibles. */}
+      <section className="mb-8 anim-rise">
+        <div data-guia="brief">
+          <ReferenceWithBrief url={raw} title={idea.title} brief={{ intention: idea.objective, camera: idea.camera, talent: idea.talent, edit: idea.edit }} />
+        </div>
+      </section>
 
       {inProduction && <section className="mb-8 anim-rise">
         <p className="eyebrow mb-3">[PIPELINE DE PRODUCCIÓN]</p>
@@ -127,9 +137,6 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
 
       <div className="grid gap-6 lg:grid-cols-[1.25fr_.75fr]">
         <section className="space-y-5">
-          <div data-guia="brief">
-            <ReferenceWithBrief url={raw} title={idea.title} brief={{ intention: idea.objective, camera: idea.camera, talent: idea.talent, edit: idea.edit }} />
-          </div>
           {idea.script_content && <ScriptEditor ideaId={ideaId} initialScript={idea.script_content} />}
           <div data-guia="comentarios">
             <EnhancedIdeaCollaboration projectSlug={projectSlug} ideaId={ideaId} />

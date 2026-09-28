@@ -27,6 +27,51 @@ function embedSource(url: string) {
 }
 
 /**
+ * Encuadre del embed, según lo que la plataforma publica de verdad.
+ *
+ * Un iframe NO se puede hacer responsivo: el alto y el ancho los fija el embed.
+ * Lo único que se controla es el tamaño del marco, y un video vertical dentro
+ * de un marco ancho deja la mitad del ancho en negro. En la ficha auditada
+ * (390 px) eran 160 px de franja negra a cada lado: el video ocupaba un tercio
+ * de lo que se veía.
+ *
+ * Así que el marco se ESTRECHA cuando el contenido es vertical: el flanco negro
+ * se come el ancho del marco, no el de la tarjeta, y el fondo de la tarjeta
+ * (neutro) queda en su lugar.
+ *
+ * El formato se infiere de la plataforma, no del archivo: es la única señal
+ * honesta disponible sin metadatos. Si la plataforma no dice nada, se usa un
+ * marco cuadrado, que es el peor caso tolerable.
+ */
+type Encuadre = { ratio: string; ancho: string; alto: string };
+
+function encuadre(url: string): Encuadre {
+  const vertical = { ratio: 'aspect-[9/16]', ancho: 'mx-auto max-w-[200px] sm:max-w-[260px]', alto: 'max-h-[340px] sm:max-h-[480px]' };
+  if (url.includes('tiktok')) return vertical;
+
+  if (url.includes('instagram.com')) {
+    // Un reel es vertical; un post es cuadrado. No hay forma de saberlo desde la
+    // URL, así que se muestra estrecho y alto: en el peor caso (un post) el
+    // marco queda angosto, que se ve mejor que medio negro a los lados.
+    return vertical;
+  }
+
+  if (url.includes('youtube.com') || url.includes('youtu.be')) {
+    return { ratio: 'aspect-video', ancho: 'w-full', alto: 'max-h-[320px] sm:max-h-[420px]' };
+  }
+
+  if (url.includes('drive.google.com')) {
+    return { ratio: 'aspect-[4/3]', ancho: 'w-full', alto: 'max-h-[300px] sm:max-h-[460px]' };
+  }
+
+  if (url.includes('facebook.com')) {
+    return { ratio: 'aspect-square', ancho: 'mx-auto max-w-[300px]', alto: 'max-h-[340px]' };
+  }
+
+  return { ratio: 'aspect-square', ancho: 'w-full', alto: 'max-h-[320px]' };
+}
+
+/**
  * Reference + brief side by side. The iframe alone says "what"; the brief says
  * "why". Keeping them together is what turns a link into an approved direction.
  */
@@ -39,6 +84,7 @@ export function ReferenceWithBrief({ url, title, brief }: { url?: string; title:
   }
 
   const source = embedSource(url);
+  const marco = encuadre(url);
   const rows: Array<{ label: string; value?: string; tone?: string }> = [
     { label: 'INTENCIÓN', value: brief.intention },
     { label: 'CÁMARA', value: brief.camera },
@@ -53,8 +99,13 @@ export function ReferenceWithBrief({ url, title, brief }: { url?: string; title:
       <Link href={url} target="_blank" rel="noreferrer" className="font-mono text-[10px] text-blanco-50 underline">ABRIR ORIGINAL ↗</Link>
     </header>
     <div className="grid gap-px bg-blanco-10 lg:grid-cols-2">
-      <div className="bg-black">
-        {source ? <iframe title={`Referencia visual de ${title}`} src={source} className="h-[360px] w-full bg-white sm:h-[480px]" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" /> : <div className="grid h-[360px] place-items-center p-8 text-center sm:h-[480px]"><div><p className="font-mono text-xs text-blanco-60">PREVIEW NO DISPONIBLE PARA ESTE ORIGEN.</p><Link href={url} target="_blank" rel="noreferrer" className="mt-4 inline-block font-mono text-xs text-blanco-50 underline">VER REFERENCIA ORIGINAL ↗</Link></div></div>}
+      <div className="flex items-center justify-center bg-negro p-3 sm:p-5">
+        {source ? <iframe
+          title={`Referencia visual de ${title}`}
+          src={source}
+          className={`w-full border-0 bg-white ${marco.ratio} ${marco.ancho} ${marco.alto}`}
+          allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+        /> : <div className="grid w-full place-items-center p-8 text-center"><div><p className="font-mono text-xs text-blanco-60">PREVIEW NO DISPONIBLE PARA ESTE ORIGEN.</p><Link href={url} target="_blank" rel="noreferrer" className="mt-4 inline-block font-mono text-xs text-blanco-50 underline">VER REFERENCIA ORIGINAL ↗</Link></div></div>}
       </div>
       <div className="bg-negro p-6">
         <h3 className="font-display text-2xl font-bold text-blanco">¿Por qué<br /><em className="text-blanco-80">esta referencia?</em></h3>
