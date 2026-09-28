@@ -54,10 +54,24 @@ export function BotonBiblioteca({
 
   if (!anuncios.length) {
     return (
-      <p className="border-l-2 border-blanco-20 bg-blanco-05 px-4 py-3 font-mono text-[10px] leading-5 text-blanco-50">
-        La biblioteca está vacía. Cuando Dirección cargue anuncios, salen aquí para no
-        empezar cada idea desde cero.
-      </p>
+      <div className="flex flex-col gap-1">
+        <button
+          type="button"
+          disabled
+          className="flex w-full items-center justify-between gap-3 border-2 border-blanco-20 px-4 py-3 text-left opacity-60"
+        >
+          <span className="font-mono text-[10px] tracking-[0.15em] text-blanco-50">
+            // BIBLIOTECA DE ANUNCIOS · SIN ANUNCIOS PARA TI
+          </span>
+          <span className="font-mono text-[10px] text-blanco-40">0</span>
+        </button>
+        {/* Sin biblioteca no hay selector, pero el motivo tiene que ser visible. */}
+        {/* Un botón que no aparece sin explicación parece una función rota. */}
+        <p className="font-mono text-[10px] leading-5 text-blanco-50">
+          Todavía no hay anuncios cargados para este proyecto. Puedes pegar la
+          referencia a mano, más abajo.
+        </p>
+      </div>
     );
   }
 
