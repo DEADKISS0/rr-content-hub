@@ -169,6 +169,13 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
           </div>
         </aside>
       </div>
+
+      {/* Espacio para el botón flotante "¿CÓMO SE USA?". Es `fixed bottom-4` y
+          se superponía al final del brief: en móvil tapaba las últimas líneas
+          de la cámara. Lo cazó una foto, no el tipo ni el lint.
+          Se reserva el hueco al final de la página, que es donde se solapa, en
+          vez de alejar el botón: la ayuda tiene que seguir a mano. */}
+      <div aria-hidden="true" className="h-16 sm:h-12" />
     </div>
   </main>;
 }

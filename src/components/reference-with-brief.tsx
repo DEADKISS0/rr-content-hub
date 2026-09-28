@@ -61,7 +61,17 @@ function encuadre(url: string): Encuadre {
   }
 
   if (url.includes('drive.google.com')) {
-    return { ratio: 'aspect-[4/3]', ancho: 'w-full', alto: 'max-h-[300px] sm:max-h-[460px]' };
+    // Drive guarda el video en un reproductor con sus propios controles, y ese
+    // reproductor sale 16:9 SIEMPRE, aunque el archivo sea vertical. Aun
+    // angostando el marco, el video queda con flanco negro a los lados: medido
+    // en móvil, el archivo ocupa 174 px de un marco de 368.
+    //
+    // Un iframe no se puede recortar desde fuera, así que aquí no hay arreglo
+    // limpio. Lo que sí se hace es achicar el marco al máximo permitido y
+    // bajar el alto, para que el flanco sea la menor parte posible y el bloque
+    // no coma pantalla. El contenido se ve completo, con negro a los lados:
+    // recortar la mitad del video para llenar el marco sería peor.
+    return { ratio: 'aspect-[16/10]', ancho: 'mx-auto max-w-[240px] sm:max-w-[320px]', alto: 'max-h-[260px] sm:max-h-[340px]' };
   }
 
   if (url.includes('facebook.com')) {
