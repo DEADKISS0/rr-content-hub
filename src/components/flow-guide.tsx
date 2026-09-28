@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { BOARD_COLUMNS, statusMeta, type WorkflowStatus } from '@/lib/flow';
+import { statusMeta, type WorkflowStatus } from '@/lib/flow';
+import { BOARD_COLUMNS } from '@/lib/queues';
 import { Icon, type IconName } from './ui/icons';
 
 /**

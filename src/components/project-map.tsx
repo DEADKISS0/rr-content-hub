@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { actGroup, BOARD_COLUMNS, daysSince, statusMeta, TONE_CLASS, type WorkflowStatus } from '@/lib/flow';
+import { actGroup, daysSince, statusMeta, TONE_CLASS, type WorkflowStatus } from '@/lib/flow';
+import { BOARD_COLUMNS } from '@/lib/queues';
 import { BoardControls, type BoardFilters } from './board-controls';
 import { FlowGuide } from './flow-guide';
 import { StartHere } from './start-here';

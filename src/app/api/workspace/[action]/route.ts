@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
-import { allowedTransitions, ROLE_LABEL, type RoleKey, type WorkflowStatus } from '@/lib/flow';
+import { allowedTransitions, ganoLaVotacion, ROLE_LABEL, salidaDeLaVotacion, type RoleKey, type WorkflowStatus } from '@/lib/flow';
 
 export const dynamic = 'force-dynamic';
 
@@ -295,6 +295,103 @@ export async function POST(request: NextRequest) {
     if (updateError) return error(updateError.message, 500);
 
     return NextResponse.json({ success: true, actualizado: Object.keys(cambios) });
+  }
+
+  /**
+   * Votar una idea en revisión interna.
+   *
+   * Lo que pidió Santiago el 2026-09-28: que la idea pase por revisión interna
+   * con votación antes de mandarse al cliente, y que en la ficha se vea cuántas
+   * votaciones lleva.
+   *
+   * Decisiones que no son obvias:
+   *
+   * - El votante NO es la sesión. El hub está abierto, así que no hay sesión que
+   *   consultar; la identidad la da un token opaco que el navegador genera la
+   *   primera vez. Un voto anónimo no habría sido un voto, sino un clic. No se
+   *   guarda ni el nombre ni el email: solo el token, que no identifica a nadie
+   *   fuera de este par idea-votante.
+   *
+   * - Se puede CAMBIAR el voto, no solo emitirlo. Un voto irrevocable obliga a
+   *   acertar la primera vez; la `unique (idea_id, voter_token)` es la que impide
+   *   que dos clics seguidos cuenten como dos personas.
+   *
+   * - La regla es MAYORÍA SIMPLE (más `yes` que `no`), la que eligió Santiago. Se
+   *   calcula aquí y no con un CHECK en la tabla porque depende del conteo, y un
+   *   CHECK no puede contar filas de otra tabla.
+   *
+   * - Quien puede votar: cualquiera con el enlace, porque el token ES el permiso.
+   *   Cuando la puerta vuelva a encenderse, esta acción se apaga con ella: aquí no
+   *   se comprueba la sesión a propósito, y ese es el punto que hay que revisar
+   *   antes de reactivar el login.
+   */
+  if (action === 'vote') {
+    const token = str(body.voterToken, 100);
+    if (!token) return error('Falta el token de votante.', 400);
+
+    const decision = str(body.decision, 10);
+    if (decision !== 'yes' && decision !== 'no') return error('El voto debe ser "yes" o "no".', 400);
+
+    const { data: idea, error: ideaError } = await supabase
+      .from('rr_hub_ideas').select('status').eq('id', ideaId).maybeSingle();
+    if (ideaError) return error(ideaError.message, 500);
+    if (!idea) return error('La idea no existe.', 404);
+
+    // Solo se vota lo que está abierto a votación. Aceptar votos en `draft` o en
+    // `pending_approval` dejaría votos fantasma de una votación que ya se cerró.
+    if (idea.status !== 'voting') {
+      return error(`Esta idea no está en votación (está en ${idea.status}).`, 409);
+    }
+
+    // Upsert en vez de insert: cambiar el voto es legítimo, duplicarlo no.
+    const { error: voteError } = await service.from('rr_hub_votes').upsert(
+      { idea_id: ideaId, voter_token: token, decision },
+      { onConflict: 'idea_id,voter_token' },
+    );
+    if (voteError) return error(voteError.message, 500);
+
+    // El conteo se relee de la tabla, nunca se calcula con lo que el cliente dijo.
+    const { data: votos, error: countError } = await service
+      .from('rr_hub_votes').select('decision').eq('idea_id', ideaId);
+    if (countError) return error(countError.message, 500);
+
+    const aFavor = (votos ?? []).filter((v) => v.decision === 'yes').length;
+    const enContra = (votos ?? []).filter((v) => v.decision === 'no').length;
+    const gano = ganoLaVotacion(aFavor, enContra);
+
+    // El estado al que se mueve la idea lo decide el motor, no esta acción.
+    const SALIDA_VOTACION = salidaDeLaVotacion();
+    if (!SALIDA_VOTACION) return error('La votación no tiene salida a revisión del cliente.', 500);
+    const ESTADO_VOTANDO = idea.status;
+
+    // Un empate (o solo negativos) deja la idea donde está: la votación sigue
+    // abierta. Nadie avanza por hablar más fuerte.
+    if (gano) {
+      const { error: moveError } = await service
+        .from('rr_hub_ideas')
+        .update({ status: SALIDA_VOTACION, updated_at: new Date().toISOString() })
+        .eq('id', ideaId)
+        // El `eq` de estado es lo que evita la doble salida: si entre el conteo y
+        // esta actualización alguien cerró la votación, no se sobrescribe.
+        .eq('status', ESTADO_VOTANDO);
+      if (moveError) return error(moveError.message, 500);
+
+      const { data: movida } = await service
+        .from('rr_hub_ideas').select('status').eq('id', ideaId).maybeSingle();
+      if (movida?.status === SALIDA_VOTACION) {
+        await service.from('rr_hub_events').insert({
+          idea_id: ideaId, from_status: ESTADO_VOTANDO, to_status: SALIDA_VOTACION,
+          comment: `Aprobada por mayoría simple: ${aFavor} a favor, ${enContra} en contra.`,
+          actor_label: 'VOTACIÓN INTERNA',
+        });
+      }
+    }
+
+    return NextResponse.json({
+      success: true, decision, aFavor, enContra, gano,
+      // El estado real se relee: si no movió, sigue en votación.
+      estado: gano ? SALIDA_VOTACION : idea.status,
+    });
   }
 
   /**

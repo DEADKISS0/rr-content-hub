@@ -9,9 +9,11 @@ import path from 'node:path';
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const ALLOWED = new Set(['src/lib/flow.ts', 'src/lib/queues.ts', 'src/lib/demo-data.ts']);
 
-// Cualquier estado del dominio es un string literal de esta lista.
+// Cualquier estado del dominio es un string literal de esta lista. `internal_review`
+// y `voting` entraron el 2026-09-28 con el generador 2x/día: la idea se revisa y se
+// vota dentro de la casa antes de hablar con el cliente.
 const STATES = [
-  'draft', 'pending_approval', 'needs_changes', 'approved',
+  'draft', 'internal_review', 'voting', 'pending_approval', 'needs_changes', 'approved',
   'script_in_progress', 'pending_script_review', 'script_approved',
   'in_production', 'raw_uploaded', 'editing', 'ready_to_publish',
   'published', 'closed',

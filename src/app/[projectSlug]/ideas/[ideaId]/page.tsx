@@ -1,11 +1,12 @@
 import { notFound } from 'next/navigation';
-import { getIdea, getProject, getProfileName } from '@/lib/data';
+import { getIdea, getProject, getProfileName, getVotos } from '@/lib/data';
 import { rolEnProyecto } from '@/lib/project-guard';
 import { StatusBadge, STATUS_ICON } from '@/components/status-badge';
 import { IdeaActions } from '@/components/idea-actions';
 import { EnhancedIdeaCollaboration } from '@/components/collaboration-enhanced';
 import { AssignOwner } from '@/components/assign-owner';
 import { IdeaEditor } from '@/components/idea-editor';
+import { IdeaVoting } from '@/components/idea-voting';
 import { ReferenceWithBrief } from '@/components/reference-with-brief';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { ProductionPipeline } from '@/components/production-pipeline';
@@ -33,6 +34,11 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
   // ofrecía una transición real, ni con la puerta encendida.
   const { rol } = await rolEnProyecto(project.id);
   const idea: any = await getIdea(project.id, ideaId); if (!idea) notFound();
+
+  // El conteo de votos se lee en el servidor, junto con la idea. Solo van los
+  // NÚMEROS: el token del votante nunca sale del navegador que lo generó, así que
+  // la página no puede exponer quién votó aunque quiera mostrarlo.
+  const votos = await getVotos(ideaId);
 
   // El responsable se resuelve en el servidor y se pasa como NOMBRE, no como
   // id: el navegador no necesita saber el uuid de nadie, y `created_by` es la
@@ -95,6 +101,11 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
         <p className="eyebrow">[TU SIGUIENTE ACCIÓN]</p>
         <h2 className="mt-3 font-display text-2xl font-bold text-blanco">Qué hacer ahora.</h2>
         <div className="mt-5"><IdeaActions projectSlug={projectSlug} ideaId={ideaId} currentStatus={idea.status} role={rol} /></div>
+        {/* La votación va pegada a la acción porque en `voting` ES la acción:
+            quien entra a mirar la idea viene a decidir, no a leer. */}
+        <div className="mt-5">
+          <IdeaVoting ideaId={ideaId} status={idea.status} inicial={{ aFavor: votos.aFavor, enContra: votos.enContra }} />
+        </div>
       </div>
 
       <div className="mb-8 border-b border-blanco-10 pb-8 anim-rise">

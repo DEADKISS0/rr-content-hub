@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Python: estos son binarios que se regeneran solos y no van al repo
+__pycache__/
+*.pyc

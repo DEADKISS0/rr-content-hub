@@ -211,6 +211,35 @@ export async function getIdea(projectId: string, id: string) {
 }
 
 /**
+ * Conteo de votos de una idea, para pintar el contador en la ficha.
+ *
+ * Solo el NÚMERO, nunca el token de quien votó: el votante es anónimo por
+ * diseño, y devolverlo en la página convertiría el voto en un dato personal
+ * legible por cualquiera que tenga el enlace. El token del navegador se manda
+ * él mismo al votar y el servidor lo usa para el upsert.
+ *
+ * Se lee siempre, incluso con cero votos: `rr_hub_votes` no tiene filas para una
+ * idea recién abierta, y ese `0 a favor / 0 en contra` es exactamente lo que hay
+ * que mostrar.
+ */
+export type ConteoVotos = { aFavor: number; enContra: number; total: number };
+
+export async function getVotos(ideaId: string): Promise<ConteoVotos> {
+  const supabase = await createClient();
+  if (!supabase) return { aFavor: 0, enContra: 0, total: 0 };
+
+  const { data } = await supabase
+    .from('rr_hub_votes')
+    .select('decision')
+    .eq('idea_id', ideaId);
+
+  const votos = data ?? [];
+  const aFavor = votos.filter((v) => v.decision === 'yes').length;
+  const enContra = votos.filter((v) => v.decision === 'no').length;
+  return { aFavor, enContra, total: votos.length };
+}
+
+/**
  * Public audit reads. These use the same anonymous client; RLS turns every
  * read below into an anon-only, read-only view while the global audit switch
  * is open, so nothing leaks and nothing can be written.

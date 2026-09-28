@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getIdeas, getProjects } from '@/lib/data';
-import { BOARD_COLUMNS, statusMeta, type WorkflowStatus } from '@/lib/flow';
+import { statusMeta, type WorkflowStatus } from '@/lib/flow';
+import { BOARD_COLUMNS } from '@/lib/queues';
 import { Icon } from '@/components/ui/icons';
 
 /** Resolves the first available project across both row shapes (join object or plain row). */

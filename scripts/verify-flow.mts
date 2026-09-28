@@ -6,7 +6,8 @@
 // reglas en el test es exactamente como un test empieza a mentir.
 import {
   STATUS_ORDER, PHASES, STATUS_OWNERS, TRANSITIONS_FOR_TEST,
-  allowedTransitions, waitingOn, nextStatus,
+  allowedTransitions, waitingOn, nextStatus, esEsperaDelCliente, esTerminal,
+  ganoLaVotacion, salidaDeLaVotacion,
 } from '../src/lib/flow.ts';
 import { QUEUES, BOARD_COLUMNS, inQueue } from '../src/lib/queues.ts';
 
@@ -17,7 +18,7 @@ const check = (name: string, ok: boolean, detail = '') => {
 };
 
 // 1. Todo estado declarado tiene owners (aunque sea lista vacia) y aparece en PHASES.
-check('los 13 estados estan en STATUS_ORDER', STATUS_ORDER.length === 13, `${STATUS_ORDER.length}`);
+check('los 15 estados estan en STATUS_ORDER', STATUS_ORDER.length === 15, `${STATUS_ORDER.length}`);
 const inPhases = new Set(PHASES.flatMap(p => p.statuses as readonly string[]));
 const missingPhase = STATUS_ORDER.filter(s => !inPhases.has(s));
 check('todo estado pertenece a una fase', missingPhase.length === 0, missingPhase.join(', ') || 'todas');
@@ -55,9 +56,18 @@ for (const role of ['client_viewer'] as const) {
 }
 
 // 7. Ningun rol puede saltarse el motor hacia un estado terminal desde el inicio.
-const saltos = (['creator', 'camera', 'editor', 'publisher'] as const)
+//    Regresión del 2026-09-28: `draft` ya no salta al cliente, pasa por
+//    `internal_review`. Lo que se sigue exigiendo es lo importante: nadie entra
+//    al cliente sin pasar por la revisión interna.
+const desdeDraft = (['creator', 'camera', 'editor', 'publisher', 'media_buyer'] as const)
   .flatMap(r => allowedTransitions(r, 'draft').map(m => `${r}: draft->${m.to}`));
-check('desde draft solo se va a pending_approval', saltos.every(s => s.endsWith('->pending_approval')), saltos.join(', ') || 'ninguno');
+check('desde draft se entra a revision interna, nunca al cliente',
+  [...new Set(desdeDraft.map(s => s.split('->')[1]))].every(t => t === 'internal_review'),
+  desdeDraft.join(', ') || 'ninguno');
+const haciaCliente = (['creator', 'camera', 'editor', 'publisher', 'media_buyer'] as const)
+  .flatMap(r => allowedTransitions(r, 'internal_review').map(m => `${r}: ->${m.to}`));
+check('el cliente NO se puede saltar desde revision interna sin pasar por voting',
+  haciaCliente.some(s => s.endsWith('->voting')), haciaCliente.join(', ') || 'ninguna');
 
 // 8. Las colas cubren estados reales y no se solapan.
 const queueStates = new Set(Object.values(QUEUES).flatMap(q => q.statuses));
@@ -85,7 +95,7 @@ check('el solape entre colas es solo la frontera final',
 //     aparecia en un sitio y no en el otro.
 const boardStates = BOARD_COLUMNS.flatMap(c => c.statuses as readonly string[]);
 check('el tablero tiene 4 columnas', BOARD_COLUMNS.length === 4, `${BOARD_COLUMNS.length}`);
-check('el tablero cubre los 13 estados sin repetir', new Set(boardStates).size === 13, `${new Set(boardStates).size} unicos`);
+check('el tablero cubre los 15 estados sin repetir', new Set(boardStates).size === 15, `${new Set(boardStates).size} unicos`);
 const boardMissing = STATUS_ORDER.filter(s => !boardStates.includes(s));
 check('el tablero incluye todo estado del motor', boardMissing.length === 0, boardMissing.join(', ') || 'todos');
 const queuesCovered = new Set(Object.values(QUEUES).flatMap(q => q.statuses));
@@ -101,12 +111,50 @@ check('los estados que esperan al cliente lo dicen', waitingOn('pending_approval
 // 10. nextStatus devuelve el movimiento del equipo, no la primera fila. Antes
 //     devolvia options[0].to, que para pending_approval era `approved`: la rama
 //     mas optimista, que no predice nada.
-check('nextStatus de draft es pending_approval', nextStatus('draft') === 'pending_approval', String(nextStatus('draft')));
+check('nextStatus de draft es internal_review', nextStatus('draft') === 'internal_review', String(nextStatus('draft')));
 check('nextStatus de closed es null (no hay salida)', nextStatus('closed') === null, String(nextStatus('closed')));
 check('nextStatus nunca devuelve un estado que no existe',
   STATUS_ORDER.every(s => { const n = nextStatus(s); return n === null || STATUS_ORDER.includes(n); }));
 check('nextStatus de un estado con salida nunca es null',
   STATUS_ORDER.filter(s => s !== 'closed').every(s => nextStatus(s) !== null));
+
+// 11. La votación interna (2026-09-28). Estas reglas son la razón de existir de
+//     `internal_review` y `voting`, así que se comprueban en el motor y no solo
+//     en la UI: si alguien los cambia, el test avisa.
+// `waitingOn` devuelve los ROLOS, no la etiqueta de `STATUS_META.who`: por eso
+// el assertion mira que ningún rol sea de cliente y no que diga "EQUIPO".
+check('internal_review NO espera al cliente', !esEsperaDelCliente('internal_review')
+  && !STATUS_OWNERS.internal_review.some(r => r.startsWith('client')), waitingOn('internal_review'));
+check('voting NO espera al cliente', !esEsperaDelCliente('voting'), waitingOn('voting'));
+check('internal_review no es terminal', !esTerminal('internal_review'));
+check('draft entra a revision interna y no al cliente',
+  allowedTransitions('creator', 'draft').every(m => m.to === 'internal_review'),
+  allowedTransitions('creator', 'draft').map(m => m.to).join(','));
+check('un visitante no vota ni mueve la idea en revision interna',
+  allowedTransitions('client_viewer', 'internal_review').length === 0
+  && allowedTransitions('client_viewer', 'voting').length === 0);
+check('el cliente no toca la revision interna: es interna',
+  allowedTransitions('client_approver', 'internal_review').length === 0
+  && allowedTransitions('client_approver', 'voting').length === 0);
+check('pauta puede abrir la votacion (las ideas de pauta las vota quien las pauta)',
+  allowedTransitions('media_buyer', 'internal_review').some(m => m.to === 'voting'));
+check('la votacion cerrada se puede devolver a revision interna',
+  allowedTransitions('owner', 'voting').some(m => m.to === 'internal_review'));
+
+// 12. La regla de mayoría simple, casos que importan. Un empate NO aprueba:
+//     es la diferencia entre "decidieron" y "no decidió nadie".
+check('mayoria simple: 1 a favor 0 en contra gana', ganoLaVotacion(1, 0));
+check('mayoria simple: 2 a favor 1 en contra gana', ganoLaVotacion(2, 1));
+check('mayoria simple: 1 a favor 1 en contra es empate y NO gana', !ganoLaVotacion(1, 1));
+check('mayoria simple: 0 a favor 1 en contra NO gana', !ganoLaVotacion(0, 1));
+check('mayoria simple: 0 y 0 no aprueba una idea sin votos', !ganoLaVotacion(0, 0));
+check('mayoria simple: 3 a favor 2 en contra gana', ganoLaVotacion(3, 2));
+// La salida de la votación tiene que ser un estado REAL, no un string inventado.
+check('la votacion tiene salida y es un estado del motor',
+  salidaDeLaVotacion() !== null && STATUS_ORDER.includes(salidaDeLaVotacion()!),
+  String(salidaDeLaVotacion()));
+check('la salida de la votacion NO es volver a revision interna',
+  salidaDeLaVotacion() !== 'internal_review', String(salidaDeLaVotacion()));
 
 console.log(fails === 0 ? '\nTODO OK' : `\n${fails} FALLO(S)`);
 process.exit(fails === 0 ? 0 : 1);

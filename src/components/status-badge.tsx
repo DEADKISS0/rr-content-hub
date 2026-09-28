@@ -3,7 +3,12 @@ import { Icon, type IconName } from './ui/icons';
 
 /** De cada estado, su ícono propio. El emoji se fue: ahora es trazo de marca. */
 export const STATUS_ICON: Record<WorkflowStatus, IconName> = {
-  draft: 'pen', pending_approval: 'clock', needs_changes: 'alert', approved: 'check',
+  draft: 'pen',
+  // `eye` para revisión interna (la están mirando) y `target` para votación (se
+  // decide con ella). Los dos reusan iconos que ya existían: añadir trazos
+  // nuevos por dos estados no compensa el peso del set.
+  internal_review: 'eye', voting: 'target',
+  pending_approval: 'clock', needs_changes: 'alert', approved: 'check',
   script_in_progress: 'file', pending_script_review: 'eye', script_approved: 'flag',
   in_production: 'camera', raw_uploaded: 'upload', editing: 'scissors',
   ready_to_publish: 'target', published: 'publish', closed: 'check',

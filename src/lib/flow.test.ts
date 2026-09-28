@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ACT_GROUPS, BOARD_COLUMNS, PHASES, ROLE_LABEL, STATUS_ORDER, actGroup, allowedTransitions,
-  boardColumn, daysSince, phaseIndex, productionStep, statusMeta, waitingOn, type RoleKey,
+  ACT_GROUPS, PHASES, ROLE_LABEL, STATUS_ORDER, actGroup, allowedTransitions,
+  daysSince, phaseIndex, productionStep, statusMeta, waitingOn, type RoleKey,
 } from './flow';
+// El tablero vive en `queues.ts`, no en `flow.ts`: flow tenía una copia propia
+// con los estados a mano que se quedó vieja al entrar `internal_review` y
+// `voting`. Ver el comentario donde estaban.
+import { BOARD_COLUMNS } from './queues';
 
 const ROLES = Object.keys(ROLE_LABEL) as RoleKey[];
 
@@ -39,11 +43,15 @@ describe('ninguna pieza se pierde ni se duplica', () => {
     expect(faseDe.size).toBe(STATUS_ORDER.length);
   });
 
-  it('boardColumn devuelve la columna que de verdad contiene el estado', () => {
-    for (const status of STATUS_ORDER) {
-      const esperada = BOARD_COLUMNS.find((columna) => (columna.statuses as readonly string[]).includes(status));
-      expect(esperada, `${status} sin columna`).toBeTruthy();
-      expect(boardColumn(status).key).toBe(esperada?.key);
+  it('toda columna del tablero se puede resolver a una sola columna', () => {
+    // `boardColumn` murió con la copia duplicada: lo que importa ahora es que
+    // cada estado caiga en exactamente una columna, y eso ya lo comprueba el
+    // test de arriba. Aquí se verifica que ninguna columna esté vacía.
+    for (const columna of BOARD_COLUMNS) {
+      expect(columna.statuses.length, `columna ${columna.key} vacía`).toBeGreaterThan(0);
+      for (const status of columna.statuses) {
+        expect(STATUS_ORDER, `${status} en la columna ${columna.key} no existe`).toContain(status);
+      }
     }
   });
 

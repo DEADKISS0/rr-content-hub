@@ -225,6 +225,75 @@ export async function updateIdea(
 }
 
 /**
+ * Votar en la revisión interna.
+ *
+ * El token del votante se genera y se guarda en el navegador, una sola vez. No
+ * es un email ni un id de usuario: es un valor opaco que solo sirve para que este
+ * navegador no pueda votar dos veces en la misma idea. Quien lo tenga puede
+ * cambiar de opinión (el servidor hace upsert), pero no duplicar el voto.
+ */
+const LLAVE_VOTANTE = 'rr-hub-votante-v1';
+
+/**
+ * Identidad de votante, estable por navegador.
+ *
+ * `crypto.randomUUID` no está en todos los contextos (y en un iframe puede no
+ * estar), así que se cae a `getRandomValues` y, en último caso, a una cadena
+ * derivada del entorno. Lo que importa es que sea OPACO e irrepetible: nunca un
+ * nombre, un email o un id de usuario, porque eso sería dato personal de una
+ * tercera persona en una tabla pública.
+ */
+export function tokenVotante(): string {
+  if (typeof window === 'undefined') return '';
+  const guardado = window.localStorage.getItem(LLAVE_VOTANTE);
+  if (guardado) return guardado;
+
+  let token = '';
+  const cripto = window.crypto;
+  if (cripto?.randomUUID) {
+    token = cripto.randomUUID();
+  } else if (cripto?.getRandomValues) {
+    const bytes = new Uint8Array(16);
+    cripto.getRandomValues(bytes);
+    token = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  // Sin Web Crypto no hay token: se devuelve vacío y la API lo rechaza con un
+  // error claro. Es preferible a inventar un token predecible, que alguien
+  // podría copiar del `localStorage` de otro.
+  if (!token) return '';
+
+  window.localStorage.setItem(LLAVE_VOTANTE, token);
+  return token;
+}
+
+export type VotoResultado = {
+  error?: string;
+  aFavor?: number;
+  enContra?: number;
+  gano?: boolean;
+  estado?: string;
+};
+
+export async function voteIdea(
+  ideaId: string,
+  decision: 'yes' | 'no',
+): Promise<VotoResultado> {
+  const token = tokenVotante();
+  if (!token) {
+    return { error: 'Este navegador no puede emitir un voto con seguridad.' };
+  }
+  const response = await postWorkspaceAction('vote', { ideaId, voterToken: token, decision });
+  if (!response) return { error: 'No se pudo contactar al servidor.' };
+  if (response.error) return { error: String(response.error) };
+  return {
+    aFavor: Number(response.aFavor ?? 0),
+    enContra: Number(response.enContra ?? 0),
+    gano: Boolean(response.gano),
+    estado: String(response.estado ?? ''),
+  };
+}
+
+/**
  * El roster del proyecto, para nombrar a un responsable.
  *
  * Solo se devuelven perfiles que tienen `rr_hub_access` en ESTE proyecto: la

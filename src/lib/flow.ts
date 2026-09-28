@@ -7,7 +7,7 @@
  */
 
 export type WorkflowStatus =
-  | 'draft' | 'pending_approval' | 'needs_changes' | 'approved'
+  | 'draft' | 'internal_review' | 'voting' | 'pending_approval' | 'needs_changes' | 'approved'
   | 'script_in_progress' | 'pending_script_review' | 'script_approved'
   | 'in_production' | 'raw_uploaded' | 'editing' | 'ready_to_publish'
   | 'published' | 'closed';
@@ -28,7 +28,7 @@ export function toRoleKey(value?: string | null): RoleKey {
 }
 
 export const STATUS_ORDER: WorkflowStatus[] = [
-  'draft', 'pending_approval', 'needs_changes', 'approved',
+  'draft', 'internal_review', 'voting', 'pending_approval', 'needs_changes', 'approved',
   'script_in_progress', 'pending_script_review', 'script_approved',
   'in_production', 'raw_uploaded', 'editing', 'ready_to_publish',
   'published', 'closed',
@@ -36,7 +36,7 @@ export const STATUS_ORDER: WorkflowStatus[] = [
 
 /** Five macro phases give a person one glance instead of thirteen labels. */
 export const PHASES = [
-  { key: 'idea', label: 'IDEA', detail: 'Se propone y se decide', statuses: ['draft', 'pending_approval', 'needs_changes'] },
+  { key: 'idea', label: 'IDEA', detail: 'Se propone, se revisa y se decide', statuses: ['draft', 'internal_review', 'voting', 'pending_approval', 'needs_changes'] },
   { key: 'script', label: 'GUIÓN', detail: 'Se escribe y se aprueba', statuses: ['approved', 'script_in_progress', 'pending_script_review', 'script_approved'] },
   { key: 'shoot', label: 'RODAJE', detail: 'Se graba y se sube el crudo', statuses: ['in_production', 'raw_uploaded'] },
   { key: 'edit', label: 'EDICIÓN', detail: 'Se monta y se aprueba', statuses: ['editing', 'ready_to_publish'] },
@@ -49,7 +49,8 @@ export function phaseIndex(status: WorkflowStatus): number {
 }
 
 export const STATUS_LABEL: Record<WorkflowStatus, string> = {
-  draft: 'BORRADOR', pending_approval: 'ESPERANDO AL CLIENTE', needs_changes: 'AJUSTES SOLICITADOS',
+  draft: 'BORRADOR', internal_review: 'REVISIÓN INTERNA', voting: 'EN VOTACIÓN',
+  pending_approval: 'ESPERANDO AL CLIENTE', needs_changes: 'AJUSTES SOLICITADOS',
   approved: 'IDEA APROBADA', script_in_progress: 'GUIÓN EN CONSTRUCCIÓN', pending_script_review: 'GUIÓN POR APROBAR',
   script_approved: 'GUIÓN APROBADO', in_production: 'RODAJE EN CURSO', raw_uploaded: 'CRUDO CARGADO',
   editing: 'EN EDICIÓN', ready_to_publish: 'REVISIÓN FINAL', published: 'PUBLICADO', closed: 'CERRADO',
@@ -65,7 +66,24 @@ type Transition = { to: WorkflowStatus; label: string; note: string; roles: 'tea
 /** A status offers few, explicit moves. Roles decide which ones you actually see. */
 const TRANSITIONS: Partial<Record<WorkflowStatus, Transition[]>> = {
   draft: [
-    { to: 'pending_approval', label: 'ENVIAR IDEA AL CLIENTE', note: 'Propuesta enviada para decisión del cliente.', roles: 'team' },
+    // Antes `draft` saltaba directo a `pending_approval`: la idea se creaba y de
+    // una vez viajaba al cliente, sin que nadie del equipo la mirara. Ahora
+    // `draft` significa "idea nueva, todavía sin revisar" y el paso obligatorio es
+    // `internal_review`. Es el cambio que pidió Santiago el 2026-09-28: la idea
+    // se revisa y se vota DENTRO de la casa antes de hablar con el cliente.
+    { to: 'internal_review', label: 'MIRAR EN REVISIÓN INTERNA', note: 'La idea entra a revisión interna del equipo.', roles: 'team' },
+  ],
+  internal_review: [
+    { to: 'voting', label: 'ABRIR VOTACIÓN', note: 'El equipo vota la idea antes de mandarla al cliente.', roles: 'team', owners: ['owner', 'creator', 'media_buyer'] },
+    // Atajo para cuando nadie quiere voting: se aprueba por decisión del equipo.
+    { to: 'pending_approval', label: 'IR DIRECTO AL CLIENTE', note: 'Revisión interna superada sin votación; va al cliente.', roles: 'team', owners: ['owner', 'creator', 'media_buyer'] },
+  ],
+  voting: [
+    // La salida normal de `voting` NO es una transición que pulse una persona: la
+    // calcula el servidor al Contar votos (mayoría simple). Estas dos son el
+    // cierre manual, para cuando la votación se queda quieta o se quiere parar.
+    { to: 'pending_approval', label: 'CERRAR VOTACIÓN Y MANDAR', note: 'Votación cerrada; la idea va al cliente.', roles: 'team', owners: ['owner', 'creator', 'media_buyer'] },
+    { to: 'internal_review', label: 'ABRIR DE NUEVO LA REVISIÓN', note: 'Votación detenida; la idea vuelve a revisión interna.', roles: 'team', owners: ['owner', 'creator', 'media_buyer'] },
   ],
   pending_approval: [
     { to: 'approved', label: 'APROBAR IDEA', note: 'El cliente aprobó la idea.', roles: 'client' },
@@ -120,7 +138,13 @@ const TRANSITIONS: Partial<Record<WorkflowStatus, Transition[]>> = {
  * here cannot pass unnoticed.
  */
 export const STATUS_OWNERS: Record<WorkflowStatus, RoleKey[]> = {
-  draft: ['owner', 'creator'], pending_approval: [], needs_changes: ['owner', 'creator'],
+  draft: ['owner', 'creator'],
+  // Los dos estados nuevos son del equipo, nunca del cliente: la idea todavía
+  // no ha salido de la casa. `media_buyer` está porque las ideas de pauta las
+  // vota quien las va a pautar, no solo la creativa.
+  internal_review: ['owner', 'creator', 'media_buyer'],
+  voting: ['owner', 'creator', 'media_buyer'],
+  pending_approval: [], needs_changes: ['owner', 'creator'],
   approved: ['owner', 'creator'], script_in_progress: ['owner', 'creator', 'editor'],
   pending_script_review: [], script_approved: ['owner', 'camera', 'model'],
   in_production: ['camera', 'model', 'owner'], raw_uploaded: ['editor', 'owner'],
@@ -157,6 +181,33 @@ export function allowedTransitions(role: RoleKey, status: WorkflowStatus): Allow
       return (option.owners ?? STATUS_OWNERS[status]).includes(role);
     })
     .map(({ to, label, note }) => ({ to, label, note }));
+}
+
+/**
+ * ¿La votación se ganó y esta idea tiene que salir al cliente?
+ *
+ * Santiago eligió mayoría simple el 2026-09-28: sale si hay más votos a favor
+ * que en contra. La regla vive AQUÍ y no en la acción `vote` por dos razones:
+ *
+ * 1. Es dominio, y el dominio vive en este archivo. Si el criterio de "ganó"
+ *    estuviera en la API, habría que leer la API para saber cuándo una idea
+ *    avanza, y la regla no sería verificable por `verify-flow`.
+ * 2. Un empate NO aprueba: sin decir esto explícitamente, `aFavor > enContra` con
+ *    1 contra y 1 a favor deja la decisión en manos de quién llegara después.
+ */
+export function ganoLaVotacion(aFavor: number, enContra: number): boolean {
+  return aFavor > enContra;
+}
+/**
+ * El estado al que salta una idea cuando su votación se gana.
+ *
+ * Sale de la tabla de transiciones (`voting -> pending_approval`), no de una
+ * constante escrita aquí. Si mañana la salida de `voting` cambia, esta función
+ * lo sigue sin que nadie la tenga que editar: la votación no debería conocer el
+ * nombre del estado al que lleva, solo que hay uno.
+ */
+export function salidaDeLaVotacion(): WorkflowStatus | null {
+  return TRANSITIONS.voting?.find((m) => m.to !== 'internal_review')?.to ?? null;
 }
 
 /**
@@ -238,7 +289,9 @@ export type ToneKey = 'neutro' | 'mostaza' | 'fucsia' | 'orquidea';
 export type StatusMeta = { label: string; icon: string; tone: ToneKey; who: string; blurb: string };
 
 export const STATUS_META: Record<WorkflowStatus, StatusMeta> = {
-  draft: { label: 'BORRADOR', icon: '✎', tone: 'neutro', who: 'CREATIVA', blurb: 'Aún se está escribiendo; todavía no viaja al cliente.' },
+  draft: { label: 'BORRADOR', icon: '✎', tone: 'neutro', who: 'CREATIVA', blurb: 'Idea nueva; todavía nadie del equipo la ha mirado.' },
+  internal_review: { label: 'REVISIÓN INTERNA', icon: '◍', tone: 'orquidea', who: 'EQUIPO', blurb: 'El equipo la está mirando. Todavía no sale de la casa.' },
+  voting: { label: 'EN VOTACIÓN', icon: '⚖', tone: 'orquidea', who: 'EQUIPO', blurb: 'Votación abierta: sale al cliente si hay más votos a favor que en contra.' },
   pending_approval: { label: 'ESPERA CLIENTE', icon: '⏱', tone: 'mostaza', who: 'CLIENTE', blurb: 'La propuesta está en manos del cliente para su decisión.' },
   needs_changes: { label: 'AJUSTES PEDIDOS', icon: '↺', tone: 'fucsia', who: 'CREATIVA', blurb: 'El cliente pidió cambios; la pelota vuelve al equipo.' },
   approved: { label: 'IDEA APROBADA', icon: '✓', tone: 'orquidea', who: 'CREATIVA', blurb: 'Dirección aprobada. Arranca la escritura del guion.' },
@@ -316,7 +369,8 @@ export function productionStep(status: WorkflowStatus): number {
 
 /** One-word status, for dense board cards. */
 export const STATUS_SHORT: Record<WorkflowStatus, string> = {
-  draft: 'Borrador', pending_approval: 'Espera cliente', needs_changes: 'Ajustes',
+  draft: 'Borrador', internal_review: 'Revisión interna', voting: 'En votación',
+  pending_approval: 'Espera cliente', needs_changes: 'Ajustes',
   approved: 'Aprobada', script_in_progress: 'Escribiendo guion', pending_script_review: 'Guion por aprobar',
   script_approved: 'Guion listo', in_production: 'Grabando', raw_uploaded: 'Crudo subido',
   editing: 'Editando', ready_to_publish: 'Revisión final', published: 'Publicado', closed: 'Cerrado',
@@ -327,20 +381,18 @@ export function statusShort(status: string): string {
 }
 
 /**
- * Four columns a person can scan in one look. This is the whole point: instead
- * of thirteen labels and five tabs, the board answers "where is everything?"
- * at a glance.
- */
-export const BOARD_COLUMNS = [
-  { key: 'ideas', label: 'IDEAS', plain: 'Propuesta y decisión del cliente', statuses: ['draft', 'pending_approval', 'needs_changes'] },
-  { key: 'scripts', label: 'GUIONES', plain: 'Escritura y aprobación', statuses: ['approved', 'script_in_progress', 'pending_script_review', 'script_approved'] },
-  { key: 'production', label: 'PRODUCCIÓN', plain: 'Rodaje, edición y revisión final', statuses: ['in_production', 'raw_uploaded', 'editing', 'ready_to_publish'] },
-  { key: 'published', label: 'PUBLICADO', plain: 'Salida y cierre', statuses: ['published', 'closed'] },
-] as const;
-
-export function boardColumn(status: string) {
-  return BOARD_COLUMNS.find((column) => (column.statuses as readonly string[]).includes(status)) ?? BOARD_COLUMNS[0];
-}
+ * `BOARD_COLUMNS` y `boardColumn()` se fueron de aquí el 2026-09-28.
+ *
+ * Este archivo tenía SU PROPIA copia de las cuatro columnas del tablero, con los
+ * estados escritos a mano, mientras `queues.ts` tenía la copia buena: la que
+ * deriva de `PHASES`. Dos copias, y la de `flow.ts` no se enteró de que
+ * `internal_review` y `voting` entraban en la fase IDEA — por eso los dos tests
+ * de columna fallaron al añadir los estados nuevos.
+ *
+ * Es exactamente el fallo que este repo ya documentó dos veces: una lista de
+ * estados escrita a mano se desincroniza de la fuente y nadie lo nota. Ahora hay
+ * una sola: `queues.ts`, que a su vez sale de `PHASES`. Quien necesite las
+ * columnas del tablero, las importa de `queues.ts`.
 
 /**
  * Días desde la última actividad de una pieza. Vive aquí (y no dentro de un
