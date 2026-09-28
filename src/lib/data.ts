@@ -234,28 +234,58 @@ async function conPortadas(
   if (ids.length === 0) return ideas;
 
   const elegidos = new Map<string, unknown>();
-  try {
-    const { data: conElegida } = await supabase
+  {
+    // ⚠️ Dos trampas en esta consulta, ambas medidas contra la base el
+    // 2026-09-28 (proyecto ntgtvtzbjwotuwkiflar, anon key, idea real):
+    //
+    //  1. El embed se llama `cover_asset_id`, no `cover_asset`. PostgREST busca
+    //     la relación con el NOMBRE de la columna; `cover_asset(...)` da
+    //     400 PGRST200 ("Could not find a relationship between
+    //     'rr_hub_ideas' and 'cover_asset'") aunque la llave foránea exista.
+    //     El alias corto va con dos puntos: `cover_asset:cover_asset_id(...)`,
+    //     y es lo que devuelve el nombre que lee el bucle de abajo.
+    //
+    //  2. supabase-js NO lanza: una consulta rota llega como `{data: null, error}`.
+    //     Por eso esto no va en un `try/catch` — un `catch` aquí solo captura
+    //     fallos de red y deja pasar el PGRST200 como si fuera "sin portadas".
+    //     Se comprueba `error` y se registra, para que una relación que se rompa
+    //     se vea en la consola en vez de convertirse en un tablero que
+    //     "funciona" pintando siempre el arte de marca.
+    const { data: conElegida, error } = await supabase
       .from('rr_hub_ideas')
-      .select('id, cover_asset(id, file_name, mime_type, external_url)')
+      .select('id, cover_asset:cover_asset_id(id, file_name, mime_type, external_url)')
       .in('id', ids);
+    if (error) {
+      console.warn('[hub] no se pudieron leer las portadas elegidas:', error.message);
+    }
     for (const fila of conElegida ?? []) {
-      const asset = (fila.cover_asset as unknown[] | null)?.[0] ?? null;
+      // ⚠️ Un embed a UNA columna se devuelve como OBJETO, no como array. La
+      // forma de array es la de un embed a una relación que devuelve VARIAS
+      // filas. Medido el 2026-09-28 contra la base con las 3 portadas puestas:
+      // `cover_asset` llega como `{id, file_name, …}`, y el `?.[0]` de siempre
+      // daba `undefined` → `null` → la tarjeta caía al arte de marca sin decir
+      // nada, que es el mismo fallo silencioso que el del PGRST200.
+      // Se aceptan las dos formas para no depender de eso.
+      const bruto = fila.cover_asset as unknown;
+      const asset = Array.isArray(bruto) ? (bruto[0] ?? null) : (bruto ?? null);
       if (asset) elegidos.set(fila.id as string, asset);
     }
-  } catch {
-    // Sin portadas elegidas: se intenta igual con las más recientes.
   }
 
   const faltantes = ids.filter((id) => !elegidos.has(id));
   if (faltantes.length > 0) {
-    try {
-      const { data: assets } = await supabase
+    {
+      // Misma regla que arriba: `error` se comprueba, no se atrapa. Un fallo aquí
+      // no es catastrofico (la tarjeta cae al arte de marca) pero tiene que verse.
+      const { data: assets, error } = await supabase
         .from('rr_hub_assets')
         .select('id, idea_id, file_name, mime_type, external_url, created_at')
         .in('idea_id', faltantes)
         .eq('asset_stage', 'reference_brief')
         .order('created_at', { ascending: false });
+      if (error) {
+        console.warn('[hub] no se pudieron leer los briefs de portada:', error.message);
+      }
       // La ordenación es global, así que el primero que aparece de cada idea es
       // el suyo más reciente. `seen` evita que un segundo brief la sobreescriba.
       const vistos = new Set<string>();
@@ -270,8 +300,6 @@ async function conPortadas(
           external_url: fila.external_url,
         });
       }
-    } catch {
-      // Sin portadas recientes: la tarjeta usa el marco de marca.
     }
   }
 
