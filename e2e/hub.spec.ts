@@ -31,9 +31,22 @@ const PROYECTO = 'wundeer';
  * limpiar. Y si el borrado falla, el test falla — una base con filas de prueba
  * es peor que una suite roja.
  */
+/**
+ * Borra por la marca de la corrida, sin saber el id.
+ *
+ * Es el plan B para cuando el alta funcionó pero el navegador no navegó a la
+ * ficha. Antes, ese camino devolvía la prueba como "pasada" y dejaba la fila.
+ */
+async function borrarPorMarca(marca: string): Promise<boolean> {
+  if (!process.env.HUB_BASE_URL) return true;
+  return borrarIdeaDePrueba('', marca);
+}
+
 async function borrarIdeaDePrueba(ideaId: string, marca: string): Promise<boolean> {
   if (!process.env.HUB_BASE_URL) return true; // el alta falló en local: no hay fila
-  if (!/^[0-9a-f-]{36}$/.test(ideaId)) return false;
+
+  const tituloLimpio = marca.replace(/[^0-9A-Za-z ]/g, '');
+  const conId = /^[0-9a-f-]{36}$/.test(ideaId);
 
   const { readFileSync, writeFileSync, mkdtempSync } = await import('node:fs');
   const { homedir } = await import('node:os');
@@ -50,19 +63,21 @@ async function borrarIdeaDePrueba(ideaId: string, marca: string): Promise<boolea
   // por línea de comandos: lo que corre se puede leer antes, y el token no
   // queda en el historial del shell.
   const sqlFile = join(temporal, 'borrar.sql');
-  const tituloLimpio = marca.replace(/[^0-9A-Za-z ]/g, '');
+  // Sin id se borra por marca; con id, se ancla al id y la marca hace de red.
+  const donde = conId ? `id = '${ideaId}'` : `title like '%${tituloLimpio}%'`;
   writeFileSync(sqlFile, [
-    `delete from rr_hub_events where idea_id = '${ideaId}';`,
-    `delete from rr_hub_comments where idea_id = '${ideaId}';`,
-    // El `and title like` es una red: si por lo que sea el id fuera de otra
-    // pieza, esta fila no se toca.
-    `delete from rr_hub_ideas where id = '${ideaId}' and title like '%${tituloLimpio}%';`,
+    `delete from rr_hub_events where idea_id in (select id from rr_hub_ideas where ${donde});`,
+    `delete from rr_hub_comments where idea_id in (select id from rr_hub_ideas where ${donde});`,
+    `delete from rr_hub_ideas where ${donde};`,
   ].join('\n'));
 
   try {
-    await run('python3', [join(process.cwd(), 'scripts', 'borrar-idea-prueba.py'), sqlFile, token], { timeout: 30_000 });
+    const salida = await run('python3', [join(process.cwd(), 'scripts', 'borrar-idea-prueba.py'), sqlFile, token], { timeout: 30_000 });
+    console.log(`[limpieza] ${conId ? `id ${ideaId}` : `marca «${marca}»`} -> ${salida.stdout.trim()}`);
     return true;
-  } catch {
+  } catch (e) {
+    const err = e as { stderr?: Buffer | string; stdout?: Buffer | string };
+    console.error(`[limpieza] fallo: ${String(err.stderr ?? '').trim() || String(err.stdout ?? '').trim()}`);
     return false;
   }
 }
@@ -526,11 +541,17 @@ test.describe('modo abierto', () => {
      * necesita el service role, así que la limpieza solo corre en producción, que
      * es donde está el dato real.
      */
-    if (destino) {
-      const ideaId = new URL(destino).pathname.split('/').pop() as string;
-      const borrado = await borrarIdeaDePrueba(ideaId, marca);
-      expect(borrado, `no se pudo borrar la pieza de prueba ${ideaId}`).toBe(true);
+    if (!destino) {
+      // Si se guardó pero no se navegó, la pieza existe y hay que borrarla
+      // igual: se busca por la marca, que es única de esta corrida.
+      const huerfana = await borrarPorMarca(marca);
+      expect(huerfana, `se creó «${marca}» pero el test no llegó a la ficha y no se pudo borrar`).toBe(true);
+      return;
     }
+
+    const ideaId = new URL(destino).pathname.split('/').pop() as string;
+    const borrado = await borrarIdeaDePrueba(ideaId, marca);
+    expect(borrado, `no se pudo borrar la pieza de prueba ${ideaId}`).toBe(true);
   });
 
   test('el header no pide entrar ni perfil', async ({ page }) => {
