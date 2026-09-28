@@ -320,16 +320,17 @@ export async function POST(request: NextRequest) {
    *   calcula aquí y no con un CHECK en la tabla porque depende del conteo, y un
    *   CHECK no puede contar filas de otra tabla.
    *
-   * - Quien puede votar: cualquiera con el enlace, porque el token ES el permiso.
-   *   Es una decisión, no un descuido: es la votación interna sin cuenta que
-   *   pidió Santiago. En modo cerrado, el chequeo de rol de arriba (línea ~174)
-   *   exige sesión antes de llegar aquí; en modo abierto `role` es `owner` fijo
-   *   y por eso el enlace ES el permiso.
+   * - Quien puede votar: cualquiera con el enlace y un token. Cuando hay
+   *   sesión, el voto además queda con el correo de quien lo emitió, y solo
+   *   si ese correo está en la lista del equipo (`rr_hub_profiles.is_active`).
+   *   El correo sale de la SESIÓN del servidor, nunca del cuerpo de la
+   *   petición: aceptar `voterEmail` del cliente sería votar en nombre de otro
+   *   con una línea de código.
    *
-   *   AL REACTIVAR EL LOGIN hay que revisar esta acción. Con la puerta
-   *   encendida, cualquiera con el enlace de una ficha abierta podría votar,
-   *   y el token solo impide el doble clic del mismo navegador: no es
-   *   identidad. Este es el punto a cerrar antes de `AUTH_ENABLED=true`.
+   *   La razón de que siga aceptando el voto sin sesión: la lista blanca se
+   *   aplica sobre el roster, no sobre "tener cuenta". Un borrador abierto en
+   *   una pantalla compartida, o una visita sin login, pueden opinar sin
+   *   abrirse una cuenta; lo que no pueden es hacerlo con nombre ajeno.
    */
   if (action === 'vote') {
     const token = str(body.voterToken, 100);
@@ -349,9 +350,36 @@ export async function POST(request: NextRequest) {
       return error(`Esta idea no está en votación (está en ${idea.status}).`, 409);
     }
 
+    // La identidad del voto, en este orden (2026-09-28, Santiago encendió el
+    // acceso): si hay sesión, el voto es DE ALGUIEN y se comprueba que ese
+    // correo esté en la lista del equipo. Sin sesión, el voto sigue siendo
+    // anónimo con token: así una visita sin login no queda bloqueada, pero
+    // tampoco puede votar con el nombre de otra persona.
+    //
+    // El correo NUNCA se lee del cuerpo. `body.voterEmail` no se mira: escribir
+    // el de otra persona sería votar en su nombre con una línea de código.
+    let votanteEmail: string | null = null;
+    if (email) {
+      const { data: enRoster } = await service
+        .from('rr_hub_profiles')
+        .select('email')
+        .eq('email', email)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (!enRoster) {
+        return error('Ese correo no está en la lista del equipo para este proyecto.', 403);
+      }
+      votanteEmail = email;
+      // Se marca como visto para que el tablero pueda decir quién está en línea.
+      await service
+        .from('rr_hub_profiles')
+        .update({ last_seen_at: new Date().toISOString() })
+        .eq('email', email);
+    }
+
     // Upsert en vez de insert: cambiar el voto es legítimo, duplicarlo no.
     const { error: voteError } = await service.from('rr_hub_votes').upsert(
-      { idea_id: ideaId, voter_token: token, decision },
+      { idea_id: ideaId, voter_token: token, decision, voter_email: votanteEmail },
       { onConflict: 'idea_id,voter_token' },
     );
     if (voteError) return error(voteError.message, 500);
