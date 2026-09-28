@@ -208,14 +208,31 @@ export function GuidedTour() {
 
   return (
     <>
-      {/* Siempre disponible: la guía no se esconde después de la primera vez. */}
+      {/* Siempre disponible: la guía no se esconde después de la primera vez.
+
+          En móvil el botón baja a la esquina y NO tapa el texto. Ser `fixed`
+          encima del contenido se midió en 20 posiciones de scroll: con el texto
+          completo tapaba entre 9 y 14 elementos en todas, y aun reducido al
+          ícono seguía pisando el brief (`// INTENCIÓN` y su párrafo) porque
+          ese bloque ocupa todo el ancho de la columna.
+
+          Un botón flotante encima de texto de ancho completo no tiene arreglo
+          por tamaño. Así que en móvil se le deja su propia franja: es un botón
+          de ancho completo pegado abajo, fuera del flujo del texto, y la
+          página reserva ese alto con `padding-bottom`. Se sigue viendo, se
+          sigue tocando, y no pisa el brief.
+
+          En escritorio sigue siendo el botón flotante de la esquina: ahí hay
+          sitio de sobra y nunca estorba. */}
       <button
         type="button"
         onClick={() => setPaso(0)}
-        className="fixed bottom-4 right-4 z-40 inline-flex items-center gap-2 border border-blanco-20 bg-negro px-3 py-2 font-mono text-xs text-blanco-70 transition-colors hover:border-blanco-40 hover:bg-blanco-10 hover:text-blanco"
+        className="fixed bottom-0 left-0 right-0 z-40 flex h-12 w-full items-center justify-center gap-2 border-t border-blanco-20 bg-negro font-mono text-xs text-blanco-70 transition-colors hover:bg-blanco-10 hover:text-blanco sm:bottom-4 sm:left-auto sm:right-4 sm:h-auto sm:w-auto sm:border sm:px-3 sm:py-2"
         aria-label="Abrir la guía: te explica cada botón"
+        title="¿Cómo se usa?"
       >
-        <Icon name="eye" size={14} /> ¿CÓMO SE USA?
+        <Icon name="eye" size={16} />
+        <span>¿CÓMO SE USA?</span>
       </button>
 
       {abierto && (

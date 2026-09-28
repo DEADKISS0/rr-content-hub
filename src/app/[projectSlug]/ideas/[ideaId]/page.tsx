@@ -66,7 +66,14 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
       </div>
     </header>
 
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-5 md:px-10 md:py-10">
+    <div className="mx-auto max-w-7xl px-4 pb-20 pt-8 sm:px-5 sm:pb-8 md:px-10 md:py-10">
+      {/* `pb-20` en móvil: la barra de la guía es `fixed` de 48 px, y como tal
+          acompaña todo el scroll — no solo el final. Reservar el hueco al final
+          de la página no servía: seguía pisando el brief a media ficha.
+          El margen va en el contenedor del contenido, que es lo que se
+          desplaza. Con `pb-16` quedaban 24 px de texto bajo la barra; `pb-20`
+          (80 px) deja el final holgado. En escritorio el botón es una esquina y
+          `sm:pb-8` basta. */}
       {/*
         La acción va PRIMERO, antes del título y antes de la referencia. Medido el
         2026-09-28: pegada al bloque de estado caía en y=795 con el pliegue en
@@ -170,12 +177,8 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
         </aside>
       </div>
 
-      {/* Espacio para el botón flotante "¿CÓMO SE USA?". Es `fixed bottom-4` y
-          se superponía al final del brief: en móvil tapaba las últimas líneas
-          de la cámara. Lo cazó una foto, no el tipo ni el lint.
-          Se reserva el hueco al final de la página, que es donde se solapa, en
-          vez de alejar el botón: la ayuda tiene que seguir a mano. */}
-      <div aria-hidden="true" className="h-16 sm:h-12" />
+      {/* La barra de la guía ya tiene su sitio reservado con `pb-16` del
+          contenedor de arriba, que es el que se desplaza. Este div sobra. */}
     </div>
   </main>;
 }
