@@ -46,6 +46,21 @@ const data = fs.readFileSync(
   'utf8',
 );
 
+/** La migración que fija el filtro del bucket, y el cliente que debe calcarlo. */
+const bucketSql = fs.readFileSync(
+  fileURLToPath(
+    new URL(
+      '../../supabase/migrations/20260928_hub_bucket_solo_imagenes.sql',
+      import.meta.url,
+    ),
+  ),
+  'utf8',
+);
+const cliente = fs.readFileSync(
+  fileURLToPath(new URL('./workspace-client.ts', import.meta.url)),
+  'utf8',
+);
+
 const asset = (over: Partial<Parameters<typeof esImagenPintable>[0]> = {}) => ({
   mime_type: 'image/jpeg',
   external_url: 'https://cdn.rraliados.com/briefs/o1.jpg',
@@ -170,16 +185,10 @@ describe('migración de portada (20260928_hub_idea_cover)', () => {
     // Storage compara `allowed_mime_types` por igualdad EXACTA: con `image/`
     // en la lista, `image/png` daba 415 y no se podia subir ninguna portada.
     // Decision de Santiago (2026-09-28): solo imagenes, sin video.
-    const bucket = fs.readFileSync(
-      fileURLToPath(
-        new URL('../../supabase/migrations/20260928_hub_bucket_solo_imagenes.sql', import.meta.url),
-      ),
-      'utf8',
-    );
     // Lo que importa es la LISTA que se escribe, no el archivo entero: el
     // comentario del final menciona `video/mp4` a proposito, para explicar por
     // que ese ahora da 415. Mirar el archivo entero daria un falso positivo.
-    const lista = bucket.match(
+    const lista = bucketSql.match(
       /set allowed_mime_types = array\[([\s\S]*?)\]/i,
     );
     expect(lista, 'no se encuentra la lista de mimes en el UPDATE').toBeTruthy();
@@ -188,6 +197,26 @@ describe('migración de portada (20260928_hub_idea_cover)', () => {
     // Ni comodines (que storage no implementa) ni video (que no se quiere).
     expect(lista![1]).not.toMatch(/'image\/'/);
     expect(lista![1]).not.toMatch(/video/);
+  });
+
+  it('el filtro del CLIENTE es el mismo que el del bucket, tipo por tipo', () => {
+    // Si el cliente acepta algo que el bucket rechaza, el error aparece como un
+    // 415 de storage DESPUES de que el usuario ya eligio el archivo: el mensaje
+    // llega tarde y no dice que hacer. Medido el 2026-09-28: `uploadAsset()`
+    // admitia `video/`, PDF y DOCX mientras el bucket ya no.
+    // Los dos filtros tienen que decir LO MISMO, no "casi lo mismo".
+    const enBucket = new Set(
+      (bucketSql.match(/set allowed_mime_types = array\[([\s\S]*?)\]/i)![1].match(
+        /'(image\/[a-z]+)'/gi,
+      ) ?? []).map((m) => m.replace(/'/g, '')),
+    );
+    const enCliente = new Set(
+      (cliente.match(/const BUCKET_MIMES = \[([\s\S]*?)\]/i)![1].match(
+        /'(image\/[a-z]+)'/gi,
+      ) ?? []).map((m) => m.replace(/'/g, '')),
+    );
+    expect(enCliente.size).toBeGreaterThan(0);
+    expect([...enBucket].sort()).toEqual([...enCliente].sort());
   });
 });
 
