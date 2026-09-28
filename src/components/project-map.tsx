@@ -15,6 +15,8 @@ import { Icon } from './ui/icons';
 import { BriefRail, briefState, SegMeter } from './ui/meter';
 import { formatOf } from './ui/cover';
 import { PublicationPreview } from './ui/preview';
+import { IdeaCoverFrame } from './ui/idea-cover-frame';
+import type { IdeaCover as IdeaCoverAsset } from '@/lib/idea-cover';
 
 export type BoardIdea = {
   id: string;
@@ -30,6 +32,12 @@ export type BoardIdea = {
   updated_at?: string | null;
   reference_url?: string | null;
   reference_urls?: unknown;
+  /**
+   * Portada real de la pieza (`rr_hub_assets` con `asset_stage = 'reference_brief'`,
+   * elegida por `cover_asset_id`). Llega desde `getIdeas`; si es `null` la tarjeta
+   * pinta el marco de marca con el título.
+   */
+  cover_asset?: IdeaCoverAsset;
   camera_brief?: string | null;
   talent_brief?: string | null;
   edit_brief?: string | null;
@@ -150,7 +158,14 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
                         style={{ ['--delay' as string]: `${cardIndex * 45}ms` }}
                         className={`idea-card cascade sheen group block border border-l-[3px] bg-negro transition-all duration-200 hover:border-blanco-40 ${tono.borderLeft}`}
                       >
-                        <PublicationPreview url={idea.reference_url} code={idea.code} title={idea.title} format={format.icon} />
+                        {/* La portada real mandada sobre la referencia: si la idea
+                            tiene un brief que es imagen, se ve; si no, el marco
+                            de marca. `PublicationPreview` no se reemplaza, se
+                            queda como segunda opción para cuando hay una URL
+                            de referencia pero ningún asset de portada. */}
+                        {idea.cover_asset
+                          ? <IdeaCoverFrame code={idea.code} title={idea.title} asset={idea.cover_asset} format={format.icon} />
+                          : <PublicationPreview url={idea.reference_url} code={idea.code} title={idea.title} format={format.icon} />}
                         <div className="space-y-3 p-3">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <StatusBadge status={idea.status} compact />

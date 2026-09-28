@@ -58,6 +58,19 @@ function mapIdea(row: RawIdea) {
     created_at: row.created_at as string,
     reference_url: urls[0] ?? (row.reference_url as string) ?? '',
     reference_urls: urls,
+    /**
+     * Portada real de la pieza: el asset `reference_brief` elegido, resuelto por
+     * `rr_hub_idea_cover()`. Viene anidado con la relación de la columna
+     * `cover_asset_id` (migración 20260928_hub_idea_cover), no con un join por
+     * fecha: la columna es la elección explícita y no se recalcula en cada
+     * lectura. Es `null` cuando la idea no tiene brief, y ahí la tarjeta vuelve
+     * a su portada de marca.
+     *
+     * `storage_path` no se pide: es una ruta del bucket privado y la app no la
+     * puede abrir sin que el servidor la firme. Solo el `external_url` público
+     * sirve para pintar.
+     */
+    cover_asset: Array.isArray(row.cover_asset) ? row.cover_asset[0] ?? null : row.cover_asset ?? null,
     camera: (row.camera_brief as string) ?? '',
     talent: (row.talent_brief as string) ?? '',
     edit: (row.edit_brief as string) ?? '',
@@ -193,7 +206,79 @@ export async function getIdeas(projectId: string) {
     .eq('project_id', projectId)
     .order('created_at', { ascending: false });
 
-  return (data ?? []).map(mapIdea);
+  return (await conPortadas(supabase, data ?? [])).map(mapIdea);
+}
+
+/**
+ * Adjunta a cada idea su asset de portada.
+ *
+ * Se resuelve con la misma regla que la función `rr_hub_idea_cover`: primero
+ * la elección guardada en `cover_asset_id`, y si no hay, el `reference_brief`
+ * más reciente. Se hace en DOS consultas y no con un join anidado porque el join
+ * de PostgREST solo alcanzaría la portada elegida, y la regla del "más reciente"
+ * vive en la base, no en el nombre de la relación.
+ *
+ * Una sola consulta para todas las ideas del proyecto, no una por idea: con 26
+ * piezas en el tablero, 26 consultas de portada a la vez.
+ *
+ * Si la consulta de portadas falla, las ideas se devuelven igual SIN portada y
+ * la tarjeta cae al marco de marca. Un fallo aquí no puede dejar el tablero en
+ * blanco.
+ */
+async function conPortadas(
+  supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>,
+  ideas: Record<string, unknown>[],
+): Promise<Record<string, unknown>[]> {
+  if (ideas.length === 0) return ideas;
+  const ids = ideas.map((idea) => idea.id as string).filter(Boolean);
+  if (ids.length === 0) return ideas;
+
+  const elegidos = new Map<string, unknown>();
+  try {
+    const { data: conElegida } = await supabase
+      .from('rr_hub_ideas')
+      .select('id, cover_asset(id, file_name, mime_type, external_url)')
+      .in('id', ids);
+    for (const fila of conElegida ?? []) {
+      const asset = (fila.cover_asset as unknown[] | null)?.[0] ?? null;
+      if (asset) elegidos.set(fila.id as string, asset);
+    }
+  } catch {
+    // Sin portadas elegidas: se intenta igual con las más recientes.
+  }
+
+  const faltantes = ids.filter((id) => !elegidos.has(id));
+  if (faltantes.length > 0) {
+    try {
+      const { data: assets } = await supabase
+        .from('rr_hub_assets')
+        .select('id, idea_id, file_name, mime_type, external_url, created_at')
+        .in('idea_id', faltantes)
+        .eq('asset_stage', 'reference_brief')
+        .order('created_at', { ascending: false });
+      // La ordenación es global, así que el primero que aparece de cada idea es
+      // el suyo más reciente. `seen` evita que un segundo brief la sobreescriba.
+      const vistos = new Set<string>();
+      for (const fila of assets ?? []) {
+        const ideaId = fila.idea_id as string;
+        if (vistos.has(ideaId)) continue;
+        vistos.add(ideaId);
+        elegidos.set(ideaId, {
+          id: fila.id,
+          file_name: fila.file_name,
+          mime_type: fila.mime_type,
+          external_url: fila.external_url,
+        });
+      }
+    } catch {
+      // Sin portadas recientes: la tarjeta usa el marco de marca.
+    }
+  }
+
+  return ideas.map((idea) => ({
+    ...idea,
+    cover_asset: elegidos.get(idea.id as string) ?? null,
+  }));
 }
 
 export async function getIdea(projectId: string, id: string) {
