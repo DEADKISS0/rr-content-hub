@@ -382,11 +382,15 @@ def main() -> int:
     pedidos.append(("organic", CUANTAS_ORGANICO))
 
     creadas: list[tuple[str, str, str]] = []  # (codigo, tipo, id)
+    fallos: list[tuple[str, str]] = []  # (tipo, motivo) de lo que NO se pudo generar
     for tipo, cuantas in pedidos:
         try:
             ideas = pedir_ideas(tipo, cuantas, ideario)
         except Exception as error:  # noqa: BLE001
             # Un tipo que falla no puede tumbar el otro: se avisa y se sigue.
+            # El aviso va tambien al pack de WhatsApp; si no, media corrida
+            # desaparece sin que se note en el celular.
+            fallos.append((tipo, str(error)))
             print(f"[aviso] No se pudieron generar ideas de {tipo}: {error}", file=sys.stderr)
             continue
         for idea in ideas[:cuantas]:
@@ -408,17 +412,29 @@ def main() -> int:
         return 1
 
     if not opciones.seco:
-        print(empaquetar(creadas))
+        print(empaquetar(creadas, fallos))
 
-    return 0
+    # Si la mitad de la corrida fallo, se avisa tambien por codigo de salida,
+    # para que un watchdog pueda notarlo sin tener que leer el mensaje.
+    return 2 if fallos else 0
 
 
-def empaquetar(creadas: list[tuple[str, str, str]]) -> str:
+# Como se llama cada tipo en el mensaje de WhatsApp. El pack los muestra asi y
+# no como `paid` / `organic`, que son los codigos internos.
+ETIQUETA = {"paid": "pauta", "organic": "orgánico"}
+
+
+def empaquetar(creadas: list[tuple[str, str, str]], fallos: list[tuple[str, str]] | None = None) -> str:
     """El pack de WhatsApp.
 
     Se imprime en stdout y el cron lo entrega tal cual (`no_agent`). Es corto a
     proposito: se lee en un celular, de un vistazo. Sin tablas, sin rutas, sin
     conteos internos.
+
+    `fallos` son los tipos que NO salieron. Van al mensaje aunque el pack tenga
+    ideas: un "1 pauta · 2 orgánico" sin explicar por qué es un fallo silencioso,
+    y con el texto fijo de abajo ("Entran en revisión interna") parece que todo
+    salio bien. Un dia de estos se pierde media corrida sin que se note.
     """
     ahora = datetime.now().strftime("%H:%M")
     pauta = [(c, i) for c, t, i in creadas if t == "paid"]
@@ -432,6 +448,12 @@ def empaquetar(creadas: list[tuple[str, str, str]]) -> str:
         lineas.append(f"*{titulo}*")
         for codigo, idea_id in lista:
             lineas.append(f"· {codigo}  {HUB}/{CLIENTE}/ideas/{idea_id}")
+        lineas.append("")
+
+    # El hueco se dice en el mensaje, no en un log que nadie abre.
+    if fallos:
+        legible = ", ".join(ETIQUETA.get(t, t) for t, _ in fallos)
+        lineas.append(f"_No salieron las de {legible}. El redactor no las devolvió._")
         lineas.append("")
 
     lineas.append("Entran en revisión interna. Votá en la ficha: si hay más votos a favor que en contra, la idea sale sola al cliente.")

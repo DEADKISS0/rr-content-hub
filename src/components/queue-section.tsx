@@ -10,6 +10,7 @@ import { Icon } from './ui/icons';
 import { BriefRail, briefState } from './ui/meter';
 import { formatOf } from './ui/cover';
 import { PublicationPreview } from './ui/preview';
+import { IdeaCoverFrame } from './ui/idea-cover-frame';
 import { statusMeta, daysSince } from '@/lib/flow';
 
 /** Días desde el último movimiento real de la pieza. */
@@ -91,7 +92,12 @@ export function QueueSection({ title, eyebrow, description, guide, ideas, projec
           const meta = statusMeta(idea.status);
           const age = ageOf(idea);
           return <Link key={idea.id} href={`/${projectSlug}/ideas/${idea.id}`} className="idea-card cascade sheen group block border border-blanco-20 bg-negro transition-all duration-200 hover:border-blanco-40">
-            <PublicationPreview url={idea.reference_url} code={idea.code} title={idea.title} format={format.icon} />
+            {/* Portada real si la idea tiene brief; si no, la referencia de
+                siempre. Las dos producen el mismo marco y la misma altura, así
+                que la parrilla no baila al cambiar una tarjeta por otra. */}
+            {idea.cover_asset
+              ? <IdeaCoverFrame code={idea.code} title={idea.title} asset={idea.cover_asset} format={format.icon} />
+              : <PublicationPreview url={idea.reference_url} code={idea.code} title={idea.title} format={format.icon} />}
             <div className="space-y-3 p-4">
               <div className="flex flex-wrap items-center gap-1.5">
                 <StatusBadge status={idea.status} showStep={showPipeline} />

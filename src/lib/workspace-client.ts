@@ -391,10 +391,30 @@ export async function uploadAsset(input: {
   if (!supabase) return { error: 'Supabase no está configurado en este entorno.' };
   const maxSize = 50 * 1024 * 1024;
   if (input.file.size > maxSize) return { error: 'El archivo supera el límite de 50 MB.' };
-  const allowed = input.file.type.startsWith('image/')
-    || input.file.type.startsWith('video/')
-    || ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(input.file.type);
-  if (!allowed) return { error: 'Tipo de archivo no permitido. Usa imagen, video, PDF, DOC o DOCX.' };
+
+  // ⚠️ Esta lista TIENE que ser la misma que `storage.buckets.allowed_mime_types`
+  // del bucket, y además con los MISMOS valores exactos.
+  //
+  // Storage compara esa columna por igualdad EXACTA, no por prefijo: con `image/`
+  // en la lista, subir un `image/png` daba `415 InvalidMimeType`. Y el filtro se
+  // comprueba al SUBIR, así que un tipo que el bucket rechaza aquí se traduce en
+  // un error de storage en vez de un mensaje que diga qué hacer. Medido el
+  // 2026-09-28: image/png → 403 (pasa el filtro), video/mp4 y application/pdf → 415.
+  //
+  // Decisión de Santiago (2026-09-28): solo imágenes, sin video ni documentos.
+  // Antes esta función aceptaba `video/`, PDF y DOCX, y el bucket los rechaza:
+  // el usuario elegía un vídeo, lo subía y se comía un 415 sin explicación.
+  // Dos filtros que no coinciden no cumplen ninguno: el del servidor manda y el
+  // del cliente tiene que decir exactamente lo mismo, no ser más ancho.
+  const BUCKET_MIMES = [
+    'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+    'image/avif', 'image/heic', 'image/heif',
+  ];
+  if (!BUCKET_MIMES.includes(input.file.type)) {
+    return {
+      error: `El bucket solo admite imágenes (${BUCKET_MIMES.map((m) => m.replace('image/', '.')).join(' ')}). Este archivo es ${input.file.type || 'un tipo desconocido'}.`,
+    };
+  }
 
   const safeName = input.file.name.replace(/[^\w.\-]+/g, '_');
   // The session id is part of the path because the server checks for it: it
