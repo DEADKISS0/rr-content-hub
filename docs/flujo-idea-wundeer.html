@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flujo completo de la idea — RR Content Hub</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f4f3ef; --ink:#24231f; --muted:#6a6a64; --soft:#9a9a92;
+    --rule:rgba(36,35,31,0.12);
+    --mostaza:#8a7f00; --mostaza-brut:#ded116; --fucsia:#be076d; --orquídea:#973d8f;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);
+       font-family:'Geist',system-ui,sans-serif;padding:40px 32px 32px}
+  .eyebrow{font-family:'Geist Mono',monospace;font-size:8px;letter-spacing:.16em;
+          text-transform:uppercase;color:var(--muted);margin:0 0 10px}
+  h1{font-family:'Instrument Serif',Georgia,serif;font-weight:400;font-size:30px;
+     line-height:1.15;margin:0 0 8px;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 28px;max-width:74ch;line-height:1.5}
+  .meta{font-family:'Geist Mono',monospace;font-size:9px;color:var(--soft);
+        letter-spacing:.06em;margin:20px 0 0;padding-top:14px;border-top:1px solid var(--rule)}
+  svg{max-width:100%;height:auto;display:block}
+</style>
+</head>
+<body>
+<p class="eyebrow">RR Content Hub · proyecto Wundeer · los 15 estados, 5 fases y 19 transiciones</p>
+<h1>De la idea al archivo: el flujo completo</h1>
+<p class="sub">Los quince estados de <code>src/lib/flow.ts</code> agrupados en las cinco fases de <code>PHASES</code>. La idea nace en revisión interna, el equipo la vota, y solo sale al cliente si hay más votos a favor que en contra. Desde ahí el guion se escribe, se rueda, se edita y se publica. Diecinueve transiciones en total: las verticales son el camino normal, las curvas son los retrocesos y los atajos.</p>
+
+<svg viewBox="0 0 1480 950" role="img" aria-labelledby="flujo-title flujo-desc" xmlns="http://www.w3.org/2000/svg">
+<title id="flujo-title">Flujo completo de estados de una idea en el RR Content Hub</title>
+<desc id="flujo-desc">Quince estados en cinco fases. La idea nace en borrador, pasa por revisión interna y votación, y sale al cliente solo si la mayoría simple da más votos a favor que en contra; un empate no aprueba. Desde espera al cliente, el cliente puede aprobar, pedir ajustes o archivar. El guion se escribe, el cliente lo aprueba, se rueda, se sube el crudo, se edita, se revisa, se publica y se cierra. Los retrocesos van de needing_script_review al guion, de voting a revisión interna y de ajustes pedidos al cliente.</desc>
+
+<defs>
+  <marker id="ar" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+    <polygon points="0 0, 8 3, 0 6" fill="#6a6a64"/></marker>
+  <marker id="ar-mos" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+    <polygon points="0 0, 8 3, 0 6" fill="#8a7f00"/></marker>
+  <marker id="ar-fuc" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+    <polygon points="0 0, 8 3, 0 6" fill="#be076d"/></marker>
+  <marker id="ar-orq" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+    <polygon points="0 0, 8 3, 0 6" fill="#973d8f"/></marker>
+</defs>
+
+<rect width="100%" height="100%" fill="#f4f3ef"/>
+
+<!-- ══ ENCABEZADOS DE FASE (PHASES) ══════════════════════════════ -->
+<g font-family="'Geist',sans-serif">
+  <line x1="100" y1="126" x2="300" y2="126" stroke="#973d8f" stroke-width="3"/>
+  <text x="200" y="96" text-anchor="middle" fill="#973d8f" font-size="11" font-weight="600" letter-spacing=".1em">01 IDEA</text>
+  <text x="200" y="114" text-anchor="middle" fill="#6a6a64" font-size="7" font-family="'Geist Mono',monospace">se propone, se revisa y se decide</text>
+
+  <line x1="380" y1="126" x2="580" y2="126" stroke="#8a7f00" stroke-width="3"/>
+  <text x="480" y="96" text-anchor="middle" fill="#8a7f00" font-size="11" font-weight="600" letter-spacing=".1em">02 GUIÓN</text>
+  <text x="480" y="114" text-anchor="middle" fill="#6a6a64" font-size="7" font-family="'Geist Mono',monospace">se escribe y se aprueba</text>
+
+  <line x1="660" y1="126" x2="860" y2="126" stroke="#be076d" stroke-width="3"/>
+  <text x="760" y="96" text-anchor="middle" fill="#be076d" font-size="11" font-weight="600" letter-spacing=".1em">03 RODAJE</text>
+  <text x="760" y="114" text-anchor="middle" fill="#6a6a64" font-size="7" font-family="'Geist Mono',monospace">se graba y se sube el crudo</text>
+
+  <line x1="940" y1="126" x2="1140" y2="126" stroke="#be076d" stroke-width="3"/>
+  <text x="1040" y="96" text-anchor="middle" fill="#be076d" font-size="11" font-weight="600" letter-spacing=".1em">04 EDICIÓN</text>
+  <text x="1040" y="114" text-anchor="middle" fill="#6a6a64" font-size="7" font-family="'Geist Mono',monospace">se monta y se aprueba</text>
+
+  <line x1="1220" y1="126" x2="1420" y2="126" stroke="#6a6a64" stroke-width="3"/>
+  <text x="1320" y="96" text-anchor="middle" fill="#6a6a64" font-size="11" font-weight="600" letter-spacing=".1em">05 PUBLICACIÓN</text>
+  <text x="1320" y="114" text-anchor="middle" fill="#6a6a64" font-size="7" font-family="'Geist Mono',monospace">se publica y se cierra</text>
+</g>
+
+<!-- ── ENTRADA EXTERNA ───────────────────────────────────────────── -->
+<rect x="100" y="140" width="200" height="30" rx="6" fill="rgba(36,35,31,0.03)" stroke="rgba(36,35,31,0.30)" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="200" y="159" text-anchor="middle" fill="#24231f" font-size="10" font-weight="600" font-family="'Geist',sans-serif">Generador Wundeer</text>
+<!-- generador -> draft -->
+<path d="M 200 170 V 200" stroke="#6a6a64" stroke-width="1" stroke-dasharray="5,4" fill="none" marker-end="url(#ar)"/>
+
+<!-- ══ CONECTORES: las 19 TRANSITIONS de flow.ts ═══════════════════ -->
+<g fill="none" stroke-width="1" marker-end="url(#ar)">
+
+  <!-- draft -> internal_review -->
+  <path data-edge="draft->internal_review" d="M 200 262 V 304" stroke="#6a6a64"/>
+  <!-- internal_review -> voting -->
+  <path data-edge="internal_review->voting" d="M 200 366 V 408" stroke="#6a6a64"/>
+  <!-- internal_review -> pending_approval -->
+  <path data-edge="internal_review->pending_approval" d="M 300 335 C 340 335, 340 543, 300 543" stroke="#6a6a64"/>
+  <!-- voting -> pending_approval -->
+  <path data-edge="voting->pending_approval" d="M 200 470 V 512" stroke="#973d8f"/>
+  <!-- voting -> internal_review -->
+  <path data-edge="voting->internal_review" d="M 200 439 C 130 439, 130 335, 200 335" stroke="#6a6a64"/>
+  <!-- pending_approval -> approved -->
+  <path data-edge="pending_approval->approved" d="M 300 558 C 340 558, 340 231, 380 231" stroke="#8a7f00" marker-end="url(#ar-mos)"/>
+  <!-- pending_approval -> needs_changes -->
+  <path data-edge="pending_approval->needs_changes" d="M 200 574 V 616" stroke="#8a7f00" marker-end="url(#ar-mos)"/>
+  <!-- needs_changes -> pending_approval -->
+  <path data-edge="needs_changes->pending_approval" d="M 300 647 C 400 647, 400 574, 300 574" stroke="#be076d" marker-end="url(#ar-fuc)"/>
+  <!-- pending_approval -> closed -->
+  <path data-edge="pending_approval->closed" d="M 300 574 C 330 574, 340 610, 340 650 L 340 810 L 1190 810 C 1215 810, 1220 800, 1220 770 L 1220 335" stroke="#8a7f00" marker-end="url(#ar-mos)"/>
+  <!-- approved -> script_in_progress -->
+  <path data-edge="approved->script_in_progress" d="M 480 262 V 304" stroke="#6a6a64"/>
+  <!-- script_in_progress -> pending_script_review -->
+  <path data-edge="script_in_progress->pending_script_review" d="M 480 366 V 408" stroke="#6a6a64"/>
+  <!-- pending_script_review -> script_approved -->
+  <path data-edge="pending_script_review->script_approved" d="M 480 470 V 512" stroke="#8a7f00" marker-end="url(#ar-mos)"/>
+  <!-- pending_script_review -> script_in_progress -->
+  <path data-edge="pending_script_review->script_in_progress" d="M 480 439 C 410 439, 410 335, 480 335" stroke="#be076d" marker-end="url(#ar-fuc)"/>
+  <!-- script_approved -> in_production -->
+  <path data-edge="script_approved->in_production" d="M 580 558 C 620 558, 620 231, 660 231" stroke="#6a6a64"/>
+  <!-- in_production -> raw_uploaded -->
+  <path data-edge="in_production->raw_uploaded" d="M 760 262 V 304" stroke="#6a6a64"/>
+  <!-- raw_uploaded -> editing -->
+  <path data-edge="raw_uploaded->editing" d="M 860 350 C 900 350, 900 231, 940 231" stroke="#6a6a64"/>
+  <!-- editing -> ready_to_publish -->
+  <path data-edge="editing->ready_to_publish" d="M 1040 262 V 304" stroke="#6a6a64"/>
+  <!-- ready_to_publish -> published -->
+  <path data-edge="ready_to_publish->published" d="M 1140 350 C 1180 350, 1180 231, 1220 231" stroke="#6a6a64"/>
+  <!-- published -> closed -->
+  <path data-edge="published->closed" d="M 1320 262 V 304" stroke="#6a6a64"/>
+</g>
+
+<!-- ── ETIQUETAS DE FLECHA (mascara opaca sobre la linea) ────────── -->
+<g font-family="'Geist Mono',monospace" font-size="7" letter-spacing=".06em">
+  <rect x="314" y="432" width="52" height="12" rx="2" fill="#f4f3ef"/>
+  <text x="340" y="441" fill="#6a6a64" text-anchor="middle">SIN VOTAR</text>
+
+  <rect x="108" y="381" width="44" height="12" rx="2" fill="#f4f3ef"/>
+  <text x="130" y="390" fill="#6a6a64" text-anchor="middle">REABRIR</text>
+
+  <rect x="126" y="463" width="48" height="12" rx="2" fill="#f4f3ef"/>
+  <text x="150" y="472" fill="#973d8f" text-anchor="middle">MAYORÍA</text>
+
+  <rect x="374" y="605" width="52" height="12" rx="2" fill="#f4f3ef"/>
+  <text x="400" y="614" fill="#be076d" text-anchor="middle">REENVIAR</text>
+
+  <rect x="314" y="389" width="52" height="12" rx="2" fill="#f4f3ef"/>
+  <text x="340" y="398" fill="#8a7f00" text-anchor="middle">APROBAR</text>
+
+  <rect x="386" y="381" width="48" height="12" rx="2" fill="#f4f3ef"/>
+  <text x="410" y="390" fill="#be076d" text-anchor="middle">CAMBIOS</text>
+
+  <rect x="596" y="389" width="48" height="12" rx="2" fill="#f4f3ef"/>
+  <text x="620" y="398" fill="#6a6a64" text-anchor="middle">RODAR</text>
+
+  <rect x="876" y="285" width="48" height="12" rx="2" fill="#f4f3ef"/>
+  <text x="900" y="294" fill="#6a6a64" text-anchor="middle">EDITAR</text>
+
+  <rect x="1152" y="285" width="56" height="12" rx="2" fill="#f4f3ef"/>
+  <text x="1180" y="294" fill="#6a6a64" text-anchor="middle">PUBLICAR</text>
+
+  <rect x="674" y="803" width="52" height="12" rx="2" fill="#f4f3ef"/>
+  <text x="700" y="812" fill="#8a7f00" text-anchor="middle">ARCHIVAR</text>
+</g>
+
+<!-- ══ NODOS: los 15 estados de STATUS_ORDER ═════════════════════ -->
+
+<!-- draft -->
+<g data-status="draft">
+<rect x="100" y="200" width="200" height="62" rx="6" fill="rgba(36,35,31,0.05)" stroke="#9a9a92" stroke-width="1"/>
+<text x="116" y="218" fill="#6a6a64" font-size="7" font-family="'Geist Mono',monospace" letter-spacing=".08em">IDEA</text>
+<text x="200" y="236" text-anchor="middle" fill="#24231f" font-size="11" font-weight="600" font-family="'Geist',sans-serif">Borrador</text>
+<text x="200" y="251" text-anchor="middle" fill="#6a6a64" font-size="8" font-family="'Geist Mono',monospace">creativa · owner</text>
+</g>
+
+<!-- internal_review -->
+<g data-status="internal_review">
+<rect x="100" y="304" width="200" height="62" rx="6" fill="rgba(151,61,143,0.05)" stroke="#973d8f" stroke-width="1.5"/>
+<text x="116" y="322" fill="#973d8f" font-size="7" font-family="'Geist Mono',monospace" letter-spacing=".08em">IDEA</text>
+<text x="200" y="340" text-anchor="middle" fill="#24231f" font-size="11" font-weight="600" font-family="'Geist',sans-serif">Revisión interna</text>
+<text x="200" y="355" text-anchor="middle" fill="#973d8f" font-size="8" font-family="'Geist Mono',monospace">no sale de la casa</text>
+</g>
+
+<!-- voting -->
+<g data-status="voting">
+<rect x="100" y="408" width="200" height="62" rx="6" fill="rgba(151,61,143,0.05)" stroke="#973d8f" stroke-width="1.5"/>
+<text x="116" y="426" fill="#973d8f" font-size="7" font-family="'Geist Mono',monospace" letter-spacing=".08em">IDEA</text>
+<text x="200" y="444" text-anchor="middle" fill="#24231f" font-size="11" font-weight="600" font-family="'Geist',sans-serif">En votación</text>
+<text x="200" y="459" text-anchor="middle" fill="#973d8f" font-size="8" font-family="'Geist Mono',monospace">sí &gt; no · cuenta el servidor</text>
+</g>
+
+<!-- pending_approval -->
+<g data-status="pending_approval">
+<rect x="100" y="512" width="200" height="62" rx="6" fill="rgba(222,209,22,0.10)" stroke="#8a7f00" stroke-width="1.5"/>
+<text x="116" y="530" fill="#8a7f00" font-size="7" font-family="'Geist Mono',monospace" letter-spacing=".08em">FUERA</text>
+<text x="200" y="548" text-anchor="middle" fill="#24231f" font-size="11" font-weight="600" font-family="'Geist',sans-serif">Espera cliente</text>
+<text x="200" y="563" text-anchor="middle" fill="#8a7f00" font-size="8" font-family="'Geist Mono',monospace">la bola la tiene él</text>
+</g>
+
+<!-- needs_changes -->
+<g data-status="needs_changes">
+<rect x="100" y="616" width="200" height="62" rx="6" fill="rgba(190,7,109,0.05)" stroke="#be076d" stroke-width="1"/>
+<text x="116" y="634" fill="#be076d" font-size="7" font-family="'Geist Mono',monospace" letter-spacing=".08em">IDEA</text>
+<text x="200" y="652" text-anchor="middle" fill="#24231f" font-size="11" font-weight="600" font-family="'Geist',sans-serif">Ajustes</text>
+<text x="200" y="667" text-anchor="middle" fill="#be076d" font-size="8" font-family="'Geist Mono',monospace">vuelve al equipo</text>
+</g>
+
+<!-- approved -->
+<g data-status="approved">
+<rect x="380" y="200" width="200" height="62" rx="6" fill="rgba(151,61,143,0.05)" stroke="#9a9a92" stroke-width="1"/>
+<text x="396" y="218" fill="#6a6a64" font-size="7" font-family="'Geist Mono',monospace" letter-spacing=".08em">GUIÓN</text>
+<text x="480" y="236" text-anchor="middle" fill="#24231f" font-size="11" font-weight="600" font-family="'Geist',sans-serif">Aprobada</text>
+<text x="480" y="251" text-anchor="middle" fill="#6a6a64" font-size="8" font-family="'Geist Mono',monospace">arranca el guion</text>
+</g>
+
+<!-- script_in_progress -->
+<g data-status="script_in_progress">
+<rect x="380" y="304" width="200" height="62" rx="6" fill="rgba(151,61,143,0.05)" stroke="#9a9a92" stroke-width="1"/>
+<text x="396" y="322" fill="#6a6a64" font-size="7" font-family="'Geist Mono',monospace" letter-spacing=".08em">GUIÓN</text>
+<text x="480" y="340" text-anchor="middle" fill="#24231f" font-size="11" font-weight="600" font-family="'Geist',sans-serif">Escribiendo guion</text>
+<text x="480" y="355" text-anchor="middle" fill="#6a6a64" font-size="8" font-family="'Geist Mono',monospace">creativa · editor</text>
+</g>
+
+<!-- pending_script_review -->
+<g data-status="pending_script_review">
+<rect x="380" y="408" width="200" height="62" rx="6" fill="rgba(222,209,22,0.10)" stroke="#8a7f00" stroke-width="1.5"/>
+<text x="396" y="426" fill="#8a7f00" font-size="7" font-family="'Geist Mono',monospace" letter-spacing=".08em">FUERA</text>
+<text x="480" y="444" text-anchor="middle" fill="#24231f" font-size="11" font-weight="600" font-family="'Geist',sans-serif">Guion por aprobar</text>
+<text x="480" y="459" text-anchor="middle" fill="#8a7f00" font-size="8" font-family="'Geist Mono',monospace">la bola la tiene él</text>
+</g>
+
+<!-- script_approved -->
+<g data-status="script_approved">
+<rect x="380" y="512" width="200" height="62" rx="6" fill="rgba(190,7,109,0.05)" stroke="#be076d" stroke-width="1"/>
+<text x="396" y="530" fill="#be076d" font-size="7" font-family="'Geist Mono',monospace" letter-spacing=".08em">GUIÓN</text>
+<text x="480" y="548" text-anchor="middle" fill="#24231f" font-size="11" font-weight="600" font-family="'Geist',sans-serif">Guion listo</text>
+<text x="480" y="563" text-anchor="middle" fill="#be076d" font-size="8" font-family="'Geist Mono',monospace">brief para cámara</text>
+</g>
+
+<!-- in_production -->
+<g data-status="in_production">
+<rect x="660" y="200" width="200" height="62" rx="6" fill="rgba(190,7,109,0.05)" stroke="#be076d" stroke-width="1"/>
+<text x="676" y="218" fill="#be076d" font-size="7" font-family="'Geist Mono',monospace" letter-spacing=".08em">RODAJE</text>
+<text x="760" y="236" text-anchor="middle" fill="#24231f" font-size="11" font-weight="600" font-family="'Geist',sans-serif">Grabando</text>
+<text x="760" y="251" text-anchor="middle" fill="#be076d" font-size="8" font-family="'Geist Mono',monospace">cámara y talento</text>
+</g>
+
+<!-- raw_uploaded -->
+<g data-status="raw_uploaded">
+<rect x="660" y="304" width="200" height="62" rx="6" fill="rgba(151,61,143,0.05)" stroke="#9a9a92" stroke-width="1"/>
+<text x="676" y="322" fill="#6a6a64" font-size="7" font-family="'Geist Mono',monospace" letter-spacing=".08em">RODAJE</text>
+<text x="760" y="340" text-anchor="middle" fill="#24231f" font-size="11" font-weight="600" font-family="'Geist',sans-serif">Crudo subido</text>
+<text x="760" y="355" text-anchor="middle" fill="#6a6a64" font-size="8" font-family="'Geist Mono',monospace">listo para montaje</text>
+</g>
+
+<!-- editing -->
+<g data-status="editing">
+<rect x="940" y="200" width="200" height="62" rx="6" fill="rgba(190,7,109,0.05)" stroke="#be076d" stroke-width="1"/>
+<text x="956" y="218" fill="#be076d" font-size="7" font-family="'Geist Mono',monospace" letter-spacing=".08em">EDICIÓN</text>
+<text x="1040" y="236" text-anchor="middle" fill="#24231f" font-size="11" font-weight="600" font-family="'Geist',sans-serif">Editando</text>
+<text x="1040" y="251" text-anchor="middle" fill="#be076d" font-size="8" font-family="'Geist Mono',monospace">montaje en curso</text>
+</g>
+
+<!-- ready_to_publish -->
+<g data-status="ready_to_publish">
+<rect x="940" y="304" width="200" height="62" rx="6" fill="rgba(151,61,143,0.05)" stroke="#9a9a92" stroke-width="1"/>
+<text x="956" y="322" fill="#6a6a64" font-size="7" font-family="'Geist Mono',monospace" letter-spacing=".08em">EDICIÓN</text>
+<text x="1040" y="340" text-anchor="middle" fill="#24231f" font-size="11" font-weight="600" font-family="'Geist',sans-serif">Revisión final</text>
+<text x="1040" y="355" text-anchor="middle" fill="#6a6a64" font-size="8" font-family="'Geist Mono',monospace">falta la última OK</text>
+</g>
+
+<!-- published -->
+<g data-status="published">
+<rect x="1220" y="200" width="200" height="62" rx="6" fill="rgba(36,35,31,0.05)" stroke="#9a9a92" stroke-width="1"/>
+<text x="1236" y="218" fill="#6a6a64" font-size="7" font-family="'Geist Mono',monospace" letter-spacing=".08em">PUBLICACIÓN</text>
+<text x="1320" y="236" text-anchor="middle" fill="#24231f" font-size="11" font-weight="600" font-family="'Geist',sans-serif">Publicado</text>
+<text x="1320" y="251" text-anchor="middle" fill="#6a6a64" font-size="8" font-family="'Geist Mono',monospace">con su evidencia</text>
+</g>
+
+<!-- closed -->
+<g data-status="closed">
+<rect x="1220" y="304" width="200" height="62" rx="6" fill="rgba(36,35,31,0.05)" stroke="#9a9a92" stroke-width="1"/>
+<text x="1236" y="322" fill="#6a6a64" font-size="7" font-family="'Geist Mono',monospace" letter-spacing=".08em">FIN</text>
+<text x="1320" y="340" text-anchor="middle" fill="#24231f" font-size="11" font-weight="600" font-family="'Geist',sans-serif">Cerrado</text>
+<text x="1320" y="355" text-anchor="middle" fill="#6a6a64" font-size="8" font-family="'Geist Mono',monospace">nadie · fin</text>
+<circle cx="1394" cy="322" r="7" fill="none" stroke="#6a6a64" stroke-width="1.2"/>
+<circle cx="1394" cy="322" r="3.5" fill="#6a6a64"/>
+</g>
+
+<!-- ── NOTA DE LA GUARDA DE VOTACIÓN ─────────────────────────────── -->
+<rect x="380" y="700" width="680" height="80" rx="6" fill="rgba(151,61,143,0.05)" stroke="rgba(151,61,143,0.35)" stroke-width="1" stroke-dasharray="4,4"/>
+<text x="398" y="724" fill="#973d8f" font-size="12" font-style="italic" font-family="'Instrument Serif',serif">La salida al cliente no la pulsa nadie.</text>
+<text x="398" y="744" fill="#6a6a64" font-size="8" font-family="'Geist Mono',monospace">Un empate NO aprueba: la idea sigue en votación. Cero votos tampoco.</text>
+<text x="398" y="762" fill="#6a6a64" font-size="8" font-family="'Geist Mono',monospace">La regla vive en flow.ts (ganoLaVotacion), no en la API: sale si aFavor &gt; enContra.</text>
+
+<!-- ── LEYENDA ──────────────────────────────────────────────────── -->
+<line x1="100" y1="860" x2="1420" y2="860" stroke="rgba(36,35,31,0.10)" stroke-width="0.8"/>
+<g font-family="'Geist Mono',monospace" font-size="8" fill="#6a6a64">
+  <text x="100" y="884" letter-spacing=".14em">LEYENDA</text>
+  <circle cx="210" cy="881" r="3.5" fill="#6a6a64"/>
+  <text x="222" y="884">turno del equipo</text>
+  <circle cx="370" cy="881" r="3.5" fill="#8a7f00"/>
+  <text x="382" y="884">decide el cliente</text>
+  <circle cx="540" cy="881" r="3.5" fill="#be076d"/>
+  <text x="552" y="884">retroceso al equipo</text>
+  <circle cx="740" cy="881" r="3.5" fill="#973d8f"/>
+  <text x="752" y="884">el servidor lo cuenta</text>
+  <line x1="930" y1="881" x2="960" y2="881" stroke="#6a6a64" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="970" y="884">entrada externa</text>
+  <text x="1420" y="884" text-anchor="end" fill="#9a9a92">15 estados · 5 fases · 19 transiciones</text>
+</g>
+</svg>
+
+<p class="meta">Fuente: src/lib/flow.ts — STATUS_ORDER, PHASES, STATUS_OWNERS, TRANSITIONS, ganoLaVotacion · repo rr-content-hub @ 2163b05 · corte 2026-09-28</p>
+</body>
+</html>

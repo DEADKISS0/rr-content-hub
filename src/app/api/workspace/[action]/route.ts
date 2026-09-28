@@ -321,9 +321,15 @@ export async function POST(request: NextRequest) {
    *   CHECK no puede contar filas de otra tabla.
    *
    * - Quien puede votar: cualquiera con el enlace, porque el token ES el permiso.
-   *   Cuando la puerta vuelva a encenderse, esta acción se apaga con ella: aquí no
-   *   se comprueba la sesión a propósito, y ese es el punto que hay que revisar
-   *   antes de reactivar el login.
+   *   Es una decisión, no un descuido: es la votación interna sin cuenta que
+   *   pidió Santiago. En modo cerrado, el chequeo de rol de arriba (línea ~174)
+   *   exige sesión antes de llegar aquí; en modo abierto `role` es `owner` fijo
+   *   y por eso el enlace ES el permiso.
+   *
+   *   AL REACTIVAR EL LOGIN hay que revisar esta acción. Con la puerta
+   *   encendida, cualquiera con el enlace de una ficha abierta podría votar,
+   *   y el token solo impide el doble clic del mismo navegador: no es
+   *   identidad. Este es el punto a cerrar antes de `AUTH_ENABLED=true`.
    */
   if (action === 'vote') {
     const token = str(body.voterToken, 100);
