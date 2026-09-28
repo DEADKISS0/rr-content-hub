@@ -103,7 +103,17 @@ export async function updateSession(request: NextRequest) {
         return NextResponse.redirect(url);
       }
     } else {
-      // Sin sesión, y ya en el login: se deja pasar para que pueda entrar.
+      // Una API no tiene a dónde mandar a nadie: un 307 es para el navegador y
+      // `fetch` no lo sigue, así que el cliente solo lee "failed to fetch". Es lo
+      // que pasaba con `/api/ideas`: el middleware lo capturaba en esta rama
+      // genérica y le devolvía una redirección a una página, no un error de API.
+      if (path.startsWith('/api/')) {
+        return NextResponse.json(
+          { error: 'Necesitas una sesión con acceso a este proyecto para hacer eso.' },
+          { status: 401 },
+        );
+      }
+      // Sin sesión, y ya en el login o en la portada: se deja pasar.
       if (path === '/login' || path === '/') return supabaseResponse;
       const url = request.nextUrl.clone();
       url.pathname = '/login';
