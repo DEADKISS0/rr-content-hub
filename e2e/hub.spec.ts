@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 /**
- * Recorridos de lectura sobre el hub real.
+ * Recorridos sobre el hub real.
  *
  * Qué se protege aquí: las cuatro invariantes que se rompieron de verdad y que
  * ninguna prueba de tipos iba a notar.
@@ -11,11 +11,61 @@ import { expect, test } from '@playwright/test';
  *   3. El roadmap no clona el mismo avance en las tres pistas (daban las tres 78%).
  *   4. Ninguna pantalla promete datos que la base no tiene.
  *
- * NO escribe en la base: son navegaciones y lecturas. Una prueba que mueva una
- * pieza estaría tocando datos de clientes en producción.
+ * Salvedad honesta: la prueba de creación SÍ escribe, porque no hay forma de
+ * comprobar que el botón funciona sin pulsarlo. Antes el comentario decía "no
+ * escribe" y era falso. Hoy borra lo que crea, y falla si no puede — ver
+ * `borrarIdeaDePrueba`.
  */
 
 const PROYECTO = 'wundeer';
+
+/**
+ * Borra la pieza que creó la prueba de creación.
+ *
+ * La limpieza va por la Management API de Supabase con el token del MCP, que es
+ * lo único con permisos de escritura sobre la base real. Se borran también los
+ * eventos, o quedarían filas apuntando a una idea que no existe.
+ *
+ * Solo corre contra producción (`HUB_BASE_URL`): con el dev server el alta nunca
+ * llega a completarse, así que no hay nada que borrar y no hay nada que
+ * limpiar. Y si el borrado falla, el test falla — una base con filas de prueba
+ * es peor que una suite roja.
+ */
+async function borrarIdeaDePrueba(ideaId: string, marca: string): Promise<boolean> {
+  if (!process.env.HUB_BASE_URL) return true; // el alta falló en local: no hay fila
+  if (!/^[0-9a-f-]{36}$/.test(ideaId)) return false;
+
+  const { readFileSync, writeFileSync, mkdtempSync } = await import('node:fs');
+  const { homedir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { execFile } = await import('node:child_process');
+  const { promisify } = await import('node:util');
+  const run = promisify(execFile);
+
+  const tokenPath = join(homedir(), '.hermes', 'mcp-tokens', 'supabase.json');
+  const token = JSON.parse(readFileSync(tokenPath, 'utf8')).access_token as string;
+  const temporal = mkdtempSync(join(homedir(), '.hermes', 'cache', 'scratch', 'borrar-'));
+
+  // El SQL va en un archivo y se ejecuta con `scripts/borrar-idea-prueba.py`, no
+  // por línea de comandos: lo que corre se puede leer antes, y el token no
+  // queda en el historial del shell.
+  const sqlFile = join(temporal, 'borrar.sql');
+  const tituloLimpio = marca.replace(/[^0-9A-Za-z ]/g, '');
+  writeFileSync(sqlFile, [
+    `delete from rr_hub_events where idea_id = '${ideaId}';`,
+    `delete from rr_hub_comments where idea_id = '${ideaId}';`,
+    // El `and title like` es una red: si por lo que sea el id fuera de otra
+    // pieza, esta fila no se toca.
+    `delete from rr_hub_ideas where id = '${ideaId}' and title like '%${tituloLimpio}%';`,
+  ].join('\n'));
+
+  try {
+    await run('python3', [join(process.cwd(), 'scripts', 'borrar-idea-prueba.py'), sqlFile, token], { timeout: 30_000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** Las cuatro pistas del tablero, tal como las ve el usuario. */
 const PISTAS = ['IDEAS', 'GUIONES', 'PRODUCCIÓN', 'PUBLICADO'];
@@ -448,17 +498,39 @@ test.describe('modo abierto', () => {
 
     await expect(page.getByRole('heading', { name: 'Nueva idea.' })).toBeVisible();
 
-    await page.getByLabel(/TÍTULO/).fill('Prueba en modo abierto');
+    // Marca única por corrida: sin ella, dos ejecuciones crean dos piezas y
+    // solo se distingue una por el título.
+    const marca = `Prueba en modo abierto ${Date.now()}`;
+    await page.getByLabel(/TÍTULO/).fill(marca);
     await page.getByLabel(/OBJETIVO/).fill('Verificar que el guardado no pide cuenta');
 
     // O se guarda y navega a la ficha, o hay un aviso de verdad. Lo que NO
     // puede ser es quedarse quieto sin decir nada: eso fue "no pasa nada".
     const navego = page.waitForURL(/\/ideas\/[0-9a-f-]{36}/, { timeout: 20_000 }).catch(() => null);
     await page.getByRole('button', { name: /CREAR IDEA/ }).click();
-    const [, destino] = await Promise.all([navego, page.waitForTimeout(4000)]);
+    const destino = await navego;
+    await page.waitForTimeout(4000);
 
     const avisoVisible = await page.locator('#aviso-crear').isVisible().catch(() => false);
     expect(destino !== null || avisoVisible).toBe(true);
+
+    /**
+     * Esta prueba ESCRIBE en la base real, y antes no limpiaba. Con el dev
+     * server no se notaba porque `SUPABASE_SERVICE_ROLE_KEY` no está y el alta
+     * falla — el test "pasaba" sin crear nada. Al correr contra producción con
+     * `HUB_BASE_URL` creó de verdad: quedaron O16, O17 y el contador del tablero
+     * subió a 27 piezas sin que nadie lo hiciera.
+     *
+     * Ahora borra lo que creó. Si el borrado falla, el test falla: es preferible
+     * una suite roja a una base de clientes con filas de prueba. Para eso
+     * necesita el service role, así que la limpieza solo corre en producción, que
+     * es donde está el dato real.
+     */
+    if (destino) {
+      const ideaId = new URL(destino).pathname.split('/').pop() as string;
+      const borrado = await borrarIdeaDePrueba(ideaId, marca);
+      expect(borrado, `no se pudo borrar la pieza de prueba ${ideaId}`).toBe(true);
+    }
   });
 
   test('el header no pide entrar ni perfil', async ({ page }) => {
