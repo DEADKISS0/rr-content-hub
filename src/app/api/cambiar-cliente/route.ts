@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
       .from('rr_hub_access')
       .select('role_in_project, user_id, project:rr_hub_projects!inner(slug)')
       .in('project.slug', [destino, sesion.proyecto]),
-    supabase.from('rr_hub_profiles').select('id, email, nombre, is_team_member, is_active').ilike('email', sesion.email).maybeSingle(),
+    supabase.from('rr_hub_profiles').select('id, email, full_name, is_team_member, is_active').ilike('email', sesion.email).maybeSingle(),
   ]);
 
   if (acceso.error) return NextResponse.json({ error: acceso.error.message }, { status: 500 });
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const nombre = perfil.data.nombre || sesion.nombre;
+  const nombre = perfil.data.full_name || sesion.nombre;
 
   const respuesta = NextResponse.json({
     success: true,
