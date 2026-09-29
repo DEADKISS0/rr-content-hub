@@ -45,6 +45,13 @@ export async function updateSession(request: NextRequest) {
   // mutación no puede depender de que el cliente se acuerde de preguntar.
   if (process.env.NEXT_PUBLIC_AUTH_ENABLED === 'true') {
     const path = request.nextUrl.pathname;
+    // `/api/pedir-codigo` es la puerta de ENTRADA: pedir el código es justamente
+    // lo que se hace sin sesión todavía. Si cae en la rama de abajo devolvía 401
+    // y el login se quedaba mudo, con un texto que no cuadraba con nada de lo que
+    // la persona había hecho. Va antes que el filtro, con `/login` y `/auth/`.
+    if (path.startsWith('/login') || path.startsWith('/auth/') || path === '/api/pedir-codigo') {
+      return supabaseResponse;
+    }
     const SOLO_SERVIDOR = ['/audit/admin', '/api/workspace'];
     const pideSesion = SOLO_SERVIDOR.some((p) => path.startsWith(p));
     if (pideSesion) {
@@ -70,25 +77,24 @@ export async function updateSession(request: NextRequest) {
 
     // Tener sesión NO es ser del equipo, y son dos cosas distintas.
     //
-    // Cualquiera puede abrirse una cuenta en Supabase por su cuenta (Google,
-    // correo, lo que sea) sin pasar por la app. Si la puerta se cierra solo con
-    // "hay sesión", cualquiera que registre un Gmail cualquiera entra al hub a ver
-    // y a escribir. La lista blanca tiene que comprobarse contra
-    // `rr_hub_profiles`, que es lo que Dirección controla: 18 correos, a mano.
+    // Cualquiera puede abrirse una cuenta en Supabase por su cuenta sin pasar
+    // por la app. Si la puerta se cierra solo con "hay sesión", cualquiera que
+    // registre un Gmail cualquiera entra al hub a ver y a escribir. La lista
+    // blanca se comprueba contra la vista, que es lo que Dirección controla.
     //
     // Por eso esto va en el middleware y no solo en el guard de la API: el guard
     // protege las mutaciones, pero las páginas se sirven sin pasar por él.
-    if (path.startsWith('/login') || path.startsWith('/auth/')) {
-      return supabaseResponse;
-    }
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       const correo = (user.email ?? '').toLowerCase();
+      // La vista `rr_hub_quien_puede_entrar` es la lista blanca en una sola
+      // pieza: exige `is_team_member` Y `is_active`. Antes esta consulta solo
+      // miraba `is_active`, así que bastaba con registrarse para tener fila y
+      // entrar: la lista blanca no estaba en la puerta, solo en la intención.
       const { data: enEquipo } = await supabase
-        .from('rr_hub_profiles')
+        .from('rr_hub_quien_puede_entrar')
         .select('email')
         .eq('email', correo)
-        .eq('is_active', true)
         .maybeSingle();
       if (!enEquipo) {
         // Sesión válida de alguien que no es del equipo. Se cierra la sesión
