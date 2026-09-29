@@ -147,6 +147,7 @@ export function ReferenceWithBrief({ url, title, brief }: { url?: string; title:
     <div className="grid gap-px bg-blanco-10 lg:grid-cols-2">
       <div className="flex flex-col items-center gap-2 bg-negro p-3 sm:p-5">
         {source ? <ReferenceEmbed
+          key={source}
           src={source}
           title={`Referencia visual de ${title}`}
           plataforma={platform(url)}

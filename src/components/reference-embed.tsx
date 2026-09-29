@@ -63,11 +63,14 @@ export function ReferenceEmbed({
   plataforma?: string;
 }) {
   const iframe = useRef<HTMLIFrameElement | null>(null);
+  // Nace en 'cargando' y NO se reinicia dentro del efecto: al cambiar de
+  // referencia el padre cambia la `key` y React remonta el componente, que es
+  // el reinicio limpio. Poner `setEstado('cargando')` al principio del efecto
+  // dispara `react-hooks/set-state-in-effect` en React 19.
   const [estado, setEstado] = useState<EstadoEmbed>('cargando');
 
   useEffect(() => {
     let vivo = true;
-    setEstado('cargando');
 
     // La señal de Meta: el post ya está pintado dentro del marco.
     const alMensaje = (evento: MessageEvent) => {
