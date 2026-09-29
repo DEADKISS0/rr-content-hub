@@ -353,6 +353,41 @@ export async function getVotos(ideaId: string): Promise<ConteoVotos> {
 }
 
 /**
+ * El equipo y su último latido, para pintar quién está en línea.
+ *
+ * Solo devuelve filas que existen en `rr_hub_presencia`: quien nunca ha
+ * entrado no aparece. El panel lo traduce a "DESCONECTADO · nunca ha entrado",
+ * que es el estado que Dirección pidió distinguir del "activo pero no aquí".
+ */
+export type PresenciaFila = { email: string; nombre: string | null; lastSeenAt: string | null };
+
+export async function getPresencia(): Promise<PresenciaFila[]> {
+  const supabase = await createClient();
+  if (!supabase) return [];
+
+  const { data } = await supabase
+    .from('rr_hub_presencia')
+    .select('email, profile_id, last_seen_at')
+    .order('last_seen_at', { ascending: false });
+
+  const filas = data ?? [];
+  if (!filas.length) return [];
+
+  const ids = filas.map((f) => f.profile_id).filter((id): id is string => Boolean(id));
+  const { data: perfiles } = ids.length
+    ? await supabase.from('rr_hub_profiles').select('id, full_name').in('id', ids)
+    : { data: [] as { id: string; full_name: string | null }[] };
+
+  const nombrePorId = new Map((perfiles ?? []).map((p) => [p.id, p.full_name]));
+
+  return filas.map((f) => ({
+    email: f.email as string,
+    nombre: (f.profile_id ? nombrePorId.get(f.profile_id) : null) ?? null,
+    lastSeenAt: (f.last_seen_at as string | null) ?? null,
+  }));
+}
+
+/**
  * Public audit reads. These use the same anonymous client; RLS turns every
  * read below into an anon-only, read-only view while the global audit switch
  * is open, so nothing leaks and nothing can be written.

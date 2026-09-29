@@ -2,6 +2,7 @@
 import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 import { AUTH_ENABLED } from '@/lib/mode';
+import { PUEDE_EDITAR, type RoleKey } from '@/lib/flow';
 
 const SUPER_ADMIN_EMAILS = (process.env.SUPER_ADMIN_EMAILS ?? '')
   .split(',')
@@ -18,9 +19,22 @@ const SUPER_ADMIN_EMAILS = (process.env.SUPER_ADMIN_EMAILS ?? '')
  * (`ROLE_KEYS`), no otros parecidos: ese archivo es la autoridad, y
  * `project-guard.test.ts` falla si se desincronizan.
  */
-const PUEDE_ESCRIBIR = new Set(['owner', 'creator', 'editor', 'camera', 'publisher', 'media_buyer']);
-/** Roles que pueden aprobar o rechazar. Aprobar no es lo mismo que crear. */
-const PUEDE_APROBAR = new Set(['owner', 'client_approver']);
+/**
+ * Los permisos viven en UN archivo, y en el mismo sitio para los dos lados.
+ *
+ * Antes había dos listas que se desincronizaron: la del guard (lo que la
+ * interfaz muestra) y la de la API (lo que el servidor acepta). Con mi cambio
+ * quedaron cuatro, y el síntoma fue justo el que el repo ya había pagado dos
+ * veces: el botón visible que al pulsarlo responde 403. Un `publisher` veía
+ * "GUARDAR" y no podía; un `model` podía editar y no le salía nada.
+ *
+ * La regla: quien decide qué puede hacer un rol es `PUEDE_*` en `flow.ts`, y
+ * tanto el guard como la API leen de ahí. Si hay que cambiar un permiso, se
+ * cambia en un sitio y los dos lados cuentan la misma historia.
+ */
+export const PUEDE_ESCRIBIR: readonly RoleKey[] = PUEDE_EDITAR;
+/** Aprobar no es lo mismo que crear: quien aprueba no reescribe la pieza. */
+const PUEDE_APROBAR: readonly RoleKey[] = ['owner', 'client_approver'];
 
 export type RolProyecto =
   | 'owner' | 'creator' | 'editor' | 'client_approver'
@@ -85,11 +99,17 @@ export async function rolEnProyecto(projectId: string): Promise<VeredictoProyect
     .maybeSingle();
 
   const rol = (data?.role_in_project as RolProyecto | undefined) ?? 'sin_rol';
+  // `sin_rol` es lo que devuelve el guard cuando la fila no trae un rol válido.
+  // No es un rol de `ROLE_KEYS`, así que ni `includes` ni el `Set` lo aceptan;
+  // se resuelve comprobando los roles reales. No hay que "arreglar" el rol:
+  // nadie está en el equipo si su fila no dice un rol que existe.
+  const esRolReal = (valor: RolProyecto): valor is RoleKey =>
+    (PUEDE_EDITAR as readonly string[]).includes(valor);
   return {
     rol,
     email,
-    puedeEscribir: PUEDE_ESCRIBIR.has(rol),
-    puedeAprobar: PUEDE_APROBAR.has(rol),
+    puedeEscribir: esRolReal(rol) && PUEDE_EDITAR.includes(rol),
+    puedeAprobar: esRolReal(rol) && PUEDE_APROBAR.includes(rol),
     via: 'session',
   };
 }

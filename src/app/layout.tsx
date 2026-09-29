@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Latido } from '@/components/presencia-equipo';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -13,7 +14,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
-      <body>{children}</body>
+      <body>
+        {/*
+          El latido va en el layout raíz, y no en cada página, para que el
+          equipo esté marcado en línea venga de donde venga. Sin sesión no hace
+          nada: el endpoint contesta 401 y eso es lo correcto.
+        */}
+        <Latido />
+        {children}
+      </body>
     </html>
   );
 }
