@@ -55,7 +55,12 @@ export async function POST(request: NextRequest) {
   const projectSlug = typeof cuerpo.projectSlug === 'string' ? cuerpo.projectSlug.slice(0, 60) : '';
   const ideaId = typeof cuerpo.ideaId === 'string' ? cuerpo.ideaId.slice(0, 64) : '';
   const stage = typeof cuerpo.stage === 'string' ? cuerpo.stage.slice(0, 40) : '';
-  const versionLabel = typeof cuerpo.versionLabel === 'string' ? cuerpo.versionLabel.slice(0, 60) : null;
+  // `version_label` es NOT NULL en la tabla (con default 'v1'), así que aquí no
+  // puede ir `null`: el insert fallaba y el archivo quedaba subido en el bucket
+  // sin fila, o sea un objeto que existe y que ninguna parte del hub muestra.
+  // Un default en la base no ayuda a un INSERT que manda la columna explícitamente
+  // nula: manda null, no el default.
+  const versionLabel = (typeof cuerpo.versionLabel === 'string' ? cuerpo.versionLabel : '').trim().slice(0, 60) || 'v1';
 
   // El cliente tiene que ser EL de la cookie. Sin esto, con el código de
   // Wundeer se podría colgar un archivo dentro de la carpeta de Candilejas.

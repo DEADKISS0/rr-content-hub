@@ -81,6 +81,10 @@ check('la subida ata el archivo a quien entro por la puerta', /ilike\('email', s
 check('la subida comprueba que el cliente sea el de la cookie', /projectSlug !== sesion\.proyecto/.test(subir));
 check('la metadata del asset la escribe el servidor', /rr_hub_assets'\)\.insert/.test(subir));
 check('la subida mira los bytes, no lo que el navegador declara', /firmaDeImagen\(/.test(subir));
+// `version_label` es NOT NULL con default 'v1'. Mandar null explicitamente hace
+// fallar el insert aunque la base tenga default: el archivo queda en el bucket
+// sin fila, o sea invisible. Medido el 2026-09-28.
+check('la subida no manda version_label en null', !/versionLabel = null/.test(subir) && /\|\| 'v1'/.test(subir));
 
 // 3. El servidor existe y es quien autoriza.
 const route = fs.readFileSync(path.join(repoRoot, 'src/app/api/workspace/[action]/route.ts'), 'utf8');
