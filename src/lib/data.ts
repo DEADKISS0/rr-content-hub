@@ -708,7 +708,6 @@ export async function getClientesDeLaPersona(): Promise<{
   }[];
   if (proyectos.length === 0) return vacio;
 
-  const esAdmin = perfil.global_role === 'admin';
   const rolPorProyecto = new Map<string, string>();
   for (const fila of (accesos.data ?? []) as { project_id: string; role_in_project: string }[]) {
     rolPorProyecto.set(fila.project_id, fila.role_in_project);
@@ -721,11 +720,23 @@ export async function getClientesDeLaPersona(): Promise<{
   const conocidos = proyectos.filter((p) => isVisibleProject(p.slug));
 
   const abiertos = conocidos
-    .filter((p) => esAdmin || rolPorProyecto.has(p.id))
-    .map((p) => ({ ...p, rol: esAdmin ? 'owner' : (rolPorProyecto.get(p.id) ?? 'sin_rol') }));
+    .filter((p) => rolPorProyecto.has(p.id))
+    .map((p) => ({ ...p, rol: rolPorProyecto.get(p.id) ?? 'sin_rol' }));
 
+  // Los cerrados salen del catálogo ENTERO, no de `conocidos`. Con la lista
+  // corta como fuente, Satiro y Boga no aparecían nunca: un `filter` sobre
+  // `conocidos` solo puede devolver cosas que ya estaban en `conocidos`.
+  //
+  // Eso vaciaba el candado justo en el caso para el que existe. Santiago lo
+  // pidió así el 2026-09-29: que se vea qué clientes hay, aunque no se puedan
+  // abrir. Con la lista corta, quien no tenía fila en Candilejas veía un
+  // desplegable con un solo cliente y sin ninguna pista de que hubiera más.
+  //
+  // Para abrir hace falta las dos cosas: fila en `rr_hub_access` Y cliente
+  // conocido. Por eso la puerta (`/api/cambiar-cliente`) valida `CLIENTES_CONOCIDOS`
+  // aunque esta función muestre Satiro y Boga: se ven, pero no se abren.
   const slugsAbiertos = new Set(abiertos.map((p) => p.slug));
-  const cerrados = conocidos
+  const cerrados = proyectos
     .filter((p) => !slugsAbiertos.has(p.slug))
     .map(({ id: _id, ...resto }) => resto);
 

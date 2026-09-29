@@ -156,12 +156,43 @@ describe('la lista la da el servidor, no el navegador', () => {
     expect(bloque).toMatch(/project_id/);
   });
 
-  it('solo ofrece clientes de la lista corta, aunque tengan fila de acceso', () => {
-    // Satiro y Boga existen con sus accesos pero no tienen código: salen con
-    // candado. Añadirlos a `CLIENTES_CONOCIDOS` es lo único que haría falta
-    // cuando tengan.
+  it('abrir exige fila de acceso, y la fila manda sobre el global_role', () => {
+    // El bug anterior: `esAdmin || fila` y luego `rol: esAdmin ? 'owner'`. Un
+    // admin global se veía como `owner` en TODOS los clientes, tuviera fila o no.
+    // La base dice la verdad: `rr_hub_access` es la fila real, y si no está, no
+    // se abre. (Igual que en `rolEnProyecto`, que ya no cae a admin global.)
     const data = leer('lib/data.ts');
     const bloque = data.slice(data.indexOf('export async function getClientesDeLaPersona'));
-    expect(bloque).toMatch(/isVisibleProject/);
+    expect(bloque).toMatch(/\.filter\(\(p\) => rolPorProyecto\.has\(p\.id\)\)/);
+    expect(bloque).not.toMatch(/esAdmin/);
+  });
+
+  it('los cerrados salen del catálogo ENTERO, no de la lista corta', () => {
+    // Este era el fallo que dejó el candado siempre vacío: `cerrados` se
+    // filtraba sobre `conocidos` (la lista corta), así que Satiro y Boga no
+    // aparecían nunca. Un `filter` sobre una lista ya filtrada solo puede
+    // devolver lo que ya estaba en ella.
+    //
+    // Y tiene que ser así: se ven los clientes que existen aunque no se puedan
+    // abrir. La puerta sigue exigiendo `CLIENTES_CONOCIDOS` para abrirlos, así
+    // que verlos no concede nada.
+    const data = leer('lib/data.ts');
+    const bloque = data.slice(data.indexOf('export async function getClientesDeLaPersona'));
+    const iAbiertos = bloque.indexOf('const abiertos');
+    const iCerrados = bloque.indexOf('const cerrados');
+    expect(iCerrados).toBeGreaterThan(iAbiertos);
+    const seccionCerrados = bloque.slice(iCerrados, bloque.indexOf('return {'));
+    expect(seccionCerrados).toMatch(/\.filter\(\(p\) => !slugsAbiertos\.has\(p\.slug\)\)/);
+    // Y se filtran sobre el catálogo completo, no sobre `conocidos`.
+    expect(seccionCerrados).not.toMatch(/conocidos\s*$/);
+    expect(seccionCerrados).not.toMatch(/knowns|conocidos\.filter/);
+  });
+
+  it('la puerta sigue cerrada para los que solo se ven', () => {
+    // Ver un cliente en el desplegable no lo abre: la ruta valida la lista
+    // corta por separado. Si esta comprobación se rompe, el candado se vuelve
+    // decorativo.
+    const ruta = leer('app/api/cambiar-cliente/route.ts');
+    expect(ruta).toMatch(/CLIENTES_CONOCIDOS/);
   });
 });
