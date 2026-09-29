@@ -27,6 +27,18 @@ function platform(url: string) {
  * shortcode si el regex no lo admite.
  */
 function instagramEmbed(url: string) {
+  // `?stkn=...` TIENE que irse, y no por limpieza.
+  //
+  // Ese parámetro es el token de "compartir" que Instagram añade a los enlaces
+  // que copiar de la app. Pegado a la URL del embed, Meta responde con un marco
+  // de 0 px de contenido: el iframe existe, mide 200x340, y no hay NADA dentro.
+  // Medido el 2026-09-29, mismo post, misma página, misma medida de color:
+  //   /reel/<id>/embed/            -> 22,6 % de color (el post se ve)
+  //   /reel/<id>/?stkn=.../embed/   ->  0,0 % (marco vacío)
+  //
+  // El fallo se lee como "Instagram no deja ver el post", y no es eso: es una
+  // query que nosotros no tenemos que pasarle. Instagram recibe el shortcode y
+  // ya sabe qué es.
   const clean = url.split('?')[0].replace(/\/$/, '');
   const esReel = /\/(?:reels?|tv)\//.test(clean);
   // El permalink del embed debe llevar `/reel/`, no `/p/`: con `/p/` Meta

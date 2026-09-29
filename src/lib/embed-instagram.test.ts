@@ -56,6 +56,27 @@ describe('la URL del embed de Instagram', () => {
     // `/p/ABC/embed` responde 200 sin post y sin `onRender`: el fallo mudo.
     expect(cuerpo).toMatch(/instagram\.com\/reel\//);
   });
+
+  it('el token ?stkn= NO se le pasa a Instagram', () => {
+    // El fallo que costó la ronda entera del 2026-09-29. Santiago pegó reels
+    // copiados de la app de Instagram, que traen `?stkn=...`. Con ese parámetro
+    // el embed responde un marco VACÍO: el iframe existe y mide lo correcto, y no
+    // hay nada dentro. Medido con la misma página y el mismo post:
+    //
+    //   /reel/<id>/embed/              -> 22,6 % de color
+    //   /reel/<id>/?stkn=.../embed/     ->  0,0 % de color
+    //
+    // Se lee como "Instagram bloquea el embed" y no es eso: es una query que
+    // nosotros no tenemos que pasarle. El shortcode ya identifica el post.
+    expect(cuerpo).toMatch(/url\.split\('\?'\)\[0\]/);
+    expect(cuerpo).not.toMatch(/embed[^`]*\$\{[a-z]*url[a-z]*\}/);
+  });
+
+  it('limpia también el resto de la query, no solo stkn', () => {
+    // Cualquier query es ruido para el embed: `igsh=`, `img_index=`,
+    // `utm_source=` — todos vienen en los enlaces que se copian de la app.
+    expect(cuerpo).toMatch(/const clean = url\.split\('\?'\)\[0\]/);
+  });
 });
 
 describe('el preview compuesto no dice un cliente que no es', () => {

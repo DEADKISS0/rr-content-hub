@@ -387,7 +387,8 @@ CAMPOS = {
 }
 
 
-def crear_idea(proyecto: str, responsable: str, codigo: str, tipo: str, idea: dict) -> str:
+def crear_idea(proyecto: str, responsable: str, codigo: str, tipo: str, idea: dict,
+              referencias: list[str] | None = None) -> str:
     """Inserta la idea y devuelve su id.
 
     Nace en `internal_review`: el flujo nuevo exige que toda idea se mire antes de
@@ -407,6 +408,12 @@ def crear_idea(proyecto: str, responsable: str, codigo: str, tipo: str, idea: di
         "talent_brief": str(idea.get("talent_brief", "")).strip()[:2000],
         "edit_brief": str(idea.get("edit_brief", "")).strip()[:2000],
     }
+    # La referencia visual va en la misma fila desde que nace la idea. Una idea sin
+    # referencia no tiene embed, y sin embed la ficha cae en el post compuesto de
+    # marca: se ve que falta algo, pero no se ve QUE. Meterla al crear evita
+    # tener que ir despues a editar una por una.
+    if referencias:
+        columnas["reference_urls"] = json.dumps(referencias[:3], ensure_ascii=False)
     # Sin descripcion ni objetivo la ficha queda muda, y una idea muda no se puede
     # ni revisar ni votar con sentido.
     if not columnas["title"] or not columnas["objective"]:
@@ -465,6 +472,18 @@ def main() -> int:
                             help="slug del cliente (wundeer, candilejas). Por defecto: wundeer")
     analizador.add_argument("--solo-organico", action="store_true")
     analizador.add_argument("--seco", action="store_true", help="genera pero no imprime el pack de WhatsApp")
+    analizador.add_argument(
+        "--referencia",
+        action="append",
+        default=[],
+        metavar="URL",
+        help=(
+            "referencia visual para las ideas nuevas. Se puede repetir; se "
+            "distribuyen de una en una, y si sobran se reciclan. Sin este "
+            "argumento las ideas nacen sin referencia y la ficha cae en el post "
+            "compuesto de marca."
+        ),
+    )
     analizador.add_argument(
         "--tope-cola",
         type=int,
@@ -561,7 +580,15 @@ def main() -> int:
             for idea in ideas[:1]:
                 try:
                     codigo = siguiente_codigo(tipo)
-                    idea_id = crear_idea(proyecto, responsable, codigo, tipo, idea)
+                    referencia_de_esta = None
+                    if opciones.referencia:
+                        # Una referencia por idea, en orden y recycling: con nueve
+                        # reels y cuatro ideas, los cuatro primeros van a una idea
+                        # distinta. Es mejor que las cuatro lleven el mismo reel.
+                        referencia_de_esta = [opciones.referencia[
+                            (len(creadas) + len(fallos)) % len(opciones.referencia)]]
+                    idea_id = crear_idea(proyecto, responsable, codigo, tipo, idea,
+                                         referencia_de_esta)
                     registrar_evento(
                         idea_id,
                         "GENERADOR AUTOMATICO",
