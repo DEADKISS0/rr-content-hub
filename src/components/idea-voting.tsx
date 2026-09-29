@@ -8,15 +8,17 @@ import { Icon } from '@/components/ui/icons';
  * Votación interna de una idea.
  *
  * Lo que pidió Santiago: que en la ficha se vea cuántas votaciones lleva la idea
- * antes de subirla, y que el equipo pueda votar sin cuentas.
+ * antes de subirla, y que el equipo pueda votar. Añadido el 2026-09-28: votar es
+ * de alguien del equipo que ha entrado con su correo, no de un clic suelto.
  *
  * Decisiones que se tomaron y por qué:
  *
- * - **Sin login, con token.** El hub está abierto, así que no hay sesión que
- *   sirva de identidad. El token lo genera el navegador la primera vez y solo
- *   sirve para que ese navegador no vote dos veces en la misma idea. NO es un
- *   email ni un id: guardar eso sería meter dato personal de terceros en una
- *   tabla pública.
+ * - **Solo el equipo, y solo activo.** El token del navegador sigue estando —es
+ *   lo que impide que dos clics del mismo navegador cuenten como dos personas—
+ *   pero ya no es identidad. La identidad es la sesión: su correo tiene que
+ *   estar en la lista blanca del equipo y con la fila activa. Antes bastaba con
+ *   inventar un token, y el conteo que decide si una pieza avanza al cliente lo
+ *   podía falsear cualquiera que abriera la URL.
  *
  * - **Mayoría simple, no un número fijo.** Es la regla que eligió Santiago: sale
  *   si hay más votos a favor que en contra. Con un número fijo, una idea con dos

@@ -103,8 +103,9 @@ export function AssignOwner({
       ) : (
         <>
           <p className="mt-2 text-xs leading-5 text-blanco-60">
-            Sin responsable, cualquier cambio queda como &quot;sin sesión&quot;. Nombra a
-            alguien del equipo y la pieza deja de ser huérfana.
+            Aquí sale todo el equipo del proyecto. Nombra a una persona y la
+            pieza deja de quedar sin responsable: tiene que haber entrado con su
+            correo para que su voto y su firma valgan.
           </p>
           <label className="mt-4 block">
             <span className="mono-label mb-2 block text-blanco-50">// QUIÉN RESPONDE</span>

@@ -323,7 +323,7 @@ export async function POST(request: NextRequest) {
    *   que dos clics seguidos cuenten como dos personas.
    *
    * - La regla es MAYORÍA SIMPLE (más `yes` que `no`), la que eligió Santiago. Se
-   *   calcula aquí y no con a CHECK en la tabla porque depende del conteo, y un
+   *   calcula aquí y no con un CHECK en la tabla porque depende del conteo, y un
    *   CHECK no puede contar filas de otra tabla.
    *
    * - Quien puede votar: los tres requisitos juntos —sesión, lista blanca del
