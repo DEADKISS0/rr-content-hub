@@ -303,6 +303,24 @@ export function salidaDeLaVotacion(): WorkflowStatus | null {
 }
 
 /**
+ * A dónde vuelve una idea cuando la votación se decide en contra.
+ *
+ * El espejo de `salidaDeLaVotacion`, y por el mismo motivo: sale de la tabla de
+ * transiciones, no de una constante escrita aquí. Ganar va al cliente; perder
+ * vuelve a revisión interna, que es donde se puede reescribir antes de volver a
+ * proponer.
+ *
+ * Existía `TRANSITIONS.voting -> internal_review` como cierre MANUAL desde el
+ * 2026-09-27, pero no había nada que lo disparara automáticamente: tres votos en
+ * contra dejaban la pieza en `voting` para siempre, con la interfaz diciendo que
+ * la votación se había perdido y la base diciendo que seguía abierta. Medido en
+ * producción el 2026-09-29 antes de conectar esto.
+ */
+export function caidaDeLaVotacion(): WorkflowStatus | null {
+  return TRANSITIONS.voting?.find((m) => m.to === 'internal_review')?.to ?? null;
+}
+
+/**
  * Who the piece is waiting for right now.
  *
  * This used to special-case the two client-waiting states with a hardcoded

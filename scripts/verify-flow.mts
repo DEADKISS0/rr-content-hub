@@ -7,7 +7,8 @@
 import {
   STATUS_ORDER, PHASES, STATUS_OWNERS, TRANSITIONS_FOR_TEST,
   allowedTransitions, waitingOn, nextStatus, esEsperaDelCliente, esTerminal,
-  ganoLaVotacion, perdioLaVotacion, VOTOS_NECESARIOS, votosParaDecidir, salidaDeLaVotacion,
+  ganoLaVotacion, perdioLaVotacion, VOTOS_NECESARIOS, votosParaDecidir,
+  salidaDeLaVotacion, caidaDeLaVotacion,
 } from '../src/lib/flow.ts';
 import { QUEUES, BOARD_COLUMNS, inQueue } from '../src/lib/queues.ts';
 
@@ -173,6 +174,8 @@ check('mayoria simple: 3 a favor 2 en contra gana', ganoLaVotacion(3, 2));
 check('la votacion tiene salida y es un estado del motor',
   salidaDeLaVotacion() !== null && STATUS_ORDER.includes(salidaDeLaVotacion()!),
   String(salidaDeLaVotacion()));
+check('la caida de la votacion vuelve a revision interna', caidaDeLaVotacion() === 'internal_review');
+check('ganar y perder no llevan al mismo estado', caidaDeLaVotacion() !== salidaDeLaVotacion());
 check('la salida de la votacion NO es volver a revision interna',
   salidaDeLaVotacion() !== 'internal_review', String(salidaDeLaVotacion()));
 

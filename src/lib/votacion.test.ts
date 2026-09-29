@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ganoLaVotacion, perdioLaVotacion, estadoVotacion, votosParaDecidir,
-  VOTOS_NECESARIOS, salidaDeLaVotacion, STATUS_ORDER,
+  VOTOS_NECESARIOS, salidaDeLaVotacion, caidaDeLaVotacion, STATUS_ORDER,
 } from './flow';
 
 /**
@@ -148,6 +148,21 @@ describe('a dónde lleva la votación', () => {
     const salida = salidaDeLaVotacion();
     expect(salida).not.toBeNull();
     expect(STATUS_ORDER).toContain(salida!);
+  });
+
+  it('la caida vuelve a revision interna, y sale del motor tambien', () => {
+    // Sin esta rama, tres votos en contra devolvían "perdida" y la pieza se
+    // quedaba en `voting` para siempre: la interfaz decía una cosa y la base
+    // otra. Medido en producción el 2026-09-29.
+    expect(caidaDeLaVotacion()).toBe('internal_review');
+    expect(STATUS_ORDER).toContain(caidaDeLaVotacion()!);
+  });
+
+  it('ganar y perder llevan a estados DISTINTOS', () => {
+    // Si las dos llevaran al mismo sitio, la votación sería simétrica y no
+    // distinguiría "aprobada" de "descartada". Y si apuntaran al mismo estado,
+    // perder no sería una decisión: sería volver.
+    expect(caidaDeLaVotacion()).not.toBe(salidaDeLaVotacion());
   });
 
   it('la salida NO es volver a revisión interna', () => {

@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
-import { allowedTransitions, ganoLaVotacion, perdioLaVotacion, estadoVotacion, VOTOS_NECESARIOS, votosParaDecidir, ROLE_LABEL, salidaDeLaVotacion, type RoleKey, type WorkflowStatus, PUEDE_EDITAR, PUEDE_ESCRIBIR_GUION, PUEDE_COMENTAR } from '@/lib/flow';
+import { allowedTransitions, ganoLaVotacion, perdioLaVotacion, estadoVotacion, VOTOS_NECESARIOS, votosParaDecidir, ROLE_LABEL, salidaDeLaVotacion, caidaDeLaVotacion, type RoleKey, type WorkflowStatus, PUEDE_EDITAR, PUEDE_ESCRIBIR_GUION, PUEDE_COMENTAR } from '@/lib/flow';
 import { rolEnProyecto } from '@/lib/project-guard';
 import { quienEs } from '@/lib/quien-es';
 
@@ -451,13 +451,40 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Y el espejo: si la votación se decidió en contra, la pieza CAE. Antes esta
+    // rama no existía y `perdioLaVotacion()` no se usaba en ningún sitio: tres
+    // votos en contra devolvían `votacion: "perdida"` y la idea se quedaba en
+    // `voting` para siempre, con la interfaz diciendo una cosa y la base otra.
+    // Medido en producción el 2026-09-29.
+    if (perdio) {
+      const CAIDA = caidaDeLaVotacion();
+      if (!CAIDA) return error('La votación no tiene salida de vuelta a revisión interna.', 500);
+
+      const { error: bajaError } = await service
+        .from('rr_hub_ideas')
+        .update({ status: CAIDA, updated_at: new Date().toISOString() })
+        .eq('id', ideaId)
+        .eq('status', ESTADO_VOTANDO);
+      if (bajaError) return error(bajaError.message, 500);
+
+      const { data: bajada } = await service
+        .from('rr_hub_ideas').select('status').eq('id', ideaId).maybeSingle();
+      if (bajada?.status === CAIDA) {
+        await service.from('rr_hub_events').insert({
+          idea_id: ideaId, from_status: ESTADO_VOTANDO, to_status: CAIDA,
+          comment: `Descartada por votación interna: ${aFavor} a favor, ${enContra} en contra. Vuelve a revisión interna.`,
+          actor_label: 'VOTACIÓN INTERNA',
+        });
+      }
+    }
+
     return NextResponse.json({
       success: true, decision, aFavor, enContra, gano,
       // `estado` es el estado real, no el esperado: se relee de la base, así que
       // si la votación no decidió, la respuesta lo dice en vez de dejar creer que
       // la pieza se movió. `votacion` y `faltan` son para el texto que lo explica:
       // sin ellos, quien vota ve "1 a favor" y no sabe si eso decidía algo.
-      estado: gano ? SALIDA_VOTACION : idea.status,
+      estado: gano ? SALIDA_VOTACION : perdio ? caidaDeLaVotacion() ?? idea.status : idea.status,
       votacion: comoVa,
       faltan,
       minimo: VOTOS_NECESARIOS,
