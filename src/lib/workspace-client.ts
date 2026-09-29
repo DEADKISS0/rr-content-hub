@@ -1,5 +1,4 @@
 'use client';
-import { idDeQuienEntra } from '@/lib/quien-soy-client';
 
 import { createClient } from '@/lib/supabase/client';
 import { ROLE_LABEL, allowedTransitions, type RoleKey, type WorkflowStatus } from '@/lib/flow';
@@ -394,8 +393,6 @@ export async function uploadAsset(input: {
   file: File;
   versionLabel: string;
 }): Promise<{ error?: string }> {
-  const supabase = createClient();
-  if (!supabase) return { error: 'Supabase no está configurado en este entorno.' };
   const maxSize = 50 * 1024 * 1024;
   if (input.file.size > maxSize) return { error: 'El archivo supera el límite de 50 MB.' };
 
@@ -423,33 +420,61 @@ export async function uploadAsset(input: {
     };
   }
 
-  const safeName = input.file.name.replace(/[^\w.\-]+/g, '_');
-  // El id de la persona va en la ruta porque el servidor lo comprueba: ata el
-  // archivo a quien lo subió, así que alguien con acceso a un proyecto no puede
-  // registrar un archivo dentro de la carpeta de otro. Antes venía de la sesión
-  // de Supabase; ahora el servidor lo resuelve por la cookie.
-  const userId = await idDeQuienEntra();
-  if (!userId) return { error: 'Entra con el código de tu cliente para subir archivos.' };
+  // Los bytes van al servidor, no a Storage con la clave del navegador.
+  //
+  // Antes se subían directos con la clave anónima y las políticas de
+  // `storage.objects` eran para el rol `authenticated`, que ya no existe desde
+  // la puerta por código. Medido el 2026-09-28: `403 new row violates row-level
+  // security policy` para cualquier persona del equipo. La subida estaba rota y
+  // no se notaba, porque el error se veía como "no se pudo subir" y no como
+  // "el hub no puede escribir".
+  //
+  // Además el id de quien sube ya no lo pone el cliente: el servidor lo saca de
+  // la cookie firmada y arma la ruta. Antes la ruta la escribía el navegador, y
+  // el nombre del archivo lo elegía quien subía.
+  const bytes = await leerComoBase64(input.file);
+  if (!bytes) return { error: 'No se pudo leer el archivo. Prueba con otro.' };
 
-  const path = `${input.projectSlug}/${input.ideaId}/${input.stage}/${userId}-${Date.now()}-${safeName}`;
-
-  // The bytes go up from the browser on purpose: that request carries the
-  // session token, so the RLS policies on storage.objects are what decide
-  // whether this person may write here. The metadata row then goes through the
-  // server route, which checks the path belongs to this idea.
-  const { error: uploadError } = await supabase.storage
-    .from(STORAGE_BUCKET)
-    .upload(path, input.file, { upsert: false, contentType: input.file.type || undefined });
-  if (uploadError) return { error: uploadError.message };
-
-  // Only record the asset once the bytes are actually there. The other order
-  // left a row pointing at an object that was never uploaded, which then
-  // rendered as a broken image instead of an error.
-  const response = await postWorkspaceAction('asset', {
-    ideaId: input.ideaId, path, stage: input.stage,
-    fileName: input.file.name, mimeType: input.file.type, versionLabel: input.versionLabel,
+  const respuesta = await fetch('/api/subir', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      projectSlug: input.projectSlug,
+      ideaId: input.ideaId,
+      stage: input.stage,
+      fileName: input.file.name,
+      mimeType: input.file.type,
+      versionLabel: input.versionLabel,
+      bytes,
+    }),
   });
-  return response ?? {};
+
+  if (!respuesta.ok) {
+    const cuerpo = await respuesta.json().catch(() => null) as { error?: string } | null;
+    return { error: cuerpo?.error ?? `No se pudo subir el archivo (${respuesta.status}).` };
+  }
+  return {};
+}
+
+/**
+ * El archivo entero en base64, sin trocear.
+ *
+ * `FileReader` sobre un `ArrayBuffer` completo, y no `readAsDataURL`: el
+ * resultado de este último trae el prefijo `data:image/png;base64,` que el
+ * servidor no espera, y además hay que quitarlo. MenosSurface que un `split`.
+ */
+function leerComoBase64(archivo: File): Promise<string | null> {
+  return new Promise((resolver) => {
+    const lector = new FileReader();
+    lector.onerror = () => resolver(null);
+    lector.onload = () => {
+      const resultado = String(lector.result ?? '');
+      const coma = resultado.indexOf(',');
+      resolver(coma >= 0 ? resultado.slice(coma + 1) : resultado || null);
+    };
+    lector.readAsDataURL(archivo);
+  });
 }
 
 export async function signedAssetUrl(path: string): Promise<string | null> {

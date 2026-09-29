@@ -6,24 +6,19 @@
 
 # Test info
 
-- Name: hub.spec.ts >> tablero >> una sola acción para crear y ningún hueco vacío
-- Location: e2e/hub.spec.ts:114:7
+- Name: hub.spec.ts >> búsqueda >> buscar abre solo el tablero completo, sin dejar el contador solo
+- Location: e2e/hub.spec.ts:174:7
 
 # Error details
 
 ```
-Error: expect(locator).toHaveCount(expected) failed
+Test timeout of 45000ms exceeded.
+```
 
-Locator:  locator('a.btn-brutal[href$="/ideas/nueva"]:visible')
-Expected: 1
-Received: 0
-Timeout:  10000ms
-
+```
+Error: locator.evaluate: Test timeout of 45000ms exceeded.
 Call log:
-  - Expect "toHaveCount" locator('a.btn-brutal[href$="/ideas/nueva"]:visible') with timeout 10000ms
-  - waiting for locator('a.btn-brutal[href$="/ideas/nueva"]:visible')
-    20 × locator resolved to 0 elements
-       - unexpected value "0"
+  - waiting for locator('.idea-card').first()
 
 ```
 
@@ -63,6 +58,21 @@ Call log:
 # Test source
 
 ```ts
+  5   |  *
+  6   |  * Qué se protege aquí: las cuatro invariantes que se rompieron de verdad y que
+  7   |  * ninguna prueba de tipos iba a notar.
+  8   |  *   1. Una sola acción por superficie (llegaron a convivir 14 botones y 3 CTA).
+  9   |  *   2. La cola abre por lo que más lleva parado (llegó a ordenar por código y
+  10  |  *      enterrar una pieza de 15 días entre las de ayer).
+  11  |  *   3. El roadmap no clona el mismo avance en las tres pistas (daban las tres 78%).
+  12  |  *   4. Ninguna pantalla promete datos que la base no tiene.
+  13  |  *
+  14  |  * Salvedad honesta: la prueba de creación SÍ escribe, porque no hay forma de
+  15  |  * comprobar que el botón funciona sin pulsarlo. Antes el comentario decía "no
+  16  |  * escribe" y era falso. Hoy borra lo que crea, y falla si no puede — ver
+  17  |  * `borrarIdeaDePrueba`.
+  18  |  */
+  19  | 
   20  | const PROYECTO = 'wundeer';
   21  | 
   22  | /**
@@ -148,7 +158,8 @@ Call log:
   102 |  * se está pintando de verdad.
   103 |  */
   104 | async function desplegado(page: import('@playwright/test').Page, selector: string): Promise<boolean> {
-  105 |   return page.locator(selector).first().evaluate((el) => {
+> 105 |   return page.locator(selector).first().evaluate((el) => {
+      |                                         ^ Error: locator.evaluate: Test timeout of 45000ms exceeded.
   106 |     const nodo = el as HTMLElement;
   107 |     return typeof nodo.checkVisibility === 'function'
   108 |       ? nodo.checkVisibility({ checkVisibilityCSS: true, checkOpacity: true })
@@ -163,8 +174,7 @@ Call log:
   117 |     // Una sola puerta para crear: la regla que quitó 13 botones y 2 CTA de más.
   118 |     // En modo abierto la puerta está puesta, así que se espera el botón —y solo
   119 |     // uno, en el header.
-> 120 |     await expect(page.locator('a.btn-brutal[href$="/ideas/nueva"]:visible')).toHaveCount(1);
-      |                                                                              ^ Error: expect(locator).toHaveCount(expected) failed
+  120 |     await expect(page.locator('a.btn-brutal[href$="/ideas/nueva"]:visible')).toHaveCount(1);
   121 | 
   122 |     await expect(page.getByText('TOCA UN PASO Y VES SOLO ESAS')).toBeVisible();
   123 | 
@@ -250,19 +260,4 @@ Call log:
   203 |       });
   204 |       if (valor !== null) dias.push(valor);
   205 |     }
-  206 | 
-  207 |     expect(dias.length).toBeGreaterThan(1);
-  208 |     expect(dias).toEqual([...dias].sort((a, b) => b - a));
-  209 |   });
-  210 | 
-  211 |   test('las pantallas sin base lo dicen en voz alta', async ({ page }) => {
-  212 |     await abrir(page, `/${PROYECTO}/metricas`);
-  213 |     // MÉTRICAS cuenta piezas y aclara que el rendimiento no se mide todavía.
-  214 |     await expect(page.getByText(/no se mide todavía/)).toBeVisible();
-  215 | 
-  216 |     await page.goto(`/${PROYECTO}/publicaciones`);
-  217 |     // La cola de salida existe; la fecha y el enlace de publicación, no.
-  218 |     await expect(page.getByText('FALTA LA BASE PARA PROGRAMAR')).toBeVisible();
-  219 |   });
-  220 | });
 ```

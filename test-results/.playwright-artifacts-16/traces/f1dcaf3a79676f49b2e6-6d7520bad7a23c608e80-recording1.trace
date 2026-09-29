@@ -1,1 +1,0 @@
-{"version":9,"type":"context-options","origin":"library","browserName":"","playwrightVersion":"1.63.0","options":{},"platform":"linux","wallTime":1790654158139,"monotonicTime":64940.572,"sdkLanguage":"javascript","title":"hub.spec.ts:174 › búsqueda › buscar abre solo el tablero completo, sin dejar el contador solo"}

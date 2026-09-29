@@ -60,13 +60,27 @@ check('ningun modulo cliente escribe en rr_hub_*', offenders.length === 0, offen
 //    manda el navegador solo, asi que el cliente ya no pone ninguna cabecera de
 //    autorizacion: lo que se comprueba es que no mande un token viejo.
 const storage = fs.readFileSync(path.join(repoRoot, 'src/lib/workspace-client.ts'), 'utf8');
-check('el upload a Storage sigue en el cliente', /supabase\.storage[\s\S]{0,60}?\.upload\(/.test(storage));
+// Los bytes ya NO suben desde el navegador. Se subian con la clave anon y las
+// politicas de storage.objects eran del rol `authenticated`, que ya no existe:
+// medido el 2026-09-28, `403` para todo el equipo. Ahora van por `/api/subir`.
+check('el navegador NO sube bytes a Storage', !/supabase\.storage[\s\S]{0,60}?\.upload\(/.test(storage));
+check('los bytes van al servidor', /fetch\('\/api\/subir'/.test(storage));
 // La cookie viaja sola: el cliente no debe mandar token, y debe decirlo claro
 // con `credentials`, que es lo que hace que el navegador la incluya.
 check('el upload se apoya en la cookie, no en un token', !/auth\.getSession\(\)/.test(storage));
 check('las llamadas mandan la cookie explicitamente', /credentials: 'same-origin'/.test(storage));
-check('la subida ata el archivo a quien entro por la puerta', /idDeQuienEntra\(\)/.test(storage));
-check('la metadata del asset va por la API', /postWorkspaceAction\('asset'/.test(storage));
+// El id de quien sube ya no lo pone el cliente: lo saca el servidor de la
+// cookie, y arma la ruta con ese id. Antes la ruta la escribia el navegador.
+check('el cliente no elige la ruta del archivo', !/const path = `\$\{/.test(storage));
+
+// La ruta de subida tiene que cumplir lo que la de workspace cumplia, y una
+// cosa mas: mirar los bytes, no lo que el navegador declare.
+const subir = fs.readFileSync(path.join(repoRoot, 'src/app/api/subir/route.ts'), 'utf8');
+check('la subida exige la cookie de la puerta', /quienEs\(\)/.test(subir));
+check('la subida ata el archivo a quien entro por la puerta', /ilike\('email', sesion\.email\)/.test(subir));
+check('la subida comprueba que el cliente sea el de la cookie', /projectSlug !== sesion\.proyecto/.test(subir));
+check('la metadata del asset la escribe el servidor', /rr_hub_assets'\)\.insert/.test(subir));
+check('la subida mira los bytes, no lo que el navegador declara', /firmaDeImagen\(/.test(subir));
 
 // 3. El servidor existe y es quien autoriza.
 const route = fs.readFileSync(path.join(repoRoot, 'src/app/api/workspace/[action]/route.ts'), 'utf8');
@@ -104,8 +118,14 @@ check('una discrepancia de estado da 409', /409/.test(route));
 // La atribucion de un comentario no la elige quien lo escribe.
 check('el autor del comentario lo pone el servidor', /author_label: `\$\{(?:ctx\.)?email\}/.test(route));
 
-// 4. Las seis mutaciones pasan por la API.
-for (const action of ['transition', 'script', 'comment', 'resolve-comment', 'asset']) {
+// 4. Las mutaciones pasan por la API.
+//
+// 'asset' ya no está en la lista: desde el 2026-09-28 los bytes y su metadata
+// los escribe el servidor en `/api/subir`, porque la subida directa a Storage
+// con la clave del navegador daba 403 (las políticas eran del rol
+// `authenticated`, que ya no existe). El cliente ya no llama a ninguna acción
+// para un archivo: manda el archivo y el servidor decide.
+for (const action of ['transition', 'script', 'comment', 'resolve-comment']) {
   check(`el cliente llama a la acción '${action}'`, storage.includes(`postWorkspaceAction('${action}'`));
 }
 check('el cliente llama a create-idea', /create-idea/.test(storage));

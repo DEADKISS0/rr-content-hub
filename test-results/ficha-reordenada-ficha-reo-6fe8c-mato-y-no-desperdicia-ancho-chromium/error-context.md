@@ -20,34 +20,23 @@ Received: null
 # Page snapshot
 
 ```yaml
-- generic [ref=e1]:
-  - main [ref=e2]:
-    - heading "Acceder al hub" [level=1] [ref=e3]
-    - paragraph [ref=e4]: El código del cliente y tu nombre. Sin correos ni contraseñas.
-    - generic [ref=e5]:
-      - group "// CÓDIGO DEL CLIENTE" [ref=e6]:
-        - generic [ref=e8]:
-          - textbox "Dígito 1 de 4" [active] [ref=e9]
-          - textbox "Dígito 2 de 4" [ref=e10]
-          - textbox "Dígito 3 de 4" [ref=e11]
-          - textbox "Dígito 4 de 4" [ref=e12]
-      - button "CONTINUAR" [ref=e13]
-    - generic [ref=e14]:
-      - paragraph [ref=e15]: // CÓDIGOS
-      - list [ref=e16]:
-        - listitem [ref=e17]: WUNDEER · 1111
-        - listitem [ref=e18]: CANDILEJAS · 2222
-      - paragraph [ref=e19]: El código abre el cliente. Lo que puedes hacer dentro lo decide tu rol, y ese no cambia con el código.
-  - generic [ref=e24] [cursor=pointer]:
-    - button "Open Next.js Dev Tools" [ref=e25]
-    - generic [ref=e29]:
-      - button "Open issues overlay" [ref=e30]:
-        - generic [ref=e31]:
-          - generic [aria-hidden] [ref=e32]: "0"
-          - generic [ref=e33]: "1"
-        - generic [ref=e34]: Issue
-      - button "Collapse issues badge" [ref=e35]
-  - alert [ref=e38]
+- main [ref=e2]:
+  - heading "Acceder al hub" [level=1] [ref=e3]
+  - paragraph [ref=e4]: El código del cliente y tu nombre. Sin correos ni contraseñas.
+  - generic [ref=e5]:
+    - group "// CÓDIGO DEL CLIENTE" [ref=e6]:
+      - generic [ref=e8]:
+        - textbox "Dígito 1 de 4" [active] [ref=e9]
+        - textbox "Dígito 2 de 4" [ref=e10]
+        - textbox "Dígito 3 de 4" [ref=e11]
+        - textbox "Dígito 4 de 4" [ref=e12]
+    - button "CONTINUAR" [ref=e13]
+  - generic [ref=e14]:
+    - paragraph [ref=e15]: // CÓDIGOS
+    - list [ref=e16]:
+      - listitem [ref=e17]: WUNDEER · 1111
+      - listitem [ref=e18]: CANDILEJAS · 2222
+    - paragraph [ref=e19]: El código abre el cliente. Lo que puedes hacer dentro lo decide tu rol, y ese no cambia con el código.
 ```
 
 # Test source
