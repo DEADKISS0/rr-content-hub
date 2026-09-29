@@ -1,5 +1,5 @@
 'use client';
-import { idDeQuienEntra } from '@/lib/quien-es';
+import { idDeQuienEntra } from '@/lib/quien-soy-client';
 
 import { createClient } from '@/lib/supabase/client';
 import { ROLE_LABEL, allowedTransitions, type RoleKey, type WorkflowStatus } from '@/lib/flow';

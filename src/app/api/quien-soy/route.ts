@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { quienEs } from '@/lib/quien-es';
+import { createServiceClient } from '@/lib/supabase/service';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,9 +22,25 @@ export async function GET() {
   if (!sesion) {
     return NextResponse.json({ error: 'No has entrado.' }, { status: 401 });
   }
+  // El `id` se resuelve aquí, en el servidor, porque `rr_hub_profiles` no se
+  // puede leer desde el navegador con su RLS. Va en la respuesta solo porque la
+  // subida de archivos lo necesita para la ruta del objeto: es un identificador
+  // interno del hub, no una cuenta de Supabase.
+  const service = await createServiceClient();
+  let id: string | null = null;
+  if (service) {
+    const { data: perfil } = await service
+      .from('rr_hub_profiles')
+      .select('id')
+      .ilike('email', sesion.email)
+      .maybeSingle();
+    id = perfil?.id ?? null;
+  }
+
   return NextResponse.json({
     email: sesion.email,
     nombre: sesion.nombre,
     proyecto: sesion.proyecto,
+    id,
   });
 }

@@ -36,29 +36,3 @@ export async function quienEs(): Promise<{ email: string; nombre: string; proyec
 export async function correoDeQuienEntra(): Promise<string | null> {
   return (await quienEs())?.email ?? null;
 }
-
-/**
- * El `id` de quien entró, resuelto desde la cookie.
- *
- * Existe para un caso concreto: la subida de archivos, donde el id va dentro
- * de la RUTA del objeto para que el servidor ata el archivo a quien lo subió.
- * Con la puerta por código no hay `auth.uid()`, así que el id se pide a la base
- * por correo, que es como la base relaciona a la gente.
- *
- * Va por la clave del servidor a propósito: el cliente del navegador no puede
- * leer `rr_hub_profiles` con su RLS, y aquí no hace falta que la respuesta le
- * llegue al cliente: solo se usa para construir la ruta.
- */
-export async function idDeQuienEntra(): Promise<string | null> {
-  const correo = await correoDeQuienEntra();
-  if (!correo) return null;
-  const { createServiceClient } = await import('@/lib/supabase/service');
-  const service = await createServiceClient();
-  if (!service) return null;
-  const { data } = await service
-    .from('rr_hub_profiles')
-    .select('id')
-    .ilike('email', correo)
-    .maybeSingle();
-  return data?.id ?? null;
-}
