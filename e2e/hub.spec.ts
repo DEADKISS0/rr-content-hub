@@ -340,7 +340,16 @@ test.describe('portero de acceso', () => {
     // Lo que no puede pasar: el roster de cualquiera que teclee cuatro dígitos.
     expect(texto, 'el roster se leyó sin administrar').not.toMatch(/[\w.]+@[\w.]+\.\w+/);
     expect(texto).not.toContain('US10');
-    await expect(pagina.getByText(/RESTRINGIDO|SIN PERMISO|NO TIENES/i).first()).toBeVisible();
+
+    // Y la forma de la respuesta es 404, no una página de guarda: `notFound()` de
+    // Next da 404 y ni siquiera confirma que la ruta exista. Un 200 con "SIN
+    // PERMISO" también estaría bien, pero el 404 es más fuerte: no hay nada que
+    // enumerar. Se acepta cualquiera de las dos, lo que NO se acepta es el roster.
+    const url = pagina.url();
+    expect(
+      url.endsWith('/audit/admin') || /login/.test(url) || /RESTRINGIDO|SIN PERMISO|NO TIENES/i.test(texto),
+      `respuesta inesperada: ${url} — ${texto.slice(0, 120)}`,
+    ).toBe(true);
   });
 
   test('con un administrador, el panel se abre y trae el roster entero', async ({ page }) => {
@@ -662,9 +671,17 @@ test.describe('la puerta no te saca de aquí', () => {
     // Se mide por la vía real (dejar que el middleware construya el enlace) y no
     // contra un `?next=` escrito a mano: medido con `curl`, una ruta protegida sin
     // cookie devuelve 307 a `/login?next=<ruta interna>`, y eso es lo que hay que
-    // proteger. Un `?next=` a mano ya no lo produce nadie, así que probarlo sería
-    // medir un caso que el producto no tiene.
-    const peticion = await playwright.request.newContext({ baseURL: baseURL! });
+    // proteger. Un `?next=` a mano ya no lo produce nadie.
+    //
+    // Ojo al detalle que costó una vuelta: `playwright.request` hereda el
+    // `storageState` de la corrida, así que con la cookie puesta devolvía 200 y la
+    // prueba decía "la puerta no se pidió" cuando en realidad estaba entrando. Un
+    // contexto nuevo y sin cookies es lo que reproduce a alguien que llega sin
+    // sesión.
+    const peticion = await playwright.request.newContext({
+      baseURL: baseURL!,
+      extraHTTPHeaders: { Cookie: '' },
+    });
     const respuesta = await peticion.get(`/${PROYECTO}/ideas/nueva`, { maxRedirects: 0 });
     const destino = respuesta.headers().location;
 
