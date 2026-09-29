@@ -55,7 +55,7 @@ const nav = await chromium.launch();
 
 // 3) la votacion con sus cuatro respuestas
 {
-  const cookie = await entrar('santiago1209andres@gmail.com');
+  const cookie = await entrar(process.env.HUB_E2E_CORREO);
   const ctx = await nav.newContext({ viewport: { width: 1440, height: 1200 }, storageState: await sesion(cookie) });
   const pg = await ctx.newPage();
   await pg.goto(URL + '/wundeer', { waitUntil: 'networkidle' });

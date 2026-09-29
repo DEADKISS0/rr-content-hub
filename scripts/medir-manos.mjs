@@ -31,14 +31,14 @@ const nav = await chromium.launch();
 
 // tres personas, tres respuestas distintas
 console.log('1) TRES PERSONAS VOTAN');
-console.log('  tefa   ->', (await votar('tefaweb000@gmail.com', 'yes', '', 'a')).detalle);
-console.log('  benit  ->', (await votar('benitezestiven122@gmail.com', 'no', '', 'b')).detalle);
-console.log('  sthef  ->', (await votar('samugarc6@gmail.com', 'note', 'buena base', 'c')).detalle);
+console.log('  tefa   ->', (await votar(process.env.HUB_VOTANTE_A, 'yes', '', 'a')).detalle);
+console.log('  benit  ->', (await votar(process.env.HUB_VOTANTE_B, 'no', '', 'b')).detalle);
+console.log('  sthef  ->', (await votar(process.env.HUB_VOTANTE_C, 'note', 'buena base', 'c')).detalle);
 
 // y la vista, como la ve alguien que entra
 const ctx = await nav.newContext({
   viewport: { width: 1440, height: 1100 },
-  storageState: { cookies: [await cookieDe('santiago1209andres@gmail.com')], origins: [] },
+  storageState: { cookies: [await cookieDe(process.env.HUB_E2E_CORREO)], origins: [] },
 });
 const pg = await ctx.newPage();
 await pg.goto(`${URL}/wundeer/ideas/${IDEA}`, { waitUntil: 'networkidle' });

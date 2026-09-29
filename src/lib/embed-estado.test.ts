@@ -24,11 +24,40 @@ describe('el embed declara su estado', () => {
 
   it('decide con el postMessage de la plataforma, no con el load', () => {
     // `load` dispara también cuando lo que llegó fue un error. La señal honesta
-    // es `onRender`/`embedResize`, que Meta manda con el post ya pintado.
+    // es la que Meta manda cuando el post ya está pintado dentro del marco.
     expect(embed).toMatch(/addEventListener\('message', alMensaje\)/);
     expect(embed).toMatch(/SENALES_DE_PLATAFORMA = new Set/);
-    expect(embed).toMatch(/'onRender'/);
-    expect(embed).toMatch(/'embedResize'/);
+    expect(embed).toMatch(/'MEASURE'/);
+  });
+
+  it('MEASURE es la señal real, medida; onRender es la de la documentación vieja', () => {
+    // Este fue el fallo del indicador. Los `postMessage` que manda Instagram de
+    // verdad, medidos el 2026-09-29 con el embed en una página limpia:
+    //
+    //   https://www.instagram.com :: {"details":{},"type":"LOADING"}
+    //   https://www.instagram.com :: {"details":{"height":533},"type":"MEASURE"}
+    //
+    // `onRender` y `embedResize` no llegan NUNCA. Con solo ellos el indicador
+    // caía en "no pintó" sobre siete embeds que sí estaban pintados.
+    expect(embed).toMatch(/"MEASURE"/);
+    expect(embed).toMatch(/el post ya está pintado/);
+  });
+
+  it('LOADING no cuenta como señal de vida', () => {
+    // `LOADING` es "todavía no". Contarlo bastaría para declarar viva la
+    // previsualización en el primer instante, que es justo lo que hay que evitar.
+    expect(embed).toMatch(/SENALES_ROTAS = new Set\(\['LOADING'/);
+    expect(embed).toMatch(/if \(SENALES_ROTAS\.has\(tipo\)\) return/);
+  });
+
+  it('hay que PREGUNTARLE al embed: sin el resize no responde', () => {
+    // El embed de Instagram solo contesta a un `postMessage('resize')` de la
+    // página anfitriona. Un solo intento al montar se pierde, porque el embed
+    // todavía no ha montado su listener. Con cero preguntas, Meta calla y no hay
+    // forma de distinguir "tardando" de "roto".
+    expect(embed).toMatch(/postMessage\('resize', '\*'\)/);
+    expect(embed).toMatch(/setInterval\(/);
+    expect(embed).toMatch(/clearInterval\(reintento\)/);
   });
 
   it('espera a que la plataforma termine de pintar antes de declarar fallo', () => {

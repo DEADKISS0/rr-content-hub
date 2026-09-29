@@ -5,7 +5,7 @@ const URL = 'https://rr-content-hub.vercel.app';
 const r = await fetch(`${URL}/api/entrar`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ codigo: '1111', correo: 'santiago1209andres@gmail.com', nombre: 'Santiago' }),
+  body: JSON.stringify({ codigo: '1111', correo: process.env.HUB_E2E_CORREO, nombre: 'Santiago' }),
 });
 const bruto = r.headers.getSetCookie().find((c) => c.startsWith('hub_sesion='));
 const cookie = {

@@ -28,14 +28,28 @@ export type EstadoEmbed = 'cargando' | 'vivo' | 'tardando' | 'sin-senal';
 const MS_PINTADO = 1_500;
 const MS_ULTIMO_INTENTO = 12_000;
 
-/** Origenes de los que vale la pena creerle una señal de "ya pinté". */
-const SENALES_DE_PLATAFORMA = new Set([
-  'onRender',
-  'embedResize',
-  'onLoad',
-  'measure',
-  'updateHeight',
-]);
+/**
+ * Los mensajes que Instagram manda de verdad, medidos el 2026-09-29:
+ *
+ *   https://www.instagram.com :: {"details":{},"type":"LOADING"}
+ *   https://www.instagram.com :: {"details":{"height":533},"type":"MEASURE"}
+ *
+ * La primera versión de esta lista decía `onRender` y `embedResize`, que son
+ * los nombres de la documentación antigua. Esos **no llegan nunca**: con ellos
+ * el indicador caía siempre en "no pintó" y pintaba un aviso en mostaza sobre
+ * siete embeds que sí estaban mostrando el post. Un indicador que se contradice
+ * con lo que se ve es peor que no tenerlo: entrena al equipo a desconfiar del
+ * aviso, y entonces el aviso real deja deservir para nada.
+ *
+ * `MEASURE` es la buena: trae la ALTURA final del post. Si manda altura, hay
+ * contenido dentro. Y hay que pedirla: el embed solo responde a un `resize`
+ * enviado desde la página anfitriona, así que sin ese `postMessage` la
+ * respuesta no llega nunca.
+ */
+const SENALES_DE_PLATAFORMA = new Set(['MEASURE', 'onRender', 'embedResize']);
+
+/** Lo que se considera "rotura de verdad", para no contarlo como señal. */
+const SENALES_ROTAS = new Set(['LOADING', 'ERROR', 'error']);
 
 export function ReferenceEmbed({
   src,
@@ -58,19 +72,33 @@ export function ReferenceEmbed({
     // La señal de Meta: el post ya está pintado dentro del marco.
     const alMensaje = (evento: MessageEvent) => {
       if (!vivo) return;
-      if (!evento.origin.includes('instagram.com') && !evento.origin.includes('tiktok.com')) return;
       if (evento.origin.includes('facebook.com')) return;
+      if (!evento.origin.includes('instagram.com') && !evento.origin.includes('tiktok.com')) return;
       const tipo = evento.data?.type;
-      if (typeof tipo === 'string' && SENALES_DE_PLATAFORMA.has(tipo)) setEstado('vivo');
+      if (typeof tipo !== 'string') return;
+      // `LOADING` significa "todavía no": si se contara como señal, bastaría con
+      // que el embed empiece a cargar para declarar la previsualización viva.
+      if (SENALES_ROTAS.has(tipo)) return;
+      if (SENALES_DE_PLATAFORMA.has(tipo)) setEstado('vivo');
     };
     window.addEventListener('message', alMensaje);
 
-    // El iframe podría haber pintado antes de que nos montáramos: se pregunta
-    // una vez al principio y otra vez al terminar de cargar el propio marco.
+    // El embed de Instagram **solo responde si se le pregunta**. Sin este
+    // `postMessage('resize')` desde la página anfitriona, Meta no manda nada:
+    // se queda en silencio y no hay forma de saber si pintó. Con un solo intento
+    // al montar se pierde la respuesta, porque el embed todavía no ha montado
+    // su listener; por eso se repite unas pocas veces.
     const preguntar = () => iframe.current?.contentWindow?.postMessage('resize', '*');
     preguntar();
     const marco = iframe.current;
     marco?.addEventListener('load', preguntar);
+
+    let intentos = 0;
+    const reintento = window.setInterval(() => {
+      intentos += 1;
+      preguntar();
+      if (intentos >= 4) window.clearInterval(reintento);
+    }, 1_200);
 
     // Escalón de "tardando": todavía no pintó, pero no se declara roto.
     const t1 = window.setTimeout(() => {
@@ -87,6 +115,7 @@ export function ReferenceEmbed({
       window.removeEventListener('message', alMensaje);
       window.clearTimeout(t1);
       window.clearTimeout(t2);
+      window.clearInterval(reintento);
       marco?.removeEventListener('load', preguntar);
     };
   }, [src]);
