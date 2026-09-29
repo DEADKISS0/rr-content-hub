@@ -207,6 +207,27 @@ function Formulario() {
           </button>
         </form>
       )}
+
+      {!cliente && (
+        /* Los códigos se dicen aquí, en la puerta, y no en un correo suelto.
+           La razón es práctica: si el equipo tiene que preguntar "¿cuál es mi
+           código?" por WhatsApp, la puerta se rodea por lo que sea,
+           normalmente con el enlace entero, que ya no sirve. Y un código de
+           cuatro dígitos no es una credencial que valga guardada: es un
+           separador de clientes. Lo que protege de verdad es quién escribe qué,
+           y eso lo decide `rr_hub_access`, no el código. */
+        <div className="mt-12 border-t border-blanco-20 pt-6">
+          <p className="mono-label text-blanco-50">// CÓDIGOS</p>
+          <ul className="mt-3 space-y-1 font-mono text-xs text-blanco-60">
+            <li><span className="text-blanco">WUNDEER</span> · 1111</li>
+            <li><span className="text-blanco">CANDILEJAS</span> · 2222</li>
+          </ul>
+          <p className="mt-4 text-xs leading-5 text-blanco-50">
+            El código abre el cliente. Lo que puedes hacer dentro lo decide tu rol, y ese
+            no cambia con el código.
+          </p>
+        </div>
+      )}
     </main>
   );
 }
