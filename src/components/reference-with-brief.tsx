@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ReferenceEmbed } from './reference-embed';
 
 export type VisualBrief = { intention?: string; camera?: string; talent?: string; edit?: string; avoid?: string };
 
@@ -144,13 +145,23 @@ export function ReferenceWithBrief({ url, title, brief }: { url?: string; title:
       <Link href={url} target="_blank" rel="noreferrer" className="font-mono text-[10px] text-blanco-50 underline">ABRIR ORIGINAL ↗</Link>
     </header>
     <div className="grid gap-px bg-blanco-10 lg:grid-cols-2">
-      <div className="flex items-center justify-center bg-negro p-3 sm:p-5">
-        {source ? <iframe
-          title={`Referencia visual de ${title}`}
+      <div className="flex flex-col items-center gap-2 bg-negro p-3 sm:p-5">
+        {source ? <ReferenceEmbed
           src={source}
-          className={`w-full border-0 bg-white ${marco.ratio} ${marco.ancho} ${marco.alto}`}
-          allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+          title={`Referencia visual de ${title}`}
+          plataforma={platform(url)}
+          className={`bg-white ${marco.ratio} ${marco.ancho} ${marco.alto}`}
         /> : <div className="grid w-full place-items-center p-8 text-center"><div><p className="font-mono text-xs text-blanco-60">PREVIEW NO DISPONIBLE PARA ESTE ORIGEN.</p><Link href={url} target="_blank" rel="noreferrer" className="mt-4 inline-block font-mono text-xs text-blanco-50 underline">VER REFERENCIA ORIGINAL ↗</Link></div></div>}
+        {/* Con el embed cargando o sin señal, el enlace es la salida. Sin él,
+            quien ve "no pintó" se queda sin manera de llegar al post. */}
+        {source && <Link
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          className="shrink-0 font-mono text-[10px] text-blanco-50 underline decoration-dotted underline-offset-4"
+        >
+          ABRIR EL POST EN {platform(url)} ↗
+        </Link>}
       </div>
       <div className="bg-negro p-6">
         <h3 className="font-display text-2xl font-bold text-blanco">¿Por qué<br /><em className="text-blanco-80">esta referencia?</em></h3>
