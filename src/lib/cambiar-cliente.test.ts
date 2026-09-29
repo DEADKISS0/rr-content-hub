@@ -58,6 +58,28 @@ describe('la ruta que cambia de cliente', () => {
     expect(ruta).toMatch(/secure:\s*process\.env\.NODE_ENV/);
   });
 
+  it('filtra por user_id, NO solo por proyecto', () => {
+    // Este fue un bug real de esta misma ruta, medido el 2026-09-29: la
+    // consulta iba solo `.in('project.slug', [...])` y devolvía las filas de
+    // acceso de los dos clientes, de toda la gente. `find()` se llevaba el rol
+    // de la primera fila, que era de otra persona. Tu correo es `owner` en los
+    // cuatro clientes y la API respondió `rol: creator`.
+    //
+    // Un permiso que se concede a la persona equivocada es PEOR que uno que
+    // falta: se ve funcionar. Por eso esta comprobación es literal.
+    expect(ruta).toMatch(/\.eq\('user_id'/);
+    expect(ruta).not.toMatch(/\.in\('project\.slug'/);
+  });
+
+  it('el perfil se resuelve antes que la fila de acceso', () => {
+    // La segunda consulta depende del `id` de la primera. Lanzarlas juntas
+    // obligaba a quedarse sin ese filtro.
+    const iPerfil = ruta.indexOf('rr_hub_profiles');
+    const iAcceso = ruta.indexOf("from('rr_hub_access')");
+    expect(iPerfil).toBeGreaterThan(-1);
+    expect(iAcceso).toBeGreaterThan(iPerfil);
+  });
+
   it('devuelve el rol del cliente nuevo, no el anterior', () => {
     // Puedes ser `owner` en un cliente y `client_viewer` en otro. Si la respuesta
     // no dice cuál, la interfaz puede pintar el rol viejo sobre el tablero nuevo.

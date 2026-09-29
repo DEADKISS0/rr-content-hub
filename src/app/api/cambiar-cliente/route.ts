@@ -73,36 +73,54 @@ export async function POST(request: NextRequest) {
   // (medido el 2026-09-29 en `pg_constraint`). Un embed devuelve PGRST200 con
   // `data: null` sin lanzar, y esa consulta rota costó un día entero: todo el
   // equipo en `sin_rol` y la puerta abierta sin una sola transición.
-  const [acceso, perfil] = await Promise.all([
-    supabase
-      .from('rr_hub_access')
-      .select('role_in_project, user_id, project:rr_hub_projects!inner(slug)')
-      .in('project.slug', [destino, sesion.proyecto]),
-    supabase.from('rr_hub_profiles').select('id, email, full_name, is_team_member, is_active').ilike('email', sesion.email).maybeSingle(),
-  ]);
-
-  if (acceso.error) return NextResponse.json({ error: acceso.error.message }, { status: 500 });
-  if (!perfil.data) {
+  // El perfil va PRIMERO: su `id` es el `user_id` que se busca después en
+  // `rr_hub_access`. Las dos consultas no se pueden lanzar en paralelo si la
+  // segunda depende de la primera, y el error de hacerlo así era silencioso:
+  //
+  // La primera versión filtraba `rr_hub_access` solo por proyecto, SIN `user_id`.
+  // Devolvía todas las filas de los dos clientes y `find()` cogía la primera.
+  // Medido el 2026-09-29: tu correo es `owner` en los cuatro clientes, la fila
+  // que le tocó fue la de otra persona, y la API respondió `rol: creator` sin que
+  // nadie lo notara. Un permiso que se concede a la persona equivocada es peor
+  // que un permiso que falta: se ve funcionar.
+  const { data: perfil, error: perfilError } = await supabase
+    .from('rr_hub_profiles')
+    .select('id, email, full_name, is_team_member, is_active')
+    .ilike('email', sesion.email)
+    .maybeSingle();
+  if (perfilError) return NextResponse.json({ error: perfilError.message }, { status: 500 });
+  if (!perfil) {
     return NextResponse.json({ error: 'Tu correo no está en la lista del equipo.' }, { status: 403 });
   }
-  if (!perfil.data.is_team_member) {
+  if (!perfil.is_team_member) {
     return NextResponse.json({ error: 'Tu cuenta existe pero no eres del equipo.' }, { status: 403 });
   }
-  if (!perfil.data.is_active) {
+  if (!perfil.is_active) {
     return NextResponse.json({ error: 'Tu fila está desactivada, así que no puedes cambiar de cliente.' }, { status: 403 });
   }
 
-  // El embed SÍ sirve aquí porque `rr_hub_projects` es una relación real: la
-  // columna `project_id` tiene su FK a la tabla. El problema anterior era entre
-  // `rr_hub_access` y `rr_hub_profiles`, que no la tienen.
-  // El embed de PostgREST devuelve un ARRAY, no un objeto, aunque la relación
-  // apunte a una sola fila. Aceptar las dos formas evita el `undefined` que
-  // aparece cuando alguien escribe `fila.project.slug` sobre un array: el
-  // proyecto llega como `[{...}]` y `.slug` da `undefined`, la comparación falla
-  // y el `find` devuelve nada — que se lee como "no tienes acceso" sin serlo.
-  const filaDeDestino = (acceso.data ?? []).find((fila) => {
+  // Y ahora la fila de esa persona, con `user_id` en la consulta. Sin ese
+  // filtro salen TODAS las filas de acceso de los dos clientes y `find()` se
+  // lleva el rol de quien salga primero — que fue el primer bug de esta ruta.
+  const { data: acceso, error: accesoError } = await supabase
+    .from('rr_hub_access')
+    .select('role_in_project, project:rr_hub_projects!inner(slug)')
+    .eq('user_id', perfil.id);
+  if (accesoError) return NextResponse.json({ error: accesoError.message }, { status: 500 });
+
+  // El embed de `rr_hub_projects` sí funciona: la columna `project_id` tiene su
+  // FK a esa tabla. El problema del 2026-09-28 era entre `rr_hub_access` y
+  // `rr_hub_profiles`, que no tienen relación entre sí.
+  //
+  // Y devuelve un ARRAY, no un objeto, aunque apunte a una sola fila: el proyecto
+  // llega como `[{...}]` y `fila.project.slug` da `undefined`, la comparación
+  // falla y el `find` devuelve nada — que se lee como "no tienes acceso" sin
+  // serlo. Por eso se aceptan las dos formas.
+  const filaDeDestino = (acceso ?? []).find((fila: { project?: unknown }) => {
     const proyecto = fila.project;
-    const slug = Array.isArray(proyecto) ? proyecto[0]?.slug : (proyecto as { slug?: string } | null)?.slug;
+    const slug = Array.isArray(proyecto)
+      ? (proyecto[0] as { slug?: string } | undefined)?.slug
+      : (proyecto as { slug?: string } | null)?.slug;
     return slug === destino;
   }) as (Fila & { project?: unknown }) | undefined;
 
@@ -113,7 +131,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const nombre = perfil.data.full_name || sesion.nombre;
+  const nombre = perfil.full_name || sesion.nombre;
 
   const respuesta = NextResponse.json({
     success: true,
