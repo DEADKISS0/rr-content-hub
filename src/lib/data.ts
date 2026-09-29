@@ -374,7 +374,13 @@ export async function getIdea(projectId: string, id: string) {
 
   const { data } = await supabase
     .from('rr_hub_ideas')
-    .select('*')
+    // El `cover_asset` NO viene en el `*`: es una relación por la columna
+    // `cover_asset_id` y PostgREST solo la resuelve si se nombra. Con `select('*')`
+    // la idea llegaba con `cover_asset` en `undefined`, y la ficha pintaba el
+    // placeholder aunque la portada estuviera subida y correcta en la base.
+    // Por eso "le puse portada y no sale": la portada estaba, la ficha no la
+    // miraba. El alias va con dos puntos (`cover_asset:cover_asset_id(...)`).
+    .select('*, cover_asset:cover_asset_id(id, file_name, mime_type, external_url)')
     .eq('project_id', projectId)
     .eq('id', id)
     .maybeSingle();

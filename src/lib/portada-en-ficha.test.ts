@@ -51,3 +51,58 @@ describe('la ficha de la idea muestra la portada', () => {
     expect(ficha).toMatch(/size="lg"/);
   });
 });
+
+/**
+ * El otro mitad del bug: aunque la ficha pinte `<IdeaCoverFrame asset={...} />`,
+ * el valor llegaba `undefined`. `getIdea` hacía `select('*')` y la relación por
+ * la columna `cover_asset_id` NO viene en el asterisco — hay que nombrarla.
+ *
+ *   antes: .select('*')                                    -> cover_asset undefined
+ *   ahora: .select('*, cover_asset:cover_asset_id(...)')    -> cover_asset con datos
+ *
+ * El sintoma era el peor posible: la portada estaba subida, correcta, con
+ * `cover_asset_id` poblado, y aun así la ficha pintaba el placeholder. Desde
+ * afuera eso se lee como "no le puse la portada", cuando el dato estaba ahí.
+ */
+const data = readFileSync(new URL('./data.ts', import.meta.url), 'utf8');
+
+describe('getIdea sí trae la portada de la pieza', () => {
+  // Cortar por el NOMBRE de la función no vale: `getIdeas`, `getIdeaDetalle` y
+  // compañía contienen esa misma cadena, y el tramo se comía código ajeno. Sin
+  // este recorte el test daba un falso positivo sobre el `select('*')` de otra
+  // consulta y, peor, dejaba de comprobar la que importa.
+  const desde = data.indexOf('export async function getIdea(');
+  expect(desde).toBeGreaterThan(-1);
+  const hasta = data.indexOf('\nexport ', desde + 10);
+  const getIdea = data.slice(desde, hasta === -1 ? undefined : hasta);
+
+  it('el tramo es el de getIdea y nada más', () => {
+    // Si el recorte se rompe, este test avisa antes de que el otro mienta.
+    expect(getIdea).toMatch(/export async function getIdea\(/);
+    expect(getIdea).not.toMatch(/export async function getIdeas/);
+  });
+
+  it('no usa un select de asterisco solo', () => {
+    // La regresión exacta: `select('*')` sin nombrar la relación.
+    expect(getIdea).not.toMatch(/\.select\('\*'\)/);
+  });
+
+  it('pide la relación por la columna cover_asset_id, con su alias', () => {
+    // El alias con dos puntos es lo que hace que PostgREST resuelva la relación
+    // y no la tome como una columna suelta. Sin los dos puntos, `PGRST200`.
+    expect(getIdea).toMatch(/cover_asset:cover_asset_id\(/);
+  });
+
+  it('pide también el external_url, que es lo único que se puede pintar', () => {
+    // `storage_path` es una ruta del bucket: la app no la abre sin firmarla en
+    // servidor. Pedir solo `storage_path` da un `<img>` que nunca carga.
+    expect(getIdea).toMatch(/external_url/);
+  });
+
+  it('sigue filtrando por proyecto y por id', () => {
+    // El cambio es solo el select: los filtros no se tocan, o una idea de
+    // Candilejas se podría abrir con el id de una de Wundeer.
+    expect(getIdea).toMatch(/\.eq\('project_id', projectId\)/);
+    expect(getIdea).toMatch(/\.eq\('id', id\)/);
+  });
+});
