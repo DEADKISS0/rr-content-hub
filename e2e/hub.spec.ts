@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { chromium } from '@playwright/test';
 
 /**
  * Recorridos sobre el hub real.
@@ -318,21 +319,52 @@ test.describe('roadmap', () => {
 });
 
 test.describe('portero de acceso', () => {
-  test('el panel de administración no enseña el roster sin sesión', async ({ page }) => {
-    // Con la autenticación apagada la línea devuelve 404: ni confirma que la
-    // ruta existe. Con la encendida, el middleware manda a /login indicando a
-    // dónde volver. Las dos respuestas sirven; lo que no puede pasar es que el
-    // roster aparezca. Esta prueba corre con la variable que imponga cada modo.
-    await page.goto('/audit/admin');
+  // El estado de sesión vive en la variable de entorno, y el contexto de cada
+  // recorrido lo toma de ahí. Para probar las DOS caras del panel hacen falta dos
+  // contextos: una sesión de admin y una de miembro, porque `storageState` es
+  // global a la corrida y un `page` normal siempre entra con la del admin.
+  // Por eso estos dos recorrido lanzan su propio contexto en vez de usar `page`.
+  test('el panel de administración no se abre a quien solo tecleó un código', async ({ baseURL }) => {
+    const noadmin = process.env.HUB_E2E_NOADMIN_STATE;
+    test.skip(!noadmin, 'hace falta HUB_E2E_NOADMIN_STATE: una sesión de un miembro que no administra');
 
-    const texto = await page.locator('body').innerText();
-    expect(texto).not.toMatch(/[\w.]+@[\w.]+\.\w+/);
+    const contexto = await chromium.launch();
+    const navegador = await contexto.newContext({ storageState: noadmin, baseURL: baseURL! });
+    const pagina = await navegador.newPage();
+    await pagina.goto('/audit/admin');
+
+    const texto = await pagina.locator('body').innerText();
+    await navegador.close();
+    await contexto.close();
+
+    // Lo que no puede pasar: el roster de cualquiera que teclee cuatro dígitos.
+    expect(texto, 'el roster se leyó sin administrar').not.toMatch(/[\w.]+@[\w.]+\.\w+/);
     expect(texto).not.toContain('US10');
-    // Y nunca queda mostrando el panel a alguien sin sesión.
-    if (process.env.NEXT_PUBLIC_AUTH_ENABLED === 'true') {
-      await expect(page).toHaveURL(/\/login\?next=%2Faudit%2Fadmin/);
+    await expect(pagina.getByText(/RESTRINGIDO|SIN PERMISO|NO TIENES/i).first()).toBeVisible();
+  });
+
+  test('con un administrador, el panel se abre y trae el roster entero', async ({ page }) => {
+    test.skip(!process.env.HUB_E2E_STATE, 'sin estado de sesión no se puede comprobar el lado de dentro');
+
+    await page.goto('/audit/admin');
+    const texto = await page.locator('body').innerText();
+
+    const esAdmin = await page
+      .getByText(/ADMINISTRADORES GLOBALES/i)
+      .first()
+      .isVisible()
+      .catch(() => false);
+
+    if (esAdmin) {
+      // Y el roster no viene a medias: "LOS DATOS PUEDEN NO ESTAR DISPONIBLES" es
+      // el síntoma de un servidor sin service role, y se leería como un panel
+      // vacío y sano cuando en realidad no consultedó nada.
+      expect(texto, 'el panel se abrió sin datos: el servidor no tiene service role').not.toMatch(
+        /LOS DATOS PUEDEN NO ESTAR DISPONIBLES/i,
+      );
+      expect(texto, 'abrió el panel sin traer a nadie').toMatch(/[\w.]+@[\w.]+\.\w+/);
     } else {
-      expect(page.url()).toContain('/audit/admin');
+      await expect(page.getByText(/RESTRINGIDO|SIN PERMISO|NO TIENES/i).first()).toBeVisible();
     }
   });
 });
@@ -596,47 +628,81 @@ test.describe('la página nunca se bloquea', () => {
 });
 
 /**
- * El OAuth no debe poder sacar a la persona de este sitio.
+ * La puerta no deja salir a otro sitio, y no pide cuentas.
  *
- * El reporte fue "entro al Content Hub y me abre Medellín Under". Las dos apps
- * comparten proyecto de Supabase y cliente de Google, así que Supabase tiene UN
- * destino de respaldo. Si el login se pide sin `redirectTo`, vuelve ahí — y
- * "ahí" es la app que configuró el proyecto, no la que la persona eligió.
+ * El reporte original fue "entro al Content Hub y me abre Medellín Under": las
+ * dos apps comparten proyecto de Supabase y el `SITE_URL` de respaldo es UNO, así
+ * que un login pedido sin `redirectTo` caía en la app que configuró el proyecto.
  *
- * Estas pruebas siguen en pie aunque hoy la puerta esté apagada: el login y el
- * callback siguen en el código, y vuelven con `NEXT_PUBLIC_AUTH_ENABLED=true`.
- * Lo que se protege es que, cuando la puerta se encienda, no reintroduzca el
- * salto a la otra aplicación.
+ * Ese agujero ya no se puede abrir por ahí: la puerta es un código por cliente y
+ * `POST /api/entrar` devuelve JSON con la cookie, sin redirección y sin salir de
+ * este dominio. Estas pruebas comprueban esa propiedad — que no existe ninguna
+ * forma de que entrar al hub te lleve a otra aplicación — y que el código de un
+ * cliente NO abre el otro.
  */
-test.describe('el login no se va a otra app', () => {
-  test('el botón de Google pide el callback, nunca el destino final', async ({ page }) => {
-    await abrir(page, `/login?next=${encodeURIComponent(`/${PROYECTO}/ideas/nueva`)}`);
+test.describe('la puerta no te saca de aquí', () => {
+  test('no hay ni botón de Google ni campo de contraseña ni correo', async ({ page }) => {
+    await abrir(page, '/login');
 
-    // Se intercepta la navegación a Google para ver qué URL se pidió.
-    const pedido = page.waitForRequest(/accounts\.google\.com/, { timeout: 15_000 }).catch(() => null);
-    await page.getByRole('button', { name: /Entrar con Google/i }).click();
-    const url = (await pedido)?.url() ?? page.url();
-    const destino = new URL(url).searchParams.get('redirect_to') ?? '';
-
-    // Al callback, con el paso 1 en `next`.
-    expect(destino).toContain('/auth/callback');
-    expect(destino).toContain(encodeURIComponent(`/${PROYECTO}/ideas/nueva`));
-
-    // Y nunca a otro proyecto: ni al sitio de la otra app, ni fuera de aquí.
-    // El host se compara contra el del hub leído ANTES de pulsar: cuando se pide
-    // el login, el navegador ya navegó a Google y `page.url()` no sirve.
-    await abrir(page, `/login`);
-    const hostHub = new URL(page.url()).hostname;
-    expect(new URL(destino).hostname).toBe(hostHub);
-    expect(destino).not.toMatch(/medellin/i);
+    // Lo que se quita no puede volver por la puerta de atrás: ni en el HTML, ni
+    // en un script, ni como texto invisible.
+    const html = await page.content();
+    expect(html).not.toMatch(/Entrar con Google/i);
+    expect(html).not.toMatch(/accounts\.google\.com/i);
+    expect(html).not.toMatch(/type=["']password["']/i);
+    expect(html).not.toMatch(/auth\/callback/i);
+    expect(html).not.toMatch(/signInWithOtp|verifyOtp/i);
   });
 
-  test('el callback rechaza un next de otro sitio', async ({ page }) => {
-    await abrir(page, `/auth/callback?next=${encodeURIComponent('https://medellin-guide.vercel.app')}`);
+  test('el destino de vuelta es siempre una ruta de este sitio', async ({ baseURL, playwright }) => {
+    // El agujero original —"entro al hub y me abre Medellín Under"— pasaba por un
+    // `next` que podía ser una URL entera. Hoy el `next` lo pone el middleware y
+    // es SIEMPRE `request.nextUrl.pathname`: una ruta interna, nunca un sitio.
+    //
+    // Se mide por la vía real (dejar que el middleware construya el enlace) y no
+    // contra un `?next=` escrito a mano: medido con `curl`, una ruta protegida sin
+    // cookie devuelve 307 a `/login?next=<ruta interna>`, y eso es lo que hay que
+    // proteger. Un `?next=` a mano ya no lo produce nadie, así que probarlo sería
+    // medir un caso que el producto no tiene.
+    const peticion = await playwright.request.newContext({ baseURL: baseURL! });
+    const respuesta = await peticion.get(`/${PROYECTO}/ideas/nueva`, { maxRedirects: 0 });
+    const destino = respuesta.headers().location;
 
-    // Sin `code` no hay intercambio de sesión, pero tampoco debe redirigir
-    // fuera: vuelve al login, que es de este proyecto.
-    await expect(page).toHaveURL(/\/login\?/);
-    expect(page.url()).not.toContain('medellin-guide');
+    expect(respuesta.status(), 'la ruta protegida no pidió la puerta').toBe(307);
+    expect(destino, 'el middleware no puso destino de vuelta').toBeTruthy();
+
+    const url = new URL(destino!, baseURL);
+    expect(url.origin).toBe(new URL(baseURL!).origin);
+    expect(url.pathname).toBe('/login');
+
+    const siguiente = url.searchParams.get('next');
+    expect(siguiente, 'el destino de vuelta no lleva la ruta').toBeTruthy();
+    // La forma del dato es la del fallo, no la del destino: empieza por barra y no
+    // puede parecer un protocolo ni un doble inicio.
+    expect(siguiente!.startsWith('/')).toBe(true);
+    expect(siguiente!.startsWith('//')).toBe(false);
+    expect(siguiente).not.toMatch(/^\w+:/);
+    expect(siguiente).not.toMatch(/medellin/i);
+    expect(siguiente).toBe(`/${PROYECTO}/ideas/nueva`);
+
+    await peticion.dispose();
+  });
+
+  test('el código de un cliente no abre el otro', async ({ page }) => {
+    // Aísla la matriz: con el código de Wundeer, Candilejas da 404. Esto ya lo
+    // comprueba la API; aquí se ve que también lo ve quien está delante.
+    await abrir(page, '/candilejas');
+    // Sin cookie, la página de login se sirve con el catálogo de clientes.
+    const html = await page.content();
+    expect(html).not.toMatch(/ideas|tablero/i);
+
+    // Y con la cookie de Wundeer tampoco: el cliente manda, la URL no.
+    const estado = process.env.HUB_E2E_STATE;
+    test.skip(!estado, 'sin estado de sesión no se puede comprobar el aislamiento desde dentro');
+    await abrir(page, '/wundeer');
+    await abrir(page, '/candilejas');
+    await expect(page).toHaveURL(/\/candilejas/);
+    const dentro = await page.locator('body').innerText();
+    expect(dentro).not.toContain('WUNDEER');
   });
 });

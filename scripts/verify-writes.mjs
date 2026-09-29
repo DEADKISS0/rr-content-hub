@@ -12,7 +12,7 @@
 // entonces volver a meter un .insert() en el cliente rompe la build de tests,
 // no la seguridad en produccion, que es donde mas duele.
 //   npm run verify:writes
-import fs from 'fs';
+import * as fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -187,6 +187,40 @@ check('no queda el modulo del cliente de navegador',
 const data = fs.readFileSync(path.join(repoRoot, 'src/lib/data.ts'), 'utf8');
 for (const lector of ['getComentarios', 'getAssets', 'getTimeline']) {
   check(`${lector} lee en el servidor`, new RegExp(`export async function ${lector}`).test(data));
+}
+
+// 6. Dos tablas rr_hub_ sin relacion NO se pueden embedir. El fallo es silencioso
+// a proposito: PostgREST responde PGRST200 y devuelve data: null sin lanzar, asi que
+// una consulta rota se lee igual que "nadie tiene fila aqui". Pasó dos veces con el
+// mismo patron: en el guard (todo el equipo caia a sin_rol y la puerta abierta con
+// 15 piezas sin una sola transicion) y en data.ts (un fallo de consulta daba
+// owner a un admin en un proyecto sin fila de acceso).
+const SIN_RELACION_ENTRE_TABLAS = [
+  ['rr_hub_access', 'rr_hub_profiles'],
+];
+for (const [a, b] of SIN_RELACION_ENTRE_TABLAS) {
+  const offenders = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx')) {
+        const source = fs.readFileSync(full, 'utf8');
+        // Solo el codigo: un comentario que explica el fallo esta bien y es lo
+        // que evita que alguien lo repita.
+        const codigo = source.split('\n').filter((l) => !l.trimStart().startsWith(('*', '//', '/*'))).join('\n');
+        if (codigo.includes(`${a}!inner`) || codigo.includes(`${b}!inner`)) {
+          offenders.push(path.relative(repoRoot, full));
+        }
+      }
+    }
+  };
+  walk(path.join(repoRoot, 'src'));
+  check(
+    `nadie embide ${a} contra ${b}: no hay llave foranea entre ellas`,
+    offenders,
+    `${offenders.join(', ')} — el embed devuelve PGRST200 con data: null y sin error`,
+  );
 }
 
 console.log(fails === 0 ? '\nTODO OK' : `\n${fails} FALLO(S)`);

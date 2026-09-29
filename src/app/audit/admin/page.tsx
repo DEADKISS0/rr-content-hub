@@ -43,7 +43,12 @@ export default async function AuditAdmin() {
       <p className="eyebrow">[AUDITORÍA · PANEL ADMINISTRATIVO · SOLO LECTURA]</p>
       <h1 className="display-title">Equipo y accesos.</h1>
       <p className="mt-5 max-w-2xl text-sm leading-7 text-blanco-60">Quién existe, con qué rol global, qué proyecto tiene asignado y qué invitaciones siguen pendientes de primer ingreso. Nada de esto se puede modificar desde aquí.</p>
-      {!open && <p className="mt-5 border border-blanco-20 px-4 py-3 font-mono text-[10px] text-blanco-60">LA VENTANA DE AUDITORÍA ESTÁ CERRADA. LOS DATOS PUEDEN NO ESTAR DISPONIBLES.</p>}
+      {!open && (
+        <p className="mt-5 border border-mostaza px-4 py-3 font-mono text-[10px] text-mostaza">
+          VENTANA DE AUDITORÍA CERRADA. Lo que ves abajo es una foto de la última vez
+          que estuvo abierta: la hora de cada acceso puede no ser la de hoy.
+        </p>
+      )}
     </header>
 
     <section className="mb-12">

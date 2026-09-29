@@ -43,3 +43,9 @@ next-env.d.ts
 # Python: estos son binarios que se regeneran solos y no van al repo
 __pycache__/
 *.pyc
+
+# Rastos de Playwright: traces, capturas y contextos de error. Se regeneran
+# con cada corrida y no son fuente. Estaban versionados y cada `npx playwright
+# test` dejaba cientos de archivos modificados.
+test-results/
+playwright-report/

@@ -140,12 +140,29 @@ export async function getProject(slug: string) {
   // devuelto null. Así que aquí no se vuelve a preguntar.
   // Se busca por correo en vez de por `user_id`: es la misma fila, y no depende
   // de que exista una sesión de Supabase de la que sacar el id.
-  const { data: access } = await supabase
-    .from('rr_hub_access')
-    .select('role_in_project')
-    .eq('project_id', project.id)
-    .eq('user:rr_hub_profiles!inner(email)', sesion.email)
-    .maybeSingle();
+  // El cruce es por `user_id`, y se resuelve en memoria: `rr_hub_access.user_id`
+  // tiene FK a `auth.users`, `rr_hub_profiles.id` es su propia PK, y ENTRE LAS DOS
+  // NO HAY FK (medido el 2026-09-29 en `pg_constraint`). El embed
+  // `user:rr_hub_profiles!inner(email)` que estaba aquí devolvía
+  // `400 PGRST200` con `data: null` **sin lanzar excepción** — el mismo fallo que
+  // dejó a todo el equipo en `sin_rol` en `project-guard.ts`.
+  //
+  // Aquí el síntoma era distinto y peor: al no encontrar la fila, la función
+  // caía al atajo de `global_role === 'admin'` y daba `owner` a un admin global
+  // en un proyecto donde nunca tuvo fila de acceso. Un fallo de consulta
+  // traduciéndose en más permisos, no en menos.
+  const [acceso, perfiles] = await Promise.all([
+    supabase.from('rr_hub_access').select('user_id, role_in_project').eq('project_id', project.id),
+    supabase.from('rr_hub_profiles').select('id, email'),
+  ]);
+
+  const idDeEsta = ((perfiles.data ?? []) as { id: string; email: string }[]).find(
+    (fila) => fila.email?.toLowerCase() === sesion.email.toLowerCase(),
+  )?.id;
+  const filaDeEsta = (acceso.data ?? []).find((fila) => fila.user_id === idDeEsta) as
+    | { role_in_project: string }
+    | undefined;
+  const access = filaDeEsta ? { role_in_project: filaDeEsta.role_in_project } : null;
 
   if (access) return { project, access, supabase };
 

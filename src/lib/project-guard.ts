@@ -102,16 +102,40 @@ export async function rolEnProyecto(projectId: string): Promise<VeredictoProyect
     return { rol: 'owner', email, puedeEscribir: true, puedeAprobar: true, via: 'session' };
   }
 
-  // Se une por correo en vez de por id: es la misma fila, pero sin depender de
-  // que exista una sesión de Supabase que dé el `user_id`.
-  const { data } = await supabase
-    .from('rr_hub_access')
-    .select('role_in_project, user:rr_hub_profiles!inner(email)')
-    .eq('project_id', projectId)
-    .eq('user.email', email)
-    .maybeSingle();
+  // Se cruza por correo, y el cruce se hace AQUÍ, en memoria, con dos
+  // consultas planas.
+  //
+  // Por qué no un embed: `rr_hub_access.user_id` tiene su FK a `auth.users`, y
+  // `rr_hub_profiles.id` es su propia PK. **Entre las dos tablas no hay ninguna
+  // llave foránea** (medido el 2026-09-29 en `pg_constraint`: solo existe
+  // `rr_hub_access_user_id_fkey → users`). PostgREST responde
+  // `400 PGRST200 "no foreign key relationship between 'rr_hub_access' and
+  // 'rr_hub_profiles'"` y devuelve `data: null` **con** error, sin excepción.
+  //
+  // El código solo leía `data?.role_in_project`, así que el PGRST200 pasaba
+  // desapercibido y TODO el equipo caía en `sin_rol`. Como `sin_rol` no está en
+  // `ROLE_KEYS`, `allowedTransitions` lo degradaba a lectura y `IdeaActions`
+  // escondía los botones — mientras el servidor sí aceptaba la transición. La
+  // puerta abierta y 15 piezas de Wundeer en `internal_review` Mostrando
+  // "SIN ACCIÓN DISPONIBLE" solo para el super-admin.
+  //
+  // Es el mismo fallo que ya tenía `roster()` en la API, y por el mismo motivo:
+  // **dos tablas sin relación no se pueden embedir.** Se cruzan en memoria.
+  const [acceso, perfiles] = await Promise.all([
+    supabase.from('rr_hub_access').select('user_id, role_in_project').eq('project_id', projectId),
+    supabase.from('rr_hub_profiles').select('id, email'),
+  ]);
 
-  const rol = (data?.role_in_project as RolProyecto | undefined) ?? 'sin_rol';
+  const porCorreo = new Map<string, string>();
+  for (const fila of (perfiles.data ?? []) as { id: string; email: string }[]) {
+    if (fila.email) porCorreo.set(fila.email.toLowerCase(), fila.id);
+  }
+  const idDeEsta = porCorreo.get(email.toLowerCase());
+  const filaDeEsta = (acceso.data ?? []).find(
+    (fila) => fila.user_id === idDeEsta,
+  ) as { role_in_project: RolProyecto } | undefined;
+
+  const rol = filaDeEsta?.role_in_project ?? 'sin_rol';
   // `sin_rol` es lo que devuelve el guard cuando la fila no trae un rol válido.
   // No es un rol de `ROLE_KEYS`, así que ni `includes` ni el `Set` lo aceptan;
   // se resuelve comprobando los roles reales. No hay que "arreglar" el rol:
