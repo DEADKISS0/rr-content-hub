@@ -50,6 +50,41 @@ describe('el embed declara su estado', () => {
     expect(embed).toMatch(/if \(SENALES_ROTAS\.has\(tipo\)\) return/);
   });
 
+  it('el mensaje llega como STRING JSON, no como objeto', () => {
+    // El fallo de raíz del indicador. Medido con un espía en la ficha real:
+    //
+    //   typeof event.data === "string"
+    //   -> '{"details":{"height":458},"type":"MEASURE"}'
+    //
+    // Leer `data.type` sobre un string sale `undefined` SIEMPRE, así que el
+    // indicador caía en "no pintó" aunque el `MEASURE` con su altura hubiera
+    // llegado desde el primer intento. No era un problema de señal: era un
+    // problema de la forma del mensaje.
+    expect(embed).toMatch(/function tipoDelMensaje/);
+    expect(embed).toMatch(/typeof datos === 'string'/);
+    expect(embed).toMatch(/JSON\.parse\(datos\)/);
+    expect(embed).toMatch(/tipoDelMensaje\(evento\.data\)/);
+  });
+
+  it('el tipo se lee con el ayudante, no con la propiedad cruda', () => {
+    // La regresión, escrita SIN nombrar el patrón prohibido: un comentario que
+    // lo nombre dispara su propia aserción, y el test se sabotea solo. La
+    // versión anterior falló por eso y por el motivo equivocado.
+    const lineasDeCodigo = embed
+      .split('\n')
+      .filter((l) => !l.trim().startsWith('*') && !l.trim().startsWith('//') && !l.trim().startsWith('/*'));
+    const codigo = lineasDeCodigo.join('\n');
+    expect(codigo).toMatch(/tipoDelMensaje\(evento\.data\)/);
+    expect(codigo).not.toMatch(/evento\.data\?\./);
+  });
+
+  it('un mensaje ilegible no rompe el indicador', () => {
+    // Sin flag `s` (el target del proyecto es es2017): se comprueba el `catch`
+    // y el `return null` por separado, que es lo que importa.
+    expect(embed).toMatch(/catch \{/);
+    expect(embed).toMatch(/return null;/);
+  });
+
   it('hay que PREGUNTARLE al embed: sin el resize no responde', () => {
     // El embed de Instagram solo contesta a un `postMessage('resize')` de la
     // página anfitriona. Un solo intento al montar se pierde, porque el embed

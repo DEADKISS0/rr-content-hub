@@ -51,6 +51,33 @@ const SENALES_DE_PLATAFORMA = new Set(['MEASURE', 'onRender', 'embedResize']);
 /** Lo que se considera "rotura de verdad", para no contarlo como señal. */
 const SENALES_ROTAS = new Set(['LOADING', 'ERROR', 'error']);
 
+/**
+ * Meta manda el mensaje como STRING JSON, no como objeto. Medido el 2026-09-29
+ * con un espía en la página real:
+ *
+ *   typeof event.data === "string"  ->  '{"details":{"height":458},"type":"MEASURE"}'
+ *
+ * La versión anterior leía `evento.data?.type`, que en un string es
+ * `undefined` siempre, y por eso el indicador caía en "no pintó" sobre embeds
+ * que sí estaban pintados. El fallo era de la FORMA del mensaje, no de su
+ * contenido: el `MEASURE` con su altura estaba llegando desde el primer intento.
+ */
+function tipoDelMensaje(datos: unknown): string | null {
+  if (typeof datos === 'string') {
+    try {
+      const objeto = JSON.parse(datos) as { type?: unknown };
+      return typeof objeto.type === 'string' ? objeto.type : null;
+    } catch {
+      return null;
+    }
+  }
+  if (datos && typeof datos === 'object' && 'type' in datos) {
+    const tipo = (datos as { type: unknown }).type;
+    return typeof tipo === 'string' ? tipo : null;
+  }
+  return null;
+}
+
 export function ReferenceEmbed({
   src,
   title,
@@ -77,8 +104,8 @@ export function ReferenceEmbed({
       if (!vivo) return;
       if (evento.origin.includes('facebook.com')) return;
       if (!evento.origin.includes('instagram.com') && !evento.origin.includes('tiktok.com')) return;
-      const tipo = evento.data?.type;
-      if (typeof tipo !== 'string') return;
+      const tipo = tipoDelMensaje(evento.data);
+      if (!tipo) return;
       // `LOADING` significa "todavía no": si se contara como señal, bastaría con
       // que el embed empiece a cargar para declarar la previsualización viva.
       if (SENALES_ROTAS.has(tipo)) return;
