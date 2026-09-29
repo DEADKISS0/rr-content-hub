@@ -9,6 +9,7 @@ import { IdeaEditor } from '@/components/idea-editor';
 import { IdeaVoting } from '@/components/idea-voting';
 import { PanelPresencia } from '@/components/presencia-equipo';
 import { ReferenceWithBrief } from '@/components/reference-with-brief';
+import { IdeaCoverFrame } from '@/components/ui/idea-cover-frame';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { ProductionPipeline } from '@/components/production-pipeline';
 import { ScriptEditor } from '@/components/script-editor';
@@ -124,6 +125,17 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
         <div>
           <p className="eyebrow">{idea.code ?? 'IDEA'} · {idea.content_type === 'organic' ? 'ORGÁNICO' : 'PAUTA'} · {idea.category}</p>
           <h1 className="display-title max-w-5xl">{idea.title}</h1>
+
+          {/* La portada es de la pieza, no un adorno del tablero. En la ficha
+              se ve la foto grande arriba del texto: quien abre la idea tiene
+              que ver de qué va sin hacer scroll. Antes solo se pintaba en las
+              tarjetas del mapa, y en la ficha no había ninguna imagen. */}
+          {idea.cover_asset && (
+            <div className="mt-6 max-w-md">
+              <IdeaCoverFrame code={idea.code} title={idea.title} asset={idea.cover_asset} size="lg" format={format.icon} />
+            </div>
+          )}
+
           <p className="mt-6 max-w-2xl text-base leading-7 text-blanco-60 sm:text-lg sm:leading-8">{idea.description}</p>
 
           <div className="mt-6 flex flex-wrap items-center gap-2">
