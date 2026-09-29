@@ -448,6 +448,13 @@ export async function POST(request: NextRequest) {
     const aFavor = (votos ?? []).filter((v) => v.decision === 'yes').length;
     const enContra = (votos ?? []).filter((v) => v.decision === 'no').length;
     const cambiosPedidos = (votos ?? []).filter((v) => frenaLaVotacion(v.decision as DecisionVoto)).length;
+    // El detalle, no solo el conteo. Santiago, 2026-09-29: "cuando votas que sí,
+    // tu voto se va reflejado como un emoji de manito hacia arriba".
+    //
+    // Un contador dice "3" y no dice si son tres pulgares o tres cambios. La
+    // lista de decisiones es lo que permite pintar un pulgar por persona, y es
+    // lo que hace que el voto se vea al instante en vez de tener que suponerlo.
+    const detalle = (votos ?? []).map((v) => (v.decision as DecisionVoto));
     const gano = ganoLaVotacion(aFavor, enContra);
     const perdio = perdioLaVotacion(aFavor, enContra);
     const comoVa = estadoVotacion(aFavor, enContra);
@@ -553,6 +560,8 @@ export async function POST(request: NextRequest) {
       // Cuántos cambios se han pedido. La interfaz lo dice, porque la pieza acaba
       // de volver a revisión interna y el equipo tiene que saber por qué.
       cambiosPedidos,
+      // La lista completa de respuestas, para pintar un emoji por persona.
+      detalle,
     });
   }
 

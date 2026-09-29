@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react';
 import { voteIdea, type VotoResultado } from '@/lib/workspace-client';
 import { estadoVotacion, votosParaDecidir, VOTOS_NECESARIOS, type DecisionVoto } from '@/lib/flow';
-import { Icon } from '@/components/ui/icons';
+import { Icon, type IconName } from '@/components/ui/icons';
 
 /**
  * Votación interna de una idea.
@@ -47,11 +47,18 @@ export function IdeaVoting({
   ideaId: string;
   status: string;
   /** Conteo que llega del servidor al pintar la ficha. */
-  inicial: { aFavor: number; enContra: number };
+  inicial: { aFavor: number; enContra: number; detalle?: DecisionVoto[] };
 }) {
   const [aFavor, setAFavor] = useState(inicial.aFavor);
   const [enContra, setEnContra] = useState(inicial.enContra);
   const [cambios, setCambios] = useState(0);
+  // La respuesta de cada persona, para pintar un emoji por persona en vez de un
+  // número suelto. Llega del servidor; aquí no se cuenta nada.
+  const [detalle, setDetalle] = useState<DecisionVoto[]>(inicial.detalle ?? []);
+  // Qué acabas de pulsar tú, para el rebote. Se limpia solo: si el botón
+  // siguiera rebotando para siempre, parecería que está seleccionado, y no es
+  // un estado, es un eco de que se acaba de guardar.
+  const [votoReciente, setVotoReciente] = useState<DecisionVoto | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [aviso, setAviso] = useState('');
   const [fallo, setFallo] = useState('');
@@ -84,8 +91,13 @@ export function IdeaVoting({
     setAFavor(resultado.aFavor ?? 0);
     setEnContra(resultado.enContra ?? 0);
     setCambios(resultado.cambiosPedidos ?? 0);
+    setDetalle(resultado.detalle ?? []);
     setPidiendo(null);
     setTexto('');
+    // El rebote dura 700 ms y luego se va: es la confirmación de que el servidor
+    // guardó, no un estado que se pueda quedar puesto.
+    setVotoReciente(decision);
+    window.setTimeout(() => setVotoReciente(null), 700);
 
     // Lo que dice el servidor, no lo que el navegador supone. Antes, con un
     // voto a favor la respuesta decía "que se adelante" aunque la pieza ya
@@ -159,6 +171,29 @@ export function IdeaVoting({
         </p>
       </div>
 
+      {/* El voto reflejado: un emoji por persona, no un número suelto.
+          Santiago, 2026-09-29: "cuando votas que sí, tu voto se va reflejado como
+          un emoji de manito hacia arriba". Un "3" no dice si son tres pulgares o
+          tres cambios pedidos; tres manos sí.
+
+          Esto es lo que hace que "abrir la votación" no signifique "votar que sí":
+          abrirla solo la muestra. El pulgar lo pone quien lo pulsa. */}
+      {detalle.length > 0 && (
+        <div className="mt-4 flex flex-wrap items-center gap-1.5" aria-label="Votos de cada persona">
+          {detalle.map((d, i) => (
+            <span
+              key={`${d}-${i}`}
+              className={`anim-voto ${TONO_EMOJI[d].clase}`}
+              title={TONO_EMOJI[d].titulo}
+              aria-label={TONO_EMOJI[d].titulo}
+              style={{ animationDelay: `${i * 45}ms` }}
+            >
+              <Icon name={TONO_EMOJI[d].icono} size={20} />
+            </span>
+          ))}
+        </div>
+      )}
+
       {abierto ? (
         <>
           <p className="mt-4 text-xs leading-5 text-blanco-60">
@@ -166,51 +201,51 @@ export function IdeaVoting({
             {VOTOS_NECESARIOS} votos para que la votación decida. Puedes cambiar tu
             voto: el último vale.
           </p>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => votar('yes')}
-              disabled={enviando}
-              className="btn-brutal inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Icon name="check" size={13} />
-              {enviando ? 'ENVIANDO…' : 'VOTO A FAVOR'}
-            </button>
-            <button
-              type="button"
-              onClick={() => votar('no')}
-              disabled={enviando}
-              className="btn-ghost inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Icon name="close" size={13} />
-              VOTO EN CONTRA
-            </button>
-            {/* La tercera y la cuarta respuesta. Santiago, 2026-09-29: hacía
-                falta poder decir "ni sí ni no, hay que cambiar algo" sin que
-                eso fuera equivalente a votar en contra. Aquí se abre un campo
-                para decir QUÉ, porque un cambio sin decir cuál no sirve.
 
-                "Dejar una nota" es lo otro que pidió: comentar sin bloquear.
-                Y avisa de que no cuenta, para que nadie espere que su nota mueva
-                algo. */}
-            <button
-              type="button"
+          {/* Las cuatro respuestas, con su icono. Santiago, 2026-09-29: "cuando
+              votas que sí, tu voto se va reflejado como un emoji de manito hacia
+              arriba". Antes había cuatro botones de texto en una fila y ningún
+              icono; ahora cada respuesta tiene su mano y su sitio.
+
+              Los colores no son decorativos: el pulgar arriba es orquídea (el
+              equipo avanza), el pulgar abajo es blanco roto (no sale), el 6-7 es
+              mostaza (pide un cambio) y la nota es gris (no cuenta). Que se
+              distinguan sin leer es el objetivo. */}
+          <div className="mt-4 grid gap-px bg-blanco-10 sm:grid-cols-2">
+            <BotonVoto
+              icono="pulgar-arriba"
+              texto="SÍ, SALE"
+              ayuda={`Tu sí. Hacen falta ${VOTOS_NECESARIOS} para que decida.`}
+              onClick={() => votar('yes')}
+              enviado={enviando}
+              destacado={false}
+              rebote={votoReciente === 'yes'}
+            />
+            <BotonVoto
+              icono="pulgar-abajo"
+              texto="NO"
+              ayuda="No sale. No es lo mismo que pedir un cambio."
+              onClick={() => votar('no')}
+              enviado={enviando}
+              destacado={false}
+              rebote={votoReciente === 'no'}
+            />
+            <BotonVoto
+              icono="si-pero"
+              texto="SÍ, PERO CÁMBIALE ALGO"
+              ayuda="Ni sí ni no. Vuelve a revisión interna para aplicar tu cambio."
               onClick={() => { setPidiendo('change'); setTexto(''); }}
-              disabled={enviando}
-              className="btn-ghost inline-flex items-center gap-2 border-dashed disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Icon name="pen" size={13} />
-              QUIERO QUE CAMBIEN ALGO
-            </button>
-            <button
-              type="button"
+              enviado={enviando}
+              destacado={pidiendo === 'change'}
+            />
+            <BotonVoto
+              icono="nota"
+              texto="DEJAR UNA NOTA"
+              ayuda="Aporta sin contar como voto ni detener la votación."
               onClick={() => { setPidiendo('note'); setTexto(''); }}
-              disabled={enviando}
-              className="btn-ghost inline-flex items-center gap-2 border-dashed disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Icon name="comment" size={13} />
-              DEJAR UNA NOTA
-            </button>
+              enviado={enviando}
+              destacado={pidiendo === 'note'}
+            />
           </div>
 
           {pidiendo && (
@@ -287,5 +322,72 @@ export function IdeaVoting({
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * Qué emoji es cada respuesta, y de qué color.
+ *
+ * Los colores no son adorno: cada uno dice para qué sirve, y se distinguen sin
+ * leer. Fucsia/orquídea es "el equipo avanza", blanco roto es "no sale", mostaza
+ * es "pide un cambio" y el gris apagado es "no cuenta".
+ *
+ * El 6-7 con el chulito es la seña de "sí, pero". Es exactamente lo que hace la
+ * respuesta `change`: no es un sí con reparos, es un "no así".
+ */
+const TONO_EMOJI: Record<DecisionVoto, { icono: IconName; clase: string; titulo: string }> = {
+  yes: { icono: 'pulgar-arriba', clase: 'text-orquidea', titulo: 'Sí, que sale' },
+  no: { icono: 'pulgar-abajo', clase: 'text-blanco-50', titulo: 'No' },
+  change: { icono: 'si-pero', clase: 'text-mostaza', titulo: 'Sí, pero cámbiale algo' },
+  note: { icono: 'nota', clase: 'text-blanco-30', titulo: 'Nota, no cuenta como voto' },
+};
+
+/**
+ * Un botón de respuesta, con su mano.
+ *
+ * Antes los cuatro botones eran texto en una fila y no se distinguían sin leer.
+ * Santiago, 2026-09-29: "cuando votas que sí, tu voto se va reflejado como un
+ * emoji de manito hacia arriba" — y que se viera al instante, con rebote y
+ * chispazo.
+ *
+ * El rebote no es adorno: es la confirmación de que el servidor ya guardó el
+ * voto. Pasa al pulsar `votar`, cuando `votoReciente` es la misma respuesta.
+ */
+function BotonVoto({
+  icono,
+  texto,
+  ayuda,
+  onClick,
+  enviado,
+  destacado,
+  rebote = false,
+}: {
+  icono: IconName;
+  texto: string;
+  ayuda: string;
+  onClick: () => void;
+  enviado: boolean;
+  destacado: boolean;
+  rebote?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={enviado}
+      className={`group flex items-start gap-3 p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+        destacado ? 'bg-blanco-10' : 'bg-negro hover:bg-blanco-05'
+      }`}
+    >
+      <span
+        className={`shrink-0 text-blanco-50 transition-colors group-hover:text-blanco ${rebote ? 'anim-voto anim-voto-chispa' : ''}`}
+      >
+        <Icon name={icono} size={26} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-mono text-[10px] tracking-[0.08em] text-blanco">{texto}</span>
+        <span className="mt-1 block font-mono text-[10px] leading-4 text-blanco-50">{ayuda}</span>
+      </span>
+    </button>
   );
 }

@@ -111,7 +111,7 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
         {/* La votación va pegada a la acción porque en `voting` ES la acción:
             quien entra a mirar la idea viene a decidir, no a leer. */}
         <div className="mt-5">
-          <IdeaVoting ideaId={ideaId} status={idea.status} inicial={{ aFavor: votos.aFavor, enContra: votos.enContra }} />
+          <IdeaVoting ideaId={ideaId} status={idea.status} inicial={{ aFavor: votos.aFavor, enContra: votos.enContra, detalle: votos.detalle }} />
         </div>
         {/* Quién está en línea, pegado a la votación: es la pregunta que se hace
             justo antes de votar ("¿a quién le pregunto?"). */}

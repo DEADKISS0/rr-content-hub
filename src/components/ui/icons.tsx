@@ -13,7 +13,7 @@ export type IconName =
   | 'plus' | 'chevron' | 'arrow' | 'clock' | 'link' | 'image' | 'video' | 'stack'
   | 'spark' | 'user' | 'alert' | 'check' | 'close' | 'chart' | 'file' | 'comment'
   | 'upload' | 'target' | 'bolt' | 'eye' | 'pin' | 'pen' | 'scissors' | 'flag'
-  | 'leaf' | 'lock';
+  | 'leaf' | 'lock' | 'pulgar-arriba' | 'pulgar-abajo' | 'si-pero' | 'nota';
 
 const PATHS: Record<IconName, ReactNode> = {
   map: <><rect x="3" y="4" width="18" height="16" /><path d="M9 4v16M15 4v16" /></>,
@@ -45,6 +45,19 @@ const PATHS: Record<IconName, ReactNode> = {
   // Sin relleno, con la anilla encima del cuerpo: si se rellenara, el hueco de la
   // anilla se perdería y se leería como un cuadrado más.
   lock: <><rect x="5" y="11" width="14" height="10" /><path d="M8 11V8a4 4 0 018 0v3" /></>,
+  // Las cuatro respuestas de la votación, dibujadas y no como texto.
+  //
+  // Santiago, 2026-09-29: "cuando votas que sí, tu voto se va reflejado como un
+  // emoji de manito hacia arriba". Un número no dice quién ni con qué intención:
+  // 👍 👎 y el 6-7 sí. El 6-7 con el chulito es "sí, pero cámbiale algo", que es
+  // justo lo que hace la tercera respuesta.
+  'pulgar-arriba': <><path d="M7 11v9H4v-9zM7 11l4.5-8a2 2 0 013 2l-1 6h4.5a2 2 0 012 2.4l-1.4 6A2 2 0 0116.7 21H7" /></>,
+  'pulgar-abajo': <><path d="M17 13V4h3v9zM17 13l-4.5 8a2 2 0 01-3-2l1-6H6.5a2 2 0 01-2-2.4l1.4-6A2 2 0 017.3 3H17" /></>,
+  // El 6-7: la mano del seis-siete con el pulgar arriba. Es la seña de "sí,
+  // pero". Va con la misma idea que la respuesta `change`, no con `note`.
+  'si-pero': <><path d="M6 20V9a2 2 0 012-2h3l4-5a2 2 0 013 2v4h3a2 2 0 012 2.5l-1.5 8A2 2 0 0119.5 20z" /><path d="M6 9v11" /></>,
+  'nota': <><path d="M20 15a2 2 0 01-2 2H8l-4 4V6a2 2 0 012-2h12a2 2 0 012 2z" /><path d="M8 10h8M8 13h5" /></>,
+
   file: <><path d="M6 3h8l4 4v14H6z" /><path d="M14 3v5h4" /></>,
   comment: <><path d="M4 5h16v11H9l-5 4z" /></>,
   upload: <><path d="M12 17V5M6 11l6-6 6 6" /><path d="M4 21h16" /></>,

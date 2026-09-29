@@ -178,6 +178,49 @@
   0% { opacity: .6; transform: translateY(8px); filter: brightness(1.25); }
   100% { opacity: 1; transform: translateY(0); filter: brightness(1); }
 }
+
+/**
+ * El rebote del voto.
+ *
+ * Santiago, 2026-09-29: "pones el pulgar arriba y hace un rebote y un
+ * chispazo". No es decoración arbitraria: es la confirmación de que el servidor
+ * YA guardó el voto. Por eso salta la mano y no solo se actualiza un número —
+ * un número que cambia en silencio no se nota.
+ *
+ * Tres tiempos: se achata (pulsa), sube con rebote (el "va"), y se asienta. El
+ * chispazo es un halo que se expande y se desvanece. Se respeta
+ * `prefers-reduced-motion`: sin movimiento, la confirmación es el cambio de
+ * color y el aviso de texto, que ya están.
+ */
+@keyframes votoChispa {
+  0%   { transform: translateY(0) scale(1); }
+  28%  { transform: translateY(3px) scale(.86); }
+  55%  { transform: translateY(-9px) scale(1.18); }
+  74%  { transform: translateY(2px) scale(.96); }
+  100% { transform: translateY(0) scale(1); }
+}
+@keyframes votoHalo {
+  0%   { box-shadow: 0 0 0 0 currentColor; opacity: .85; }
+  100% { box-shadow: 0 0 0 12px transparent; opacity: 0; }
+}
+/* `.anim-voto` es solo el rebote. El halo —el chispazo— va en `.anim-voto-chispa`,
+   que es lo que se aplica al botón justo después de votar. Si el halo fuera
+   parte de `.anim-voto`, saldría con cada emoji de la fila al pintarla, que es
+   justo cuando no ha pasado nada todavía. */
+.anim-voto {
+  display: inline-flex;
+  position: relative;
+  border-radius: 3px;
+  animation: votoChispa .62s cubic-bezier(.34, 1.56, .64, 1) both;
+}
+.anim-voto-chispa::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 4px;
+  pointer-events: none;
+  animation: votoHalo .62s ease-out both;
+}
 @keyframes pulseRing {
   0% { box-shadow: 0 0 0 0 rgba(222,209,22,.5); }
   70% { box-shadow: 0 0 0 10px rgba(222,209,22,0); }
@@ -186,6 +229,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .anim-rise, .anim-fade, .anim-slide, .anim-pop, .anim-highlight, .anim-state,
+  .anim-voto, .anim-voto-chispa::after,
   .stagger > * { animation: none !important; }
 }
 

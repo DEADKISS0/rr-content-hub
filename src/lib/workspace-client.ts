@@ -253,6 +253,14 @@ export type VotoResultado = {
    * se perdió.
    */
   cambiosPedidos?: number;
+  /**
+   * La respuesta de CADA persona, no solo el total.
+   *
+   * Es lo que permite pintar un emoji por persona —un pulgar arriba, uno abajo,
+   * un 6-7— en vez de un número suelto. Sin esto, "3" no dice si son tres
+   * pulgares o tres pedidos de cambio.
+   */
+  detalle?: DecisionVoto[];
 };
 
 export async function voteIdea(
@@ -282,6 +290,7 @@ export async function voteIdea(
     faltan: Number(response.faltan ?? 0),
     minimo: Number(response.minimo ?? 0),
     cambiosPedidos: Number(response.cambiosPedidos ?? 0),
+    detalle: Array.isArray(response.detalle) ? (response.detalle as DecisionVoto[]) : [],
   };
 }
 

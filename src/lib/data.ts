@@ -1,3 +1,4 @@
+import type { DecisionVoto } from '@/lib/flow';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { quienEs } from '@/lib/quien-es';
@@ -390,11 +391,22 @@ export async function getIdea(projectId: string, id: string) {
  * idea recién abierta, y ese `0 a favor / 0 en contra` es exactamente lo que hay
  * que mostrar.
  */
-export type ConteoVotos = { aFavor: number; enContra: number; total: number };
+export type ConteoVotos = {
+  aFavor: number;
+  enContra: number;
+  total: number;
+  /**
+   * La respuesta de cada persona, para pintar un emoji por persona.
+   *
+   * Sin esto la ficha abre con "3 a favor" y no hay forma de saber si son tres
+   * pulgares o tres cambios pedidos. Santiago, 2026-09-29.
+   */
+  detalle: DecisionVoto[];
+};
 
 export async function getVotos(ideaId: string): Promise<ConteoVotos> {
   const supabase = await createServiceClient() ?? await createClient();
-  if (!supabase) return { aFavor: 0, enContra: 0, total: 0 };
+  if (!supabase) return { aFavor: 0, enContra: 0, total: 0, detalle: [] };
 
   const { data } = await supabase
     .from('rr_hub_votes')
@@ -404,7 +416,7 @@ export async function getVotos(ideaId: string): Promise<ConteoVotos> {
   const votos = data ?? [];
   const aFavor = votos.filter((v) => v.decision === 'yes').length;
   const enContra = votos.filter((v) => v.decision === 'no').length;
-  return { aFavor, enContra, total: votos.length };
+  return { aFavor, enContra, total: votos.length, detalle: votos.map((v) => v.decision as DecisionVoto) };
 }
 
 /**
