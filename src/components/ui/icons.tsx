@@ -53,9 +53,14 @@ const PATHS: Record<IconName, ReactNode> = {
   // justo lo que hace la tercera respuesta.
   'pulgar-arriba': <><path d="M7 11v9H4v-9zM7 11l4.5-8a2 2 0 013 2l-1 6h4.5a2 2 0 012 2.4l-1.4 6A2 2 0 0116.7 21H7" /></>,
   'pulgar-abajo': <><path d="M17 13V4h3v9zM17 13l-4.5 8a2 2 0 01-3-2l1-6H6.5a2 2 0 01-2-2.4l1.4-6A2 2 0 017.3 3H17" /></>,
-  // El 6-7: la mano del seis-siete con el pulgar arriba. Es la seña de "sí,
-  // pero". Va con la misma idea que la respuesta `change`, no con `note`.
-  'si-pero': <><path d="M6 20V9a2 2 0 012-2h3l4-5a2 2 0 013 2v4h3a2 2 0 012 2.5l-1.5 8A2 2 0 0119.5 20z" /><path d="M6 9v11" /></>,
+  // El 6-7, la seña de "sí, pero". Es exactamente lo que hace la respuesta
+  // `change`: no es un sí con reparos, es un "no así".
+  // El 6-7. A tamaño de icono, una silueta geométrica se leía como bolsa con
+  // asa o como otro pulgar arriba. Lo que hace reconocible la seña no es añadir
+  // líneas: es QUITAR la muñeca. Un pulgar arriba tiene muñeca; un 6-7 es el
+  // puño entero, de perfil, con el pulgar saliendo en diagonal. La curva del
+  // pulgar es lo que lo separa del "pulgar arriba" de al lado.
+  'si-pero': <><path d="M9.5 20.5c-1.8 0-3-1.2-3.2-3l-.5-4.2a2 2 0 013.9-.5l.4 2.2V8.5a1.6 1.6 0 013.2 0v1.4a1.6 1.6 0 013.2 0v1.6a1.6 1.6 0 013.2 0v3.6c0 3.1-2.4 5.4-5.6 5.4z" /><path d="M13 8.2c2.6.4 4.4 2.2 4.9 4.4" /></>,
   'nota': <><path d="M20 15a2 2 0 01-2 2H8l-4 4V6a2 2 0 012-2h12a2 2 0 012 2z" /><path d="M8 10h8M8 13h5" /></>,
 
   file: <><path d="M6 3h8l4 4v14H6z" /><path d="M14 3v5h4" /></>,

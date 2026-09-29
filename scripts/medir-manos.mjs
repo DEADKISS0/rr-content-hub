@@ -96,6 +96,11 @@ console.log('  en el bloque:', JSON.stringify(nombres));
 // solo el bloque de manos, no los botones
 const fila = bloque.locator('.anim-voto').first();
 console.log('  la fila de manos tiene:', await fila.count() ? 'SVG' : 'nada');
-await pg.screenshot({ path: '/tmp/manos-voto.png', fullPage: true });
+// Solo el bloque, que es lo que hay que mirar. La pagina entera a pantalla
+// completa sale ilegible: cada icono cae en tres pixeles.
+await bloque.screenshot({ path: '/tmp/manos-voto.png' });
+// y las manos sueltas, a tamano grande, para ver que la forma es la que debe
+const solo = pg.locator('[data-guia="votacion"] .anim-voto').first();
+if (await solo.count()) await solo.screenshot({ path: '/tmp/mano-suelta.png' });
 await ctx.close();
 await nav.close();
