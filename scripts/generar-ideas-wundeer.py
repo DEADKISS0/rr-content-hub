@@ -43,6 +43,11 @@ PROYECTO = "ntgtvtzbjwotuwkiflar"
 API = f"https://api.supabase.com/v1/projects/{PROYECTO}/database/query"
 TOKENS = pathlib.Path.home() / ".hermes" / "mcp-tokens" / "supabase.json"
 HUB = "https://rr-content-hub.vercel.app"
+# El cliente para el que se generan las ideas. Antes era una constante fija
+# ("wundeer") y por eso Candilejas no recibía ninguna: el generador no tenía por
+# dónde configurable el cliente, solo por dónde cambiar el código. Ahora es un
+# argumento, y el valor por defecto sigue siendo Wundeer para que los dos crons
+# que ya corren no cambien de comportamiento.
 CLIENTE = "wundeer"
 
 # Quién es el responsable de lo que genera el sistema. Santiago lo pidió así el
@@ -439,7 +444,16 @@ def registrar_evento(idea_id: str, actor: str, comentario: str) -> None:
 
 
 def main() -> int:
+    # `CLIENTE` es global y se cambia segun `--cliente`, asi que la declaracion
+    # va PRIMERO: si aparece despues de haberla leido, Python la rechaza. No es
+    # un detalle de estilo, es un SyntaxError que tumba el cron entero.
+
     analizador = argparse.ArgumentParser()
+    # El default se escribe literal, no como `CLIENTE`: dentro de una función
+    # que hace `global CLIENTE`, el nombre es local hasta que se le asigne, y
+    # ponerlo en el `add_argument` lo lee antes de tiempo.
+    analizador.add_argument("--cliente", default="wundeer",
+                            help="slug del cliente (wundeer, candilejas). Por defecto: wundeer")
     analizador.add_argument("--solo-organico", action="store_true")
     analizador.add_argument("--seco", action="store_true", help="genera pero no imprime el pack de WhatsApp")
     analizador.add_argument(
@@ -449,6 +463,13 @@ def main() -> int:
         help="cuantas ideas sin revisar aguantamos antes de parar (default 20)",
     )
     opciones = analizador.parse_args()
+
+    # El cliente se fija ANTES de leer la base, porque `proyecto_id()` y
+    # `tamano_cola()` ya lo usan. Sin esto el `--cliente` se aceptaba y se
+    # ignoraba: el argumento entraba, nadie lo leía, y Candilejas seguía
+    # recibiendo ideas de Wundeer con un mensaje que decía lo contrario.
+    CLIENTE = opciones.cliente
+    print(f"[info] cliente: {CLIENTE}", file=sys.stderr)
 
     proyecto = proyecto_id()
     responsable = responsable_id()

@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { isVisibleProject } from '@/lib/projects';
 import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -124,17 +125,22 @@ async function context(request: NextRequest) {
 export async function GET(request: NextRequest) {
   const setup = await context(request);
   if ('response' in setup) return setup.response;
-  if (new URL(request.url).searchParams.get('project') !== 'wundeer') return error('Solo el proyecto Wundeer está disponible.', 400);
+  // Esta API la usa el generador de ideas, que está capado por la cola
+  // (`--tope-cola`), así que no necesita más puerta que la que ya tiene: la clave
+  // de API. Lo que sí hace es dejar de estar atada a un solo cliente: escribir
+  // `project=wundeer` o `project=candilejas` devuelve las ideas de ese cliente.
+  const slug = new URL(request.url).searchParams.get('project') ?? 'wundeer';
+  if (!isVisibleProject(slug)) return error('Ese cliente no existe.', 400);
 
-  const { data: project, error: projectError } = await setup.supabase.from('rr_hub_projects').select('id').eq('slug', 'wundeer').single();
-  if (projectError || !project) return error('Wundeer no existe en la base.', 404);
+  const { data: project, error: projectError } = await setup.supabase.from('rr_hub_projects').select('id').eq('slug', slug).single();
+  if (projectError || !project) return error(`${slug} no existe en la base.`, 404);
   const { data, error: ideasError } = await setup.supabase
     .from('rr_hub_ideas')
     .select('id, code, title, description, objective, content_type, category, status, priority, reference_urls, created_at, updated_at')
     .eq('project_id', project.id)
     .order('created_at', { ascending: false });
   if (ideasError) return error('No se pudieron consultar las ideas.', 500);
-  return NextResponse.json({ project: 'wundeer', count: data?.length ?? 0, ideas: data ?? [] });
+  return NextResponse.json({ project: slug, count: data?.length ?? 0, ideas: data ?? [] });
 }
 
 export async function POST(request: NextRequest) {
@@ -142,14 +148,15 @@ export async function POST(request: NextRequest) {
   if ('response' in setup) return setup.response;
   let body: Payload;
   try { body = await request.json(); } catch { return error('El cuerpo debe ser JSON válido.', 400); }
-  if (body.project_slug !== 'wundeer') return error('Solo se pueden crear ideas en Wundeer.', 400);
+  const slug = body.project_slug ?? 'wundeer';
+  if (!isVisibleProject(slug)) return error('Ese cliente no existe.', 400);
 
   const problem = validate(body);
   if ('error' in problem) return error(problem.error, 400);
   const { title, contentType, references } = problem;
 
-  const { data: project, error: projectError } = await setup.supabase.from('rr_hub_projects').select('id').eq('slug', 'wundeer').single();
-  if (projectError || !project) return error('Wundeer no existe en la base.', 404);
+  const { data: project, error: projectError } = await setup.supabase.from('rr_hub_projects').select('id').eq('slug', slug).single();
+  if (projectError || !project) return error(`${slug} no existe en la base.`, 404);
 
   const { data: idea, error: insertError } = await insertWithCode(setup.supabase, {
     projectId: project.id,

@@ -165,6 +165,15 @@ aviso = "tope"
 comprobar("el aviso explica el tope", aviso in fuente)
 comprobar("el aviso dice cuando vuelve solo", "vuelve solo" in fuente)
 
+# El cliente es un argumento, y tiene que VALER antes de que se lea la base:
+# `proyecto_id()` y `tamano_cola()` ya usan `CLIENTE`. Un `--cliente` que se
+# acepta y se ignora es peor que no tenerlo: el mensaje dice Candilejas y las
+# ideas van a Wundeer.
+comprobar("el cliente es un argumento", '"--cliente"' in fuente)
+comprobar("el cliente se fija antes de leer la base",
+           fuente.index("CLIENTE = opciones.cliente") < fuente.index("proyecto = proyecto_id()"))
+comprobar("el default sigue siendo wundeer", 'default="wundeer"' in fuente)
+
 print()
 if fallos == 0:
     print("TODO OK")

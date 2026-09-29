@@ -3,7 +3,7 @@ import { createServiceClient } from '@/lib/supabase/service';
 import { quienEs } from '@/lib/quien-es';
 import { DEMO_MODE, SupabaseNotConfiguredError } from './demo-mode';
 import { demoIdeas, demoProjects, getDemoIdea, getDemoProject } from './demo-data';
-import { isVisibleProject } from './projects';
+import { clienteEsVisible, isVisibleProject } from './projects';
 
 /**
  * Data access layer for the RR Content Hub.
@@ -114,6 +114,15 @@ export async function getCurrentUser() {
 
 export async function getProject(slug: string) {
   if (!isVisibleProject(slug)) return { project: null, access: null, supabase: null };
+
+  // Y tiene que ser el cliente del código con el que se entró. Sin esta línea,
+  // entrar con 1111 y escribir `/candilejas` a mano abriría el otro cliente: la
+  // URL decidiría a qué proyecto se entra, y la cookie solo comprobaría que hay
+  // alguna. La cookie manda porque el código es lo que se tecleó.
+  const sesion = await quienEs();
+  if (!sesion || !clienteEsVisible(slug, sesion.proyecto)) {
+    return { project: null, access: null, supabase: null };
+  }
   const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) {
     // Was `admin` — the role that bypasses every transition rule in flow.ts.
@@ -127,12 +136,8 @@ export async function getProject(slug: string) {
     .maybeSingle();
   if (!project) return { project: null, access: null, supabase };
 
-  const sesion = await quienEs();
-  // Sin cookie se puede ver, pero ver no es tener el control. Antes esto
-  // devolvía `owner`, que es el único rol que se salta todas las transiciones de
-  // flow.ts: le daba los botones de escribir al público.
-  if (!sesion) return { project, access: { role_in_project: 'client_viewer' }, supabase };
-
+  // El `sesion` de arriba ya es el bueno: si no hubiera, `getProject` ya habría
+  // devuelto null. Así que aquí no se vuelve a preguntar.
   // Se busca por correo en vez de por `user_id`: es la misma fila, y no depende
   // de que exista una sesión de Supabase de la que sacar el id.
   const { data: access } = await supabase
@@ -191,13 +196,7 @@ export async function getProjects() {
   // Sin cookie, la portada se ve pero no se listan clientes con código: entrar
   // es lo que enseña qué hay. Antes listaba solo Wundeer en abierto; ahora la
   // lista la da la cookie.
-  if (!sesion) {
-    const { data: allProjects } = await supabase
-      .from('rr_hub_projects')
-      .select('id, name, slug, client_name, brand_primary_color, description')
-      .eq('slug', 'wundeer').order('name');
-    return { projects: (allProjects ?? []).filter((project) => isVisibleProject(project.slug)).map((project) => ({ projects: project, role_in_project: 'owner' })), supabase };
-  }
+  if (!sesion) return { projects: [], supabase };
 
   // Global admins supervisan every project even without an explicit access row.
   // Se busca por correo: es la misma fila, y el id ya no viene de una sesión
@@ -211,9 +210,9 @@ export async function getProjects() {
     const { data: allProjects } = await supabase
       .from('rr_hub_projects')
       .select('id, name, slug, client_name, brand_primary_color, description')
-      .eq('slug', 'wundeer').order('name');
+      .eq('slug', sesion.proyecto).order('name');
     return {
-      projects: (allProjects ?? []).filter((project) => isVisibleProject(project.slug)).map((project) => ({ projects: project, role_in_project: 'owner' })),
+      projects: (allProjects ?? []).filter((project) => clienteEsVisible(project.slug, sesion.proyecto)).map((project) => ({ projects: project, role_in_project: 'owner' })),
       supabase,
     };
   }
@@ -232,7 +231,7 @@ export async function getProjects() {
     .select('role_in_project, projects:rr_hub_projects(id, name, slug, client_name, brand_primary_color, description)')
     .eq('user_id', perfil.id);
 
-  return { projects: (data ?? []).filter((row: any) => isVisibleProject(row.projects?.slug)), supabase };
+  return { projects: (data ?? []).filter((row: any) => clienteEsVisible(row.projects?.slug, sesion.proyecto)), supabase };
 }
 
 export async function getIdeas(projectId: string) {
