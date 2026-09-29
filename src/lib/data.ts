@@ -449,7 +449,8 @@ export async function getAuditProjects() {
     .from('rr_hub_projects')
     .select('id, name, slug, client_name, description, brand_primary_color')
     .order('name');
-  return (data ?? []).filter((project) => isVisibleProject(project.slug));
+  const sesion = await quienEs();
+  return (data ?? []).filter((project) => clienteEsVisible(project.slug, sesion?.proyecto));
 }
 
 /** Read-only administrative surface: roster, access matrix and pending invites. */
@@ -466,6 +467,14 @@ export async function getAuditRoster() {
 
 export async function getAuditProject(slug: string) {
   if (!isVisibleProject(slug)) return null;
+
+  // La auditoría es de solo lectura, pero no es pública: se ve lo del cliente del
+  // código con el que se entró, no el de al lado. Antes solo comprobaba que el
+  // slug fuera un cliente conocido, así que entrando con 1111 (Wundeer) se podía
+  // abrir `/audit/candilejas` y ver las ideas del otro. Ver sin escribir sigue
+  // siendo ver lo de otro cliente.
+  const sesion = await quienEs();
+  if (!sesion || !clienteEsVisible(slug, sesion.proyecto)) return null;
   const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) { requireSupabase(); return null; }
   const { data } = await supabase

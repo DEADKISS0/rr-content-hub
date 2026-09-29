@@ -83,6 +83,13 @@ check('el servidor exige la cookie de la puerta', /quienEs\(\)/.test(route));
 // vigila no es una puerta.
 // Se mira que no quede una ASIGNACION, no la palabra: el comentario explica que
 // la variable se quito, y el comentario es lo que hay que conservar.
+// La cookie manda sobre la URL, tambien en la auditoria. Con 1111 no se puede
+// abrir /audit/candilejas a mano: ver sin escribir sigue siendo ver lo de otro
+// cliente, y la auditoria no es una puerta trasera.
+check('la auditoria tambien pide que el cliente sea el de la cookie',
+      /getAuditProject[\s\S]{0,900}clienteEsVisible\(slug, sesion\.proyecto\)/.test(
+        fs.readFileSync(path.join(repoRoot, 'src/lib/data.ts'), 'utf8')));
+
 check('el modo abierto no vuelve', !/=\s*process\.env\.NEXT_PUBLIC_AUTH_ENABLED/.test(route));
 check('nadie decide el acceso leyendo una variable de entorno', !/process\.env\.NEXT_PUBLIC_AUTH_ENABLED\s*[!=]/.test(route));
 check('el 401 no habla de una sesion que ya no existe', !/Necesitas una sesi/.test(route));
