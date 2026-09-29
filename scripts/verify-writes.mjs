@@ -54,16 +54,28 @@ check('ningun modulo cliente escribe en rr_hub_*', offenders.length === 0, offen
 // 2. La subida a Storage sigue yendo desde el navegador, pero SOLO el upload:
 //    los bytes necesitan la sesion para que las politicas de storage.objects
 //    decidan. Lo que no puede seguir asi es el INSERT de la fila de metadata.
+//
+//    Desde el 2026-09-28 la puerta es un codigo por cliente y la identidad viaja
+//    en una cookie firmada del hub, no en un token de Supabase. La cookie la
+//    manda el navegador solo, asi que el cliente ya no pone ninguna cabecera de
+//    autorizacion: lo que se comprueba es que no mande un token viejo.
 const storage = fs.readFileSync(path.join(repoRoot, 'src/lib/workspace-client.ts'), 'utf8');
 check('el upload a Storage sigue en el cliente', /supabase\.storage[\s\S]{0,60}?\.upload\(/.test(storage));
-check('el upload lleva la sesion', /auth\.getSession\(\)/.test(storage));
+// La cookie viaja sola: el cliente no debe mandar token, y debe decirlo claro
+// con `credentials`, que es lo que hace que el navegador la incluya.
+check('el upload se apoya en la cookie, no en un token', !/auth\.getSession\(\)/.test(storage));
+check('las llamadas mandan la cookie explicitamente', /credentials: 'same-origin'/.test(storage));
+check('la subida ata el archivo a quien entro por la puerta', /idDeQuienEntra\(\)/.test(storage));
 check('la metadata del asset va por la API', /postWorkspaceAction\('asset'/.test(storage));
 
 // 3. El servidor existe y es quien autoriza.
 const route = fs.readFileSync(path.join(repoRoot, 'src/app/api/workspace/[action]/route.ts'), 'utf8');
 check('la ruta de workspace existe', route.length > 0);
 check('el servidor usa la service role para escribir', /SUPABASE_SERVICE_ROLE_KEY/.test(route));
-check('el servidor exige sesion', /auth\.getUser\(\)/.test(route));
+// La puerta: el servidor tiene que saber quien entra por la cookie firmada, y
+// no aceptar ninguna identidad que venga en el cuerpo de la peticion.
+check('el servidor exige la cookie de la puerta', /quienEs\(\)/.test(route));
+check('el servidor NO acepta la identidad del cuerpo', !/body\.email\b/.test(route));
 check('el rol se lee de rr_hub_access, no del cuerpo', /from\('rr_hub_access'\)[\s\S]{0,80}role_in_project/.test(route));
 check('el servidor NO acepta el rol del cliente', !/body\.role\b/.test(route));
 // Un comentario que promete una garantia falsa es peor que no prometer nada.
