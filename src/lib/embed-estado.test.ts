@@ -28,6 +28,8 @@ describe('el embed declara su estado', () => {
     expect(embed).toMatch(/addEventListener\('message', alMensaje\)/);
     expect(embed).toMatch(/SENALES_DE_PLATAFORMA = new Set/);
     expect(embed).toMatch(/'MEASURE'/);
+    // `MOUNTED` llega después de `MEASURE` y también significa que está montado.
+    expect(embed).toMatch(/'MOUNTED'/);
   });
 
   it('MEASURE es la señal real, medida; onRender es la de la documentación vieja', () => {

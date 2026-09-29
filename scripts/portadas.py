@@ -64,6 +64,26 @@ PORTADAS: dict[str, dict] = {
         "pie": "lo que hay antes de que exista",
         "forma": "bastidores",
     },
+    "bebida": {
+        "rotulo": "LO QUE SE SIRVE",
+        "pie": "el vaso ya lleno, sin la mesa",
+        "forma": "bebida",
+    },
+    "bolsa": {
+        "rotulo": "LA BOLSA ABIERTA",
+        "pie": "lo que sale y lo que no",
+        "forma": "bolsa",
+    },
+    "fluido": {
+        "rotulo": "EL FLUIDO",
+        "pie": "una sola toma, quieta",
+        "forma": "fluido",
+    },
+    "detalle": {
+        "rotulo": "EL DETALLE",
+        "pie": "el que nadie photographía",
+        "forma": "detalle",
+    },
     "materia": {
         "rotulo": "LO QUE HAY ANTES",
         "pie": "de la naranja al vaso servido",
@@ -179,6 +199,49 @@ def _materia() -> str:
     """.format(t=TINTA, m=MOSTAZA)
 
 
+
+def _bebida() -> str:
+    return """
+    <path d="M420 400 L470 960 L610 960 L660 400 Z" fill="none" stroke="{t}" stroke-width="2"/>
+    <path d="M432 600 L648 600 L632 800 L448 800 Z" fill="{m}" opacity="0.55" stroke="{t}" stroke-width="2"/>
+    <line x1="420" y1="400" x2="660" y2="400" stroke="{t}" stroke-width="2"/>
+    <circle cx="600" cy="520" r="30" fill="none" stroke="{t}" stroke-width="2"/>
+    <line x1="540" y1="330" x2="540" y2="400" stroke="{t}" stroke-width="2"/>
+    """.format(t=TINTA, m=MOSTAZA)
+
+
+def _bolsa() -> str:
+    return """
+    <path d="M360 520 L720 520 L690 980 L390 980 Z" fill="none" stroke="{t}" stroke-width="2"/>
+    <path d="M430 520 Q430 380 540 380 Q650 380 650 520" fill="none" stroke="{t}" stroke-width="2"/>
+    <line x1="400" y1="700" x2="680" y2="700" stroke="{t}" stroke-width="2"/>
+    <rect x="470" y="640" width="140" height="90" fill="{m}" opacity="0.5" stroke="{t}" stroke-width="2"/>
+    <line x1="390" y1="830" x2="690" y2="830" stroke="{t}" stroke-width="2"/>
+    """.format(t=TINTA, m=MOSTAZA)
+
+
+def _fluido() -> str:
+    return """
+    <path d="M360 420 L720 420 L620 980 L460 980 Z" fill="none" stroke="{t}" stroke-width="2"/>
+    <path d="M372 640 Q540 600 708 640 L676 780 Q540 748 404 780 Z" fill="{m}" opacity="0.55" stroke="{t}" stroke-width="2"/>
+    <circle cx="470" cy="700" r="24" fill="none" stroke="{t}" stroke-width="2"/>
+    <circle cx="590" cy="740" r="20" fill="none" stroke="{t}" stroke-width="2"/>
+    <line x1="360" y1="420" x2="720" y2="420" stroke="{t}" stroke-width="2"/>
+    """.format(t=TINTA, m=MOSTAZA)
+
+
+def _detalle() -> str:
+    return """
+    <circle cx="540" cy="640" r="300" fill="none" stroke="{t}" stroke-width="2"/>
+    <circle cx="540" cy="640" r="150" fill="none" stroke="{t}" stroke-width="2"/>
+    <circle cx="540" cy="640" r="52" fill="{m}" opacity="0.55" stroke="{t}" stroke-width="2"/>
+    <line x1="240" y1="640" x2="440" y2="640" stroke="{t}" stroke-width="2"/>
+    <line x1="640" y1="640" x2="840" y2="640" stroke="{t}" stroke-width="2"/>
+    <line x1="540" y1="340" x2="540" y2="488" stroke="{t}" stroke-width="2"/>
+    <line x1="540" y1="792" x2="540" y2="940" stroke="{t}" stroke-width="2"/>
+    """.format(t=TINTA, m=MOSTAZA)
+
+
 FORMAS = {
     "vaso": _vaso,
     "aire": _aire,
@@ -187,6 +250,10 @@ FORMAS = {
     "tela": _tela,
     "bastidores": _bastidores,
     "materia": _materia,
+    "bebida": _bebida,
+    "bolsa": _bolsa,
+    "fluido": _fluido,
+    "detalle": _detalle,
 }
 
 

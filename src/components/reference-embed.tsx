@@ -46,7 +46,8 @@ const MS_ULTIMO_INTENTO = 12_000;
  * enviado desde la página anfitriona, así que sin ese `postMessage` la
  * respuesta no llega nunca.
  */
-const SENALES_DE_PLATAFORMA = new Set(['MEASURE', 'onRender', 'embedResize']);
+// `MOUNTED` llega después de `MEASURE` y también significa que ya está montado.
+const SENALES_DE_PLATAFORMA = new Set(['MEASURE', 'MOUNTED', 'onRender', 'embedResize']);
 
 /** Lo que se considera "rotura de verdad", para no contarlo como señal. */
 const SENALES_ROTAS = new Set(['LOADING', 'ERROR', 'error']);
