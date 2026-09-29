@@ -85,6 +85,11 @@ export function Icon({ name, size = 16, className, strokeWidth = 2, ...rest }: {
       aria-hidden="true"
       focusable="false"
       className={className}
+      // El nombre del icono viaja al DOM. Sin esto, medir "qué icono sale" en
+      // una prueba automática exige contar trazos de un SVG, y dos iconos
+      // parecidos son indistinguibles. Con `data-icon` la comprobación es
+      // literal: `svg[data-icon="pulgar-arriba"]`.
+      data-icon={name}
       {...rest}
     >
       {PATHS[name]}
