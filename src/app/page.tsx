@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { getIdeas, getProjects } from '@/lib/data';
+import { redirect } from 'next/navigation';
+import { getIdeas, getProjects, getClientesDeLaPersona } from '@/lib/data';
 import { statusMeta, type WorkflowStatus } from '@/lib/flow';
 import { BOARD_COLUMNS } from '@/lib/queues';
 import { Icon } from '@/components/ui/icons';
@@ -25,15 +26,18 @@ export default async function Home() {
   const { projects } = await getProjects();
   const found = firstProject(projects);
 
+  // Sin sesión no se puede saber nada del hub: los proyectos existen, pero
+  // `rr_hub_projects` está detrás del RLS y la anon no lee.
+  //
+  // ⚠️ Lo que fallaba el 2026-09-29 y no debe volver: esta página pedía los
+  // proyectos ANTES de mirar si había cookie, así que sin sesión salía un cartel
+  // de "Sin proyectos disponibles" que además culpaba a Supabase. Era mentira en
+  // dos partes: los proyectos sí existen, y la causa no era la conexión. Ahora
+  // lo primero es la sesión; sin ella, al login.
   if (!found) {
-    return <main className="grid min-h-screen place-items-center bg-negro px-5 py-20">
-      <div className="w-full max-w-2xl border border-blanco-20 p-10 anim-rise">
-        <p className="eyebrow">[RR CONTENT HUB]</p>
-        <h1 className="mt-4 font-display text-4xl font-bold text-blanco">Sin proyectos disponibles.</h1>
-        <p className="mt-5 text-sm leading-7 text-blanco-60">No hay proyectos que mostrar en este momento. Revisa la conexión con Supabase o pide al administrador que habilite un proyecto.</p>
-        <Link href="/audit/wundeer" className="btn-brutal mt-8 inline-flex items-center gap-2">IR A AUDITORÍA <Icon name="arrow" size={14} /></Link>
-      </div>
-    </main>;
+    const sesion = await getClientesDeLaPersona();
+    if (sesion.abiertos.length === 0) redirect('/login');
+    redirect(`/${sesion.actual ?? sesion.abiertos[0].slug}`);
   }
 
   const project = found.project;

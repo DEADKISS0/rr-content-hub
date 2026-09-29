@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
-import { allowedTransitions, ganoLaVotacion, perdioLaVotacion, estadoVotacion, VOTOS_NECESARIOS, votosParaDecidir, ROLE_LABEL, salidaDeLaVotacion, caidaDeLaVotacion, type RoleKey, type WorkflowStatus, PUEDE_EDITAR, PUEDE_ESCRIBIR_GUION, PUEDE_COMENTAR } from '@/lib/flow';
+import { allowedTransitions, ganoLaVotacion, perdioLaVotacion, estadoVotacion, VOTOS_NECESARIOS, votosParaDecidir, ROLE_LABEL, salidaDeLaVotacion, caidaDeLaVotacion, hayCambioPedido, frenaLaVotacion, salidaDelCambioPedido, DECISIONES_VOTO, type DecisionVoto, type RoleKey, type WorkflowStatus, PUEDE_EDITAR, PUEDE_ESCRIBIR_GUION, PUEDE_COMENTAR } from '@/lib/flow';
 import { rolEnProyecto } from '@/lib/project-guard';
 import { quienEs } from '@/lib/quien-es';
 
@@ -350,8 +350,30 @@ export async function POST(request: NextRequest) {
     const token = str(body.voterToken, 100);
     if (!token) return error('Falta el token de votante.', 400);
 
-    const decision = str(body.decision, 10);
-    if (decision !== 'yes' && decision !== 'no') return error('El voto debe ser "yes" o "no".', 400);
+    // Las cuatro respuestas, no dos. Santiago, 2026-09-29: hacía falta poder
+    // decir "ni sí ni no, hay que cambiar algo" dentro de la votación, y poder
+    // dejar una nota sin bloquear.
+    //
+    // La lista sale de `flow.ts` (DECISIONES_VOTO), no de una comparación
+    // escrita aquí: si el dominio crece y esta validación no, la base acepta un
+    // valor que el conteo no reconoce y la votación se queda trabada sin error.
+    const decision = str(body.decision, 10) as DecisionVoto;
+    if (!DECISIONES_VOTO.includes(decision)) {
+      return error('La respuesta debe ser "yes", "no", "change" o "note".', 400);
+    }
+
+    // `change` y `note` son inútiles sin texto, y aquí se comprueba antes de
+    // tocar la base. El mismo requisito está como `check` en la tabla: que la
+    // interfaz pueda romperse no significa que el dato pueda entrar roto.
+    const nota = str(body.note, 800);
+    if ((decision === 'change' || decision === 'note') && !nota) {
+      return error(
+        decision === 'change'
+          ? 'Pedir un cambio sin decir cuál no sirve de nada. Escribe qué hay que cambiar.'
+          : 'La nota va vacía. Escribe lo que quieras que sepas.',
+        400,
+      );
+    }
 
     const { data: idea, error: ideaError } = await supabase
       .from('rr_hub_ideas').select('status').eq('id', ideaId).maybeSingle();
@@ -403,9 +425,17 @@ export async function POST(request: NextRequest) {
       .update({ last_seen_at: new Date().toISOString() })
       .eq('id', enEquipo.id);
 
-    // Upsert en vez de insert: cambiar el voto es legítimo, duplicarlo no.
+    // Upsert en vez de insert: cambiar la respuesta es legítimo, duplicarla no.
+    // La nota solo se guarda en `change` y `note`; en `yes` y `no` se manda a
+    // null para que un voto anterior con nota no se quede pegado a un "sí".
     const { error: voteError } = await service.from('rr_hub_votes').upsert(
-      { idea_id: ideaId, voter_token: token, decision, voter_email: votanteEmail },
+      {
+        idea_id: ideaId,
+        voter_token: token,
+        decision,
+        voter_email: votanteEmail,
+        note: decision === 'change' || decision === 'note' ? nota : null,
+      },
       { onConflict: 'idea_id,voter_token' },
     );
     if (voteError) return error(voteError.message, 500);
@@ -417,6 +447,7 @@ export async function POST(request: NextRequest) {
 
     const aFavor = (votos ?? []).filter((v) => v.decision === 'yes').length;
     const enContra = (votos ?? []).filter((v) => v.decision === 'no').length;
+    const cambiosPedidos = (votos ?? []).filter((v) => frenaLaVotacion(v.decision as DecisionVoto)).length;
     const gano = ganoLaVotacion(aFavor, enContra);
     const perdio = perdioLaVotacion(aFavor, enContra);
     const comoVa = estadoVotacion(aFavor, enContra);
@@ -445,7 +476,7 @@ export async function POST(request: NextRequest) {
       if (movida?.status === SALIDA_VOTACION) {
         await service.from('rr_hub_events').insert({
           idea_id: ideaId, from_status: ESTADO_VOTANDO, to_status: SALIDA_VOTACION,
-          comment: `Aprobada por mayoría simple: ${aFavor} a favor, ${enContra} en contra.`,
+          comment: `Aprobada por votación interna: ${aFavor} a favor, ${enContra} en contra (mínimo ${VOTOS_NECESARIOS}).`,
           actor_label: 'VOTACIÓN INTERNA',
         });
       }
@@ -478,16 +509,50 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (frenaLaVotacion(decision) && hayCambioPedido(cambiosPedidos)) {
+      const REVISION = salidaDelCambioPedido();
+      if (!REVISION) return error('La votación no tiene salida de vuelta a revisión interna.', 500);
+
+      // A diferencia de `gano` y `perdio`, esto no depende de un recuento de
+      // mínimos: basta con que alguien haya pedido un cambio. Se comprueba que
+      // la idea SIGA en votación para no pisar una salida que ya ocurrió.
+      const { error: frenoError } = await service
+        .from('rr_hub_ideas')
+        .update({ status: REVISION, updated_at: new Date().toISOString() })
+        .eq('id', ideaId)
+        .eq('status', ESTADO_VOTANDO);
+      if (frenoError) return error(frenoError.message, 500);
+
+      const { data: frenada } = await service
+        .from('rr_hub_ideas').select('status').eq('id', ideaId).maybeSingle();
+      if (frenada?.status === REVISION) {
+        await service.from('rr_hub_events').insert({
+          idea_id: ideaId, from_status: ESTADO_VOTANDO, to_status: REVISION,
+          comment: `Cambio pedido en la votación (${cambiosPedidos}). Vuelve a revisión interna: ${nota}`,
+          actor_label: 'VOTACIÓN INTERNA',
+        });
+      }
+    }
+
     return NextResponse.json({
       success: true, decision, aFavor, enContra, gano,
       // `estado` es el estado real, no el esperado: se relee de la base, así que
       // si la votación no decidió, la respuesta lo dice en vez de dejar creer que
       // la pieza se movió. `votacion` y `faltan` son para el texto que lo explica:
       // sin ellos, quien vota ve "1 a favor" y no sabe si eso decidía algo.
-      estado: gano ? SALIDA_VOTACION : perdio ? caidaDeLaVotacion() ?? idea.status : idea.status,
+      estado: gano
+        ? SALIDA_VOTACION
+        : perdio
+          ? caidaDeLaVotacion() ?? idea.status
+          : frenaLaVotacion(decision) && hayCambioPedido(cambiosPedidos)
+            ? salidaDelCambioPedido() ?? idea.status
+            : idea.status,
       votacion: comoVa,
       faltan,
       minimo: VOTOS_NECESARIOS,
+      // Cuántos cambios se han pedido. La interfaz lo dice, porque la pieza acaba
+      // de volver a revisión interna y el equipo tiene que saber por qué.
+      cambiosPedidos,
     });
   }
 

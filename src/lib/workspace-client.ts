@@ -1,6 +1,6 @@
 'use client';
 
-import { ROLE_LABEL, allowedTransitions, type RoleKey, type WorkflowStatus } from '@/lib/flow';
+import { ROLE_LABEL, allowedTransitions, type RoleKey, type WorkflowStatus, type DecisionVoto } from '@/lib/flow';
 
 /**
  * Client-side workspace operations backed by Supabase.
@@ -245,17 +245,32 @@ export type VotoResultado = {
   faltan?: number;
   /** El mínimo vigente, para poder decirlo en el texto sin inventarlo. */
   minimo?: number;
+  /**
+   * Cuántas personas han pedido un cambio.
+   *
+   * No es un voto: no cuenta para el mínimo ni gana ni pierde. Pero sí mueve la
+   * pieza, y la interfaz tiene que decirlo o alguien cree que su "cambiar esto"
+   * se perdió.
+   */
+  cambiosPedidos?: number;
 };
 
 export async function voteIdea(
   ideaId: string,
-  decision: 'yes' | 'no',
+  decision: DecisionVoto,
+  nota = '',
 ): Promise<VotoResultado> {
   const token = tokenVotante();
   if (!token) {
     return { error: 'Este navegador no puede emitir un voto con seguridad.' };
   }
-  const response = await postWorkspaceAction('vote', { ideaId, voterToken: token, decision });
+  // `note` va siempre, también vacío: la API lo ignora en `yes` y `no` y lo exige
+  // en `change` y `note`. Mandarlo siempre evita tener que decidir en el
+  // navegador si el campo va o no, y que aparezca el aviso de "no dice qué
+  // cambiar" sin que se haya escrito nada.
+  const response = await postWorkspaceAction('vote', {
+    ideaId, voterToken: token, decision, note: nota,
+  });
   if (!response) return { error: 'No se pudo contactar al servidor.' };
   if (response.error) return { error: String(response.error) };
   return {
@@ -266,6 +281,7 @@ export async function voteIdea(
     votacion: (response.votacion as VotoResultado['votacion']) ?? 'esperando',
     faltan: Number(response.faltan ?? 0),
     minimo: Number(response.minimo ?? 0),
+    cambiosPedidos: Number(response.cambiosPedidos ?? 0),
   };
 }
 

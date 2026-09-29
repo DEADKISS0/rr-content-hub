@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { entrarConCodigo, type ClienteConCodigo } from '@/lib/hub-client';
+import { Icon } from '@/components/ui/icons';
 
 /**
  * La puerta del hub: cuatro dígitos y tu nombre.
@@ -35,6 +36,24 @@ import { entrarConCodigo, type ClienteConCodigo } from '@/lib/hub-client';
  *   y lo que vuelve es el nombre del cliente y su lista de gente, no el código.
  */
 
+/**
+ * Las puertas, con su código, para que un clic lo escriba.
+ *
+ * El código viaja al navegador porque sin él no se puede rellenar, y porque no
+ * es una credencial: es un separador de clientes, y lo que protege de verdad es
+ * la fila de `rr_hub_access`, que se comprueba en el servidor. Aun así no se
+ * pinta en el texto del botón — el número se ve en las casillas, que es donde
+ * toca. Antes había una lista que lo imprimía entero debajo del formulario.
+ *
+ * Añadir un cliente es añadir una línea aquí Y darle su código en
+ * `rr_hub_projects.clave_codigo`. Nada más: la puerta, el selector y la lista
+ * del selector salen de ahí.
+ */
+const PUERTAS = [
+  { slug: 'wundeer', nombre: 'WUNDEER', color: '#be076d', codigo: '1111' },
+  { slug: 'candilejas', nombre: 'CANDILEJAS', color: '#ded116', codigo: '2222' },
+] as const;
+
 export default function LoginPage() {
   return <Formulario />;
 }
@@ -47,6 +66,8 @@ function Formulario() {
   const [elegido, setElegido] = useState('');
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
+  // Las cuatro casillas, para poder mover el foco al escribir o al pegar.
+  const casillas = useRef<(HTMLInputElement | null)[]>([]);
 
   const codigo = digitos.join('');
 
@@ -59,11 +80,17 @@ function Formulario() {
         nuevos[indice + i] = limpio[i];
       }
       setDigitos(nuevos);
+      // Pegado o tecleo rápido: el foco va a donde toca, para no tener que
+      // tabular entre las cuatro casillas con el dedo.
+      casillas.current[Math.min(indice + limpio.length, 3)]?.focus();
       return;
     }
     const nuevos = [...digitos];
     nuevos[indice] = limpio;
     setDigitos(nuevos);
+    // Con el dígito puesto, se salta a la siguiente. Y si ya no queda ninguna,
+    // el foco se queda en la última para que Enter sí sirva.
+    if (limpio) casillas.current[Math.min(indice + 1, 3)]?.focus();
   }
 
   /** Backspace en una casilla vacía vuelve a la anterior y la borra. */
@@ -75,6 +102,27 @@ function Formulario() {
       nuevos[indice] = '';
     }
     setDigitos(nuevos);
+  }
+
+  /**
+   * Un clic y el código queda escrito. Pedido el 2026-09-29: teclear cuatro
+   * dígitos en cuatro casillas es tedioso y lento, y la puerta es lo primero
+   * que ve el equipo cada mañana.
+   *
+   * Los botones NO llevan el número en el texto que se ve: llevan el nombre del
+   * cliente y un punto de su color. El código se escribe en las casillas y ya
+   * está, sin que quede escrito en la pantalla. Antes, debajo del formulario,
+   * había una lista que imprimía los dos códigos a la vista; eso se quitó.
+   *
+   * Importante: el botón no entra. Solo rellena. La persona sigue eligiendo su
+   * nombre a continuación, porque el código dice de qué cliente entras pero no
+   * quién eres — eso lo decide la fila de acceso, en el servidor.
+   */
+  function rellenar(codigoCliente: string) {
+    setDigitos(codigoCliente.split('').slice(0, 4));
+    setError('');
+    setCliente(null);
+    setPersonas([]);
   }
 
   /** El código está completo: se mira qué cliente es. */
@@ -150,12 +198,22 @@ function Formulario() {
                   key={i}
                   value={d}
                   onChange={(e) => poner(i, e.target.value)}
+                  ref={(el) => { casillas.current[i] = el; }}
                   onKeyDown={(e) => {
                     if (e.key === 'Backspace') { e.preventDefault(); atras(i); }
                   }}
+                  onPaste={(e) => {
+                    // Pegar el código entero tiene que funcionar: se reparte solo.
+                    const pegado = e.clipboardData.getData('text').replace(/\D/g, '');
+                    if (pegado.length > 1) {
+                      e.preventDefault();
+                      setDigitos(pegado.split('').slice(0, 4));
+                      casillas.current[Math.min(pegado.length, 4) - 1]?.focus();
+                    }
+                  }}
                   inputMode="numeric"
                   autoComplete={i === 0 ? 'one-time-code' : 'off'}
-                  maxLength={4}
+                  maxLength={1}
                   autoFocus={i === 0}
                   aria-label={`Dígito ${i + 1} de 4`}
                   className="h-16 w-full border border-blanco-30 bg-negro text-center font-display text-2xl text-blanco focus:border-blanco-60 focus:outline-none"
@@ -209,25 +267,56 @@ function Formulario() {
       )}
 
       {!cliente && (
-        /* Los códigos se dicen aquí, en la puerta, y no en un correo suelto.
-           La razón es práctica: si el equipo tiene que preguntar "¿cuál es mi
-           código?" por WhatsApp, la puerta se rodea por lo que sea,
-           normalmente con el enlace entero, que ya no sirve. Y un código de
-           cuatro dígitos no es una credencial que valga guardada: es un
-           separador de clientes. Lo que protege de verdad es quién escribe qué,
-           y eso lo decide `rr_hub_access`, no el código. */
+        /* Un botón por cliente y el código se escribe solo. Antes esto era una
+           lista que imprimía los dos números a la vista; Santiago lo pidió
+           cambiado el 2026-09-29 por dos cosas: que se pudiera hacer con un
+           clic, y que el número no quedara escrito en la pantalla.
+
+           Lo que hace el botón es rellenar las casillas, NO entrar. La persona
+           sigue eligiendo su nombre después, que es donde se decide qué puede
+           hacer. Si el botón entrara directamente, bastaría con que alguien
+           suelde el móvil en la mesa para que otro entre con el nombre de otro.
+
+           Y el código no aparece en el texto del botón, solo el nombre del
+           cliente y su punto de color. El número se ve en las casillas, que es
+           donde toca. */
         <div className="mt-12 border-t border-blanco-20 pt-6">
-          <p className="mono-label text-blanco-50">// CÓDIGOS</p>
-          <ul className="mt-3 space-y-1 font-mono text-xs text-blanco-60">
-            <li><span className="text-blanco">WUNDEER</span> · 1111</li>
-            <li><span className="text-blanco">CANDILEJAS</span> · 2222</li>
-          </ul>
+          <p className="mono-label text-blanco-50">// ¿A QUÉ CLIENTE ENTRAS?</p>
+          <div className="mt-3 grid gap-px bg-blanco-10 sm:grid-cols-2">
+            {PUERTAS.map((item) => (
+              <button
+                key={item.slug}
+                type="button"
+                onClick={() => rellenar(item.codigo)}
+                className="group flex items-center gap-3 bg-negro px-4 py-4 text-left transition-colors hover:bg-blanco-05"
+                aria-label={`Escribir el código de ${item.nombre}`}
+              >
+                <span
+                  aria-hidden="true"
+                  className="h-3.5 w-3.5 shrink-0 border border-blanco-40 transition-transform group-hover:scale-110"
+                  style={{ backgroundColor: item.color }}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block font-mono text-xs tracking-[0.08em] text-blanco">
+                    {item.nombre}
+                  </span>
+                  <span className="mt-1 block font-mono text-[10px] text-blanco-50">
+                    UN CLIC · ESCRIBE EL CÓDIGO
+                  </span>
+                </span>
+                <span aria-hidden="true" className="shrink-0 text-blanco-40">
+                  <Icon name="arrow" size={14} />
+                </span>
+              </button>
+            ))}
+          </div>
           <p className="mt-4 text-xs leading-5 text-blanco-50">
             El código abre el cliente. Lo que puedes hacer dentro lo decide tu rol, y ese
             no cambia con el código.
           </p>
         </div>
       )}
+
     </main>
   );
 }

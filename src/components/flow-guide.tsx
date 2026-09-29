@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { statusMeta, type WorkflowStatus } from '@/lib/flow';
+import { statusMeta, STATUS_META, VOTOS_NECESARIOS, allowedTransitions, type WorkflowStatus } from '@/lib/flow';
 import { BOARD_COLUMNS } from '@/lib/queues';
 import { Icon, type IconName } from './ui/icons';
 
@@ -120,6 +120,7 @@ export function FlowGuide({
             <li><b className="text-blanco">2.</b> Cuando el cliente tiene la pelota, la pieza se marca en mostaza. Cuando le toca al equipo, en orquídea. Cuando está en rodaje o edición, en fucsia.</li>
             <li><b className="text-blanco">3.</b> El medidor INFO de cada tarjeta dice cuánta información clave está cargada (0 a 5). Si está bajo, alguien va a preguntar.</li>
           </ol>
+          <ReglasDelFlujo />
         </div>
       )}
     </section>
@@ -133,4 +134,129 @@ function firstActor(ideas: { status: string }[], statuses: readonly string[]): s
   const actors = inStep.map((idea) => statusMeta(idea.status as WorkflowStatus).who);
   const unique = Array.from(new Set(actors));
   return `ESPERA A: ${unique.slice(0, 2).join(' · ')}`;
+}
+
+/**
+ * Las reglas, no los pasos.
+ *
+ * La guía de arriba explica QUÉ pasa en cada paso. Esta explica qué DECISIÓN hay
+ * que tomar en cada bifurcación, que es la parte que no se deducía sola: qué
+ * pasa cuando la votación no se completa, qué hace un cambio pedido, a dónde
+ * va una pieza cuando el cliente no contesta, y quién puede mover cada cosa.
+ *
+ * Pedido por Santiago el 2026-09-29: "metele mucho pero mucho al apartado de los
+ * flujos de la página". Antes esta sección solo decía qué era cada paso; las
+ * reglas vivían únicamente en el código, y quien entraba no tenía forma de
+ * saberlas sin leer el repositorio.
+ *
+ * Todos los números salen de `flow.ts` (`VOTOS_NECESARIOS`, `TRANSITIONS`).
+ * Si la regla cambia, esta caja cambia sola. Escribir un "tres" aquí sería
+ * inventar una verdad que el motor no comparte.
+ */
+function ReglasDelFlujo() {
+  // Los estados que esperan al cliente, leídos del dominio. No se escriben a
+  // mano: si mañana aparece un quinto estado "esperando al cliente", sale solo.
+  const esperandoAlCliente = Object.values(STATUS_META).filter((meta) => meta.who.toUpperCase().includes('CLIENTE'));
+  // Las salidas de cada estado, por rol. La pregunta que se hace es "qué puede
+  // hacer el rol que más puede", no "qué puede hacer cualquiera": si no, la
+  // respuesta sería "todo" y no informaría de nada.
+  const conSalida = allowedTransitions('owner', 'internal_review');
+  const sinSalida = allowedTransitions('owner', 'voting');
+
+  return (
+    <div className="mt-5 border-t border-blanco-10 pt-4">
+      <p className="mono-label text-blanco-40">[LAS REGLAS, QUE NO SE DEDUCEN]</p>
+
+      <div className="mt-3 grid gap-px bg-blanco-10 sm:grid-cols-2">
+        {/* La votación, que es la regla que más sorprendió a la gente: con
+            mayoría simple, un solo sí movía la pieza. */}
+        <Regla titulo="LA VOTACIÓN INTERNA" icono="check">
+          <p>
+            Una idea sale al cliente cuando hay <b className="text-blanco">{VOTOS_NECESARIOS} votos a favor</b>.
+            Ni uno menos: {VOTOS_NECESARIOS - 1} sí no la mueven. Con la mayoría simple de antes, una sola
+            persona pulsaba y la pieza salía sola.
+          </p>
+          <p>
+            En contra pasa igual: <b className="text-blanco">{VOTOS_NECESARIOS} en contra</b> la devuelven a
+            revisión interna. Tres en contra no es &quot;mucha gente en contra&quot;, es una decisión.
+          </p>
+          <p>
+            <b className="text-blanco">Empate no es empate.</b> Con {VOTOS_NECESARIOS * 2 - 2} a favor y {VOTOS_NECESARIOS * 2 - 2} en
+            contra la votación sigue abierta: no se resuelve votando una vez más.
+          </p>
+        </Regla>
+
+        <Regla titulo="LAS CUATRO RESPUESTAS" icono="comment">
+          <p>
+            La votación no es solo sí y no. También se puede <b className="text-blanco">pedir un cambio</b>{' '}
+            o <b className="text-blanco">dejar una nota</b>.
+          </p>
+          <p>
+            <b className="text-blanco">Pedir un cambio frena la votación</b> y devuelve la idea a revisión
+            interna para aplicar lo que pediste. No cuenta como voto en contra: no la tira, la devuelve. Y
+            basta <b className="text-blanco">una sola persona</b> pidiéndolo, porque quien pide un cambio está
+            diciendo que la idea no está lista, y eso no se gana votando.
+          </p>
+          <p>
+            <b className="text-blanco">La nota no cuenta ni frena.</b> Es contexto para el equipo y ya.
+          </p>
+        </Regla>
+
+        <Regla titulo="CUANDO EL CLIENTE NO RESPONDE" icono="clock">
+          <p>
+            Los estados en <b className="text-mostaza">mostaza</b> son los que esperan al cliente: son su
+            pelota, no tuya. Puedes mirarlos, pero no moverlos.
+          </p>
+          <p>
+            {esperandoAlCliente.length > 0 ? (
+              <>Ahora mismo son: <b className="text-blanco">{esperandoAlCliente.map((meta) => meta.label).join(' · ')}</b>.</>
+            ) : null}
+          </p>
+          <p>
+            Si alguien se atasca ahí, la salida es que Dirección lo empuje; la pieza no vence sola.
+          </p>
+        </Regla>
+
+        <Regla titulo="QUIÉN PUEDE MOVER QUÉ" icono="user">
+          <p>
+            Los botones no se pintan si no te corresponden. Lo que decides es tu <b className="text-blanco">rol en
+            ese cliente</b>, no tu rol general, y puede ser distinto en cada uno.
+          </p>
+          <p>
+            Desde revisión interna, Dirección puede:{' '}
+            {conSalida.length > 0
+              ? <b className="text-blanco">{conSalida.map((m) => m.label).join(' · ')}</b>
+              : <span className="text-blanco-40">nada, el flujo está cerrado</span>}.
+          </p>
+          <p>
+            Desde votación:{' '}
+            {sinSalida.length > 0
+              ? <b className="text-blanco">{sinSalida.map((m) => m.label).join(' · ')}</b>
+              : <span className="text-blanco-40">nada, el flujo está cerrado</span>}.
+          </p>
+          <p>
+            Con otros roles hay menos: un <b className="text-blanco">cliente</b> solo aprueba, y un{' '}
+            <b className="text-blanco">creativo</b> propone y edita. Los botones que no te tocan no se pintan.
+          </p>
+        </Regla>
+      </div>
+
+      <p className="mt-3 font-mono text-[10px] leading-4 text-blanco-40">
+        ESTAS REGLAS VIENEN DEL MOTOR, NO DE UN TEXTO FIJO. SI CAMBIAN, CAMBIA AQUÍ SOLO.
+      </p>
+    </div>
+  );
+}
+
+/** Una caja de regla. El borde va en fucsia: es información, no acción. */
+function Regla({ titulo, icono, children }: { titulo: string; icono: IconName; children: React.ReactNode }) {
+  return (
+    <div className="bg-negro p-4">
+      <p className="flex items-center gap-2 font-mono text-[10px] tracking-[0.1em] text-blanco">
+        <span className="text-orquidea"><Icon name={icono} size={13} /></span>
+        {titulo}
+      </p>
+      <div className="mt-2 space-y-2 font-mono text-[10px] leading-5 text-blanco-60">{children}</div>
+    </div>
+  );
 }

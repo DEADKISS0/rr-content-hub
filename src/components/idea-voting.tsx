@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { voteIdea, type VotoResultado } from '@/lib/workspace-client';
-import { estadoVotacion, votosParaDecidir, VOTOS_NECESARIOS } from '@/lib/flow';
+import { estadoVotacion, votosParaDecidir, VOTOS_NECESARIOS, type DecisionVoto } from '@/lib/flow';
 import { Icon } from '@/components/ui/icons';
 
 /**
@@ -51,9 +51,14 @@ export function IdeaVoting({
 }) {
   const [aFavor, setAFavor] = useState(inicial.aFavor);
   const [enContra, setEnContra] = useState(inicial.enContra);
+  const [cambios, setCambios] = useState(0);
   const [enviando, setEnviando] = useState(false);
   const [aviso, setAviso] = useState('');
   const [fallo, setFallo] = useState('');
+  // El panel de "cambio" y el de "nota" son el mismo control con dos textos
+  // distintos. Se abre con el botón y se cierra solo al responder.
+  const [pidiendo, setPidiendo] = useState<'change' | 'note' | null>(null);
+  const [texto, setTexto] = useState('');
 
   const total = aFavor + enContra;
   // La regla vive en el dominio: aquí solo se pinta lo que ya decidió. Si el
@@ -65,19 +70,22 @@ export function IdeaVoting({
   // informa, o desaparece si nunca hubo votación.
   const abierto = status === 'voting';
 
-  const votar = useCallback(async (decision: 'yes' | 'no') => {
+  const votar = useCallback(async (decision: DecisionVoto, nota = '') => {
     if (enviando) return;
     setEnviando(true);
     setFallo('');
     setAviso('');
 
-    const resultado: VotoResultado = await voteIdea(ideaId, decision);
+    const resultado: VotoResultado = await voteIdea(ideaId, decision, nota);
     setEnviando(false);
 
     if (resultado.error) { setFallo(resultado.error); return; }
 
     setAFavor(resultado.aFavor ?? 0);
     setEnContra(resultado.enContra ?? 0);
+    setCambios(resultado.cambiosPedidos ?? 0);
+    setPidiendo(null);
+    setTexto('');
 
     // Lo que dice el servidor, no lo que el navegador supone. Antes, con un
     // voto a favor la respuesta decía "que se adelante" aunque la pieza ya
@@ -91,6 +99,20 @@ export function IdeaVoting({
     } else if (resultado.votacion === 'perdida') {
       setAviso('La votación se decidió en contra. La idea vuelve a revisión interna.');
       window.setTimeout(() => window.location.reload(), 1400);
+    } else if (decision === 'change') {
+      // El cambio pedido mueve la pieza aunque no haya mínimo. Y hay que decirlo
+      // claro: no es que "quedan votos", es que alguien pidió tocar algo y la idea
+      // vuelve a escribirse. Dejarlo como un "faltan 3" escondería lo que pasó.
+      const cuantos = resultado.cambiosPedidos ?? 1;
+      setAviso(
+        `Tu cambio quedó pedido (${cuantos} en total). La idea vuelve a revisión interna `
+        + `para aplicar lo que pediste.`,
+      );
+      window.setTimeout(() => window.location.reload(), 2200);
+    } else if (decision === 'note') {
+      // La nota no cuenta ni frena: se dice eso mismo, para que nadie espere que
+      // su nota haya movido nada.
+      setAviso('Tu nota quedó con el equipo. No cuenta como voto ni detiene la votación.');
     } else {
       const faltanAhora = resultado.faltan ?? 1;
       setAviso(
@@ -163,7 +185,89 @@ export function IdeaVoting({
               <Icon name="close" size={13} />
               VOTO EN CONTRA
             </button>
+            {/* La tercera y la cuarta respuesta. Santiago, 2026-09-29: hacía
+                falta poder decir "ni sí ni no, hay que cambiar algo" sin que
+                eso fuera equivalente a votar en contra. Aquí se abre un campo
+                para decir QUÉ, porque un cambio sin decir cuál no sirve.
+
+                "Dejar una nota" es lo otro que pidió: comentar sin bloquear.
+                Y avisa de que no cuenta, para que nadie espere que su nota mueva
+                algo. */}
+            <button
+              type="button"
+              onClick={() => { setPidiendo('change'); setTexto(''); }}
+              disabled={enviando}
+              className="btn-ghost inline-flex items-center gap-2 border-dashed disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Icon name="pen" size={13} />
+              QUIERO QUE CAMBIEN ALGO
+            </button>
+            <button
+              type="button"
+              onClick={() => { setPidiendo('note'); setTexto(''); }}
+              disabled={enviando}
+              className="btn-ghost inline-flex items-center gap-2 border-dashed disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Icon name="comment" size={13} />
+              DEJAR UNA NOTA
+            </button>
           </div>
+
+          {pidiendo && (
+            <div className="mt-4 border border-mostaza-40 bg-mostaza-05 p-4 anim-rise">
+              <label
+                htmlFor="nota-votacion"
+                className="mono-label block text-mostaza"
+              >
+                {pidiendo === 'change' ? '// QUÉ HAY QUE CAMBIAR' : '// TU NOTA PARA EL EQUIPO'}
+              </label>
+              <textarea
+                id="nota-votacion"
+                value={texto}
+                onChange={(e) => setTexto(e.target.value)}
+                rows={3}
+                maxLength={800}
+                autoFocus
+                placeholder={
+                  pidiendo === 'change'
+                    ? 'Por ejemplo: el gancho está bien pero el formato no cabe en 15 segundos.'
+                    : 'Lo que quieras que sepas, sin que esto pare la votación.'
+                }
+                className="mt-2 w-full resize-y border border-blanco-20 bg-negro p-3 text-sm leading-6 text-blanco placeholder:text-blanco-30 focus:border-mostaza focus:outline-none"
+              />
+              <p className="mt-2 font-mono text-[10px] leading-4 text-blanco-50">
+                {pidiendo === 'change'
+                  ? 'Con esto la idea vuelve a revisión interna para aplicar el cambio. No es un voto en contra: no la tira, la devuelve.'
+                  : 'Esto no cuenta como voto ni detiene la votación. Solo lo lee el equipo.'}
+              </p>
+              <div className="mt-3 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setPidiendo(null); setTexto(''); }}
+                  disabled={enviando}
+                  className="btn-ghost"
+                >
+                  CANCELAR
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void votar(pidiendo, texto)}
+                  disabled={enviando || texto.trim().length === 0}
+                  className="btn-brutal inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {enviando ? 'ENVIANDO…' : pidiendo === 'change' ? 'PEDIR EL CAMBIO' : 'ENVIAR LA NOTA'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {cambios > 0 && !pidiendo && (
+            <p className="mt-4 border-l-4 border-l-mostaza bg-mostaza-05 px-3 py-2 text-sm leading-6 text-mostaza">
+              {cambios === 1
+                ? 'Alguien pidió cambiar algo. La idea está en revisión interna hasta que se aplique.'
+                : `${cambios} personas pidieron cambios. La idea está en revisión interna hasta que se apliquen.`}
+            </p>
+          )}
         </>
       ) : (
         <p className="mt-4 font-mono text-[10px] text-blanco-50">

@@ -321,6 +321,80 @@ export function caidaDeLaVotacion(): WorkflowStatus | null {
 }
 
 /**
+ * Lo que alguien pidió al responder la votación.
+ *
+ * Antes eran solo `yes` y `no`, y el problema no era técnico sino de información:
+ * quien no estuviera de acuerdo con la idea tal como estaba no tenía dónde
+ * decirlo DENTRO de la votación. Se abstuvía (y su desacuerdo se perdía), votaba
+ * en contra (y bloqueaba, que es distinto de pedir un cambio), o se iba al chat
+ * (donde nadie lo lee).
+ *
+ * Santiago lo pidió el 2026-09-29: "aún no pueda votar sí o no, o un apartado
+ * para poner [que] podría ser pero cambiándole tal cosa".
+ *
+ *   yes    → sale si gana
+ *   no     → no sale
+ *   change → ni sí ni no: hay que cambiar algo. Frena la votación.
+ *   note   → comentario sin bloquear. Aporta y no cuenta.
+ *
+ * `change` y `note` NO son voters a favor ni en contra, y por eso no cuentan
+ * para `VOTOS_NECESARIOS`. Es lo importante de esta decisión: si un "cambiar
+ * esto" contara como voto, tres personas pidiendo cambios moverían la pieza
+ * igual que tres aprobaciones, que es justo lo contrario de lo que significa.
+ */
+export type DecisionVoto = 'yes' | 'no' | 'change' | 'note';
+
+/**
+ * Las decisiones que cuentan para decidir, y las que solo aportan.
+ *
+ * La tabla `rr_hub_votes` tiene el mismo `check` a cuatro valores (migración
+ * `20260929_hub_voto_cambio_y_nota.sql`). Si esta lista y ese `check` se
+ * separan, la base acepta un valor que el dominio no conoce y el conteo falla en
+ * silencio; `verify-flow` lo comprueba.
+ */
+export const DECISIONES_VOTO: readonly DecisionVoto[] = ['yes', 'no', 'change', 'note'];
+
+/** `yes` y `no` son los únicos que deciden. `change` frena, `note` informa. */
+export const DECISIONES_QUE_DECIDEN: readonly DecisionVoto[] = ['yes', 'no'];
+
+/**
+ * ¿Hay que mirar esta respuesta antes de que la votación decida?
+ *
+ * Un solo cambio pedido basta. No se pone un número ni se exige mayoría de
+ * "cambios": quien pide un cambio está diciendo que la idea no está lista, y eso
+ * es un hecho, no una preferencia que se pueda ganar votando.
+ *
+ * Con uno solo, la votación queda frenada aunque haya cuatro sí. Al revés sería
+ * absurdo: la gente que vota a favor no ha visto todavía el cambio que alguien
+ * pidió, así que su sí no está informado.
+ */
+export function hayCambioPedido(cambiosPedidos: number): boolean {
+  return cambiosPedidos > 0;
+}
+
+/**
+ * ¿Esta respuesta deja la votación como estaba?
+ *
+ * `note` no frena nada: es contexto, y si frenara, un comentario cualquiera
+ * bloquearía la pieza. `change` sí.
+ */
+export function frenaLaVotacion(decision: DecisionVoto): boolean {
+  return decision === 'change';
+}
+
+/**
+ * La respuesta sale de la votación abierta y vuelve a revisión interna.
+ *
+ * La misma salida que usa `caidaDeLaVotacion`, y por el mismo motivo: sale de la
+ * tabla de transiciones. Añadir un estado nuevo aquí sería inventar un nombre que
+ * la tabla no tiene, y el cambio pedido es exactamente lo mismo que una votación
+ * perdida — la idea no sale, vuelve a escribirse.
+ */
+export function salidaDelCambioPedido(): WorkflowStatus | null {
+  return caidaDeLaVotacion();
+}
+
+/**
  * Who the piece is waiting for right now.
  *
  * This used to special-case the two client-waiting states with a hardcoded
