@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 import { quienEs } from '@/lib/quien-es';
 import { DEMO_MODE, SupabaseNotConfiguredError } from './demo-mode';
 import { demoIdeas, demoProjects, getDemoIdea, getDemoProject } from './demo-data';
@@ -9,6 +10,15 @@ import { isVisibleProject } from './projects';
  *
  * The hub lives in the same Supabase project as other RR tools, so every table
  * it owns is prefixed `rr_hub_`. These helpers never read the legacy CRM tables.
+ *
+ * LEE CON LA CLAVE DEL SERVIDOR, y no con la `anon`. No es un descuido ni una
+ * comodidad: desde que la puerta es un código por cliente ya no hay sesión de
+ * Supabase, así que `auth.uid()` devuelve NULL y el RLS deja pasar a nadie. Un
+ * lector anónimo aquí devolvía cero filas en todas partes, y eso se veía como
+ * "el tablero está vacío" y "no tienes permiso", nunca como "el RLS está
+ * cerrado". Con la clave del servidor el RLS no estorba, y lo que decide quién
+ * entra y qué puede hacer es el guard (`project-guard.ts`), que sí sabe quién
+ * es porque recibe la cookie firmada.
  *
  * Missing Supabase config used to degrade to demo fixtures. It no longer does:
  * a missing database is a configuration error, and answering it with invented
@@ -80,7 +90,7 @@ function mapIdea(row: RawIdea) {
 }
 
 export async function getCurrentUser() {
-  const supabase = await createClient();
+  const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) return { user: null, supabase: null };
 
   // Desde el 2026-09-28 la puerta es un código por cliente, así que la identidad
@@ -104,7 +114,7 @@ export async function getCurrentUser() {
 
 export async function getProject(slug: string) {
   if (!isVisibleProject(slug)) return { project: null, access: null, supabase: null };
-  const supabase = await createClient();
+  const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) {
     // Was `admin` — the role that bypasses every transition rule in flow.ts.
     return { project: null, access: null, supabase: null };
@@ -156,7 +166,7 @@ export async function getProject(slug: string) {
  * hueco, porque nadie se da cuenta del hueco.
  */
 export async function getProfileName(userId: string): Promise<{ full_name: string; email: string | null } | null> {
-  const supabase = await createClient();
+  const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) return null;
   const { data } = await supabase
     .from('rr_hub_profiles')
@@ -170,7 +180,7 @@ export async function getProfileName(userId: string): Promise<{ full_name: strin
 }
 
 export async function getProjects() {
-  const supabase = await createClient();
+  const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) {
     // No `admin` role for a missing database. See requireSupabase().
     return { projects: [], supabase: null };
@@ -226,7 +236,7 @@ export async function getProjects() {
 }
 
 export async function getIdeas(projectId: string) {
-  const supabase = await createClient();
+  const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) { requireSupabase(); return demoIdeas; }
 
   const { data } = await supabase
@@ -339,7 +349,7 @@ async function conPortadas(
 }
 
 export async function getIdea(projectId: string, id: string) {
-  const supabase = await createClient();
+  const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) { requireSupabase(); return getDemoIdea(id); }
 
   const { data } = await supabase
@@ -367,7 +377,7 @@ export async function getIdea(projectId: string, id: string) {
 export type ConteoVotos = { aFavor: number; enContra: number; total: number };
 
 export async function getVotos(ideaId: string): Promise<ConteoVotos> {
-  const supabase = await createClient();
+  const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) return { aFavor: 0, enContra: 0, total: 0 };
 
   const { data } = await supabase
@@ -391,7 +401,7 @@ export async function getVotos(ideaId: string): Promise<ConteoVotos> {
 export type PresenciaFila = { email: string; nombre: string | null; lastSeenAt: string | null };
 
 export async function getPresencia(): Promise<PresenciaFila[]> {
-  const supabase = await createClient();
+  const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) return [];
 
   const { data } = await supabase
@@ -422,7 +432,7 @@ export async function getPresencia(): Promise<PresenciaFila[]> {
  * is open, so nothing leaks and nothing can be written.
  */
 export async function getAuditSettings() {
-  const supabase = await createClient();
+  const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) return { enabled: false, opens_at: null, expires_at: null, updated_at: null };
   const { data } = await supabase
     .from('rr_hub_audit_settings')
@@ -434,7 +444,7 @@ export async function getAuditSettings() {
 
 /** Every project, for the global audit index. RLS gates this, not a column filter. */
 export async function getAuditProjects() {
-  const supabase = await createClient();
+  const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) { requireSupabase(); return []; }
   const { data } = await supabase
     .from('rr_hub_projects')
@@ -445,7 +455,7 @@ export async function getAuditProjects() {
 
 /** Read-only administrative surface: roster, access matrix and pending invites. */
 export async function getAuditRoster() {
-  const supabase = await createClient();
+  const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) return { profiles: [], access: [], invites: [] };
   const [profiles, access, invites] = await Promise.all([
     supabase.from('rr_hub_profiles').select('id, email, full_name, global_role, created_at').order('email'),
@@ -457,7 +467,7 @@ export async function getAuditRoster() {
 
 export async function getAuditProject(slug: string) {
   if (!isVisibleProject(slug)) return null;
-  const supabase = await createClient();
+  const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) { requireSupabase(); return null; }
   const { data } = await supabase
     .from('rr_hub_projects')
@@ -468,7 +478,7 @@ export async function getAuditProject(slug: string) {
 }
 
 export async function getAuditIdeas(projectId: string) {
-  const supabase = await createClient();
+  const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) { requireSupabase(); return demoIdeas; }
   const { data } = await supabase
     .from('rr_hub_ideas')
@@ -479,7 +489,7 @@ export async function getAuditIdeas(projectId: string) {
 }
 
 export async function getAuditIdea(projectId: string, id: string) {
-  const supabase = await createClient();
+  const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) { requireSupabase(); return getDemoIdea(id); }
   const { data } = await supabase
     .from('rr_hub_ideas')
@@ -499,7 +509,7 @@ export async function getAuditStats(projectId: string) {
 }
 
 export async function getAuditTimeline(ideaId: string) {
-  const supabase = await createClient();
+  const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) return [];
   const { data } = await supabase
     .from('rr_hub_events')
@@ -516,7 +526,7 @@ export async function getAuditTimeline(ideaId: string) {
 }
 
 export async function getAuditComments(ideaId: string) {
-  const supabase = await createClient();
+  const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) return [];
   const { data } = await supabase
     .from('rr_hub_comments')
@@ -534,7 +544,7 @@ export async function getAuditComments(ideaId: string) {
 }
 
 export async function getAuditAssets(ideaId: string) {
-  const supabase = await createClient();
+  const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) return [];
   const { data } = await supabase
     .from('rr_hub_assets')

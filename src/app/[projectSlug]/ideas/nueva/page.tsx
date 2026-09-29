@@ -1,5 +1,6 @@
 import { NewIdeaForm } from '@/components/new-idea-form';
 import { listarAnuncios, anunciosEnUso } from '@/lib/ad-library-server';
+import { createServiceClient } from '@/lib/supabase/service';
 import { createClient } from '@/lib/supabase/server';
 
 export default async function NewIdea({ params }: { params: Promise<{ projectSlug: string }> }) {
@@ -12,7 +13,10 @@ export default async function NewIdea({ params }: { params: Promise<{ projectSlu
   // funcionando: crear una idea no puede depender de que un catálogo tenga filas.
   let anuncios: Awaited<ReturnType<typeof listarAnuncios>> = [];
   const usosPorAnuncio: Record<string, number> = {};
-  const supabase = await createClient();
+  let projectId: string | null = null;
+  // Con la clave del servidor: `rr_hub_projects` ya no es legible por el
+  // navegador (su tabla tiene los códigos), y esta página es de servidor.
+  const supabase = (await createServiceClient()) ?? (await createClient());
   if (supabase) {
     const { data: project } = await supabase
       .from('rr_hub_projects').select('id').eq('slug', projectSlug).maybeSingle();
@@ -20,6 +24,7 @@ export default async function NewIdea({ params }: { params: Promise<{ projectSlu
       try {
         anuncios = await listarAnuncios(project.id);
         for (const [id, n] of await anunciosEnUso(project.id)) usosPorAnuncio[id] = n;
+        projectId = project.id;
       } catch {
         anuncios = [];
       }
@@ -37,7 +42,12 @@ export default async function NewIdea({ params }: { params: Promise<{ projectSlu
       <div className="mx-auto max-w-4xl px-5 py-10 md:px-10">
         <p className="eyebrow">{projectSlug} · CAPTURA</p>
         <h1 className="display-title">Nueva idea.</h1>
-        <NewIdeaForm projectSlug={projectSlug} anuncios={anuncios} usosPorAnuncio={usosPorAnuncio} />
+        <NewIdeaForm
+          projectSlug={projectSlug}
+          projectId={projectId}
+          anuncios={anuncios}
+          usosPorAnuncio={usosPorAnuncio}
+        />
       </div>
     </main>
   );

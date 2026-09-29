@@ -1,5 +1,6 @@
 import 'server-only';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 
 /**
  * La biblioteca de anuncios, leída del servidor.
@@ -38,7 +39,7 @@ export type AdEntry = {
  * la pestaña de la biblioteca.
  */
 export async function listarAnuncios(projectId: string): Promise<AdEntry[]> {
-  const supabase = await createClient();
+  const supabase = (await createServiceClient()) ?? (await createClient());
   // `createClient` devuelve null si faltan las variables del despliegue. Un null
   // sin avisar deja el selector con "no hay anuncios" y parece que la biblioteca
   // está vacía, cuando lo que falta son las variables.
@@ -72,7 +73,7 @@ export async function listarAnuncios(projectId: string): Promise<AdEntry[]> {
  * en 3 ideas" y no se repita la misma referencia sin querer.
  */
 export async function anunciosEnUso(projectId: string): Promise<Map<string, number>> {
-  const supabase = await createClient();
+  const supabase = (await createServiceClient()) ?? (await createClient());
   if (!supabase) return new Map();
   const { data } = await supabase
     .from('rr_hub_ideas')

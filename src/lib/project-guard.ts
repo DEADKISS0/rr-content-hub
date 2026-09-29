@@ -1,6 +1,7 @@
 // `server-only` on purpose: a guard that leaks into the browser is not a guard.
 import 'server-only';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 import { quienEs } from '@/lib/quien-es';
 import { AUTH_ENABLED } from '@/lib/mode';
 import { PUEDE_EDITAR, type RoleKey } from '@/lib/flow';
@@ -59,7 +60,12 @@ export type VeredictoProyecto = {
  * que es el único sitio donde la respuesta es de fiar.
  */
 export async function rolEnProyecto(projectId: string): Promise<VeredictoProyecto> {
-  const supabase = await createClient();
+  // Con la clave del servidor, no con la `anon`. Sin sesión de Supabase el RLS
+  // no tiene contra qué comparar `auth.uid()`, y la consulta del rol volvía
+  // vacía para todo el mundo: la puerta abría y el tablero salía en solo
+  // lectura, sin error visible. Aquí la identidad la trae la cookie firmada, que
+  // se resuelve arriba; lo que la base hace es devolver la fila.
+  const supabase = (await createServiceClient()) ?? (await createClient());
   if (!supabase) return { rol: 'sin_rol', email: null, puedeEscribir: false, puedeAprobar: false, via: 'sin-tabla' };
 
   // La puerta es un código por cliente (2026-09-28), así que la identidad viene

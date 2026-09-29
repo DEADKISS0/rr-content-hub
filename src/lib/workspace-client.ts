@@ -475,18 +475,6 @@ export async function signedAssetUrl(path: string): Promise<string | null> {
  * paid. Codes let people reference a piece out loud or in an email, so every
  * idea gets one at creation instead of staying anonymous.
  */
-export async function nextIdeaCode(projectId: string, contentType: 'organic' | 'paid'): Promise<string> {
-  const supabase = createClient();
-  const prefix = contentType === 'organic' ? 'O' : 'P';
-  if (!supabase) return `${prefix}1`;
-  const { data } = await supabase.from('rr_hub_ideas').select('code').eq('project_id', projectId);
-  const max = (data ?? []).reduce((highest, row: any) => {
-    const match = String(row.code ?? '').match(new RegExp(`^${prefix}(\\d+)$`));
-    return match ? Math.max(highest, Number(match[1])) : highest;
-  }, 0);
-  return `${prefix}${max + 1}`;
-}
-
 /**
  * Light-weight reference check. Cross-origin HEAD calls are opaque, so a
  * failure here means "not obviously a URL", not "definitely broken". We only

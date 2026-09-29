@@ -1,48 +1,46 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ReferenceWithBrief } from '@/components/reference-with-brief';
 import { BotonBiblioteca } from '@/components/ad-library-picker';
-import { createClient } from '@/lib/supabase/client';
-import { buildIdeaPack, createIdea, looksLikeUrl, nextIdeaCode } from '@/lib/workspace-client';
+import { buildIdeaPack, createIdea, looksLikeUrl } from '@/lib/workspace-client';
 import { Icon } from './ui/icons';
 
 type FormState = { title: string; type: 'Orgánico' | 'Pauta'; category: string; objective: string; description: string; camera: string; talent: string; edit: string; reference: string; adId: string; adName: string };
 const empty: FormState = { title: '', type: 'Orgánico', category: '', objective: '', description: '', camera: '', talent: '', edit: '', reference: '', adId: '', adName: '' };
 
 /**
- * Guided capture. Two things were added after the audit: the piece gets its
- * human code (O1, P1…) shown before saving, and a pasted reference is checked
- * so a broken link never reaches the client.
+ * Guided capture. A pasted reference is checked so a broken link never reaches
+ * the client, and the ad library is offered without overwriting what was typed.
+ *
+ * This component no longer talks to Supabase directly. It used to read the
+ * project and preview the next piece code with the anon key, which no longer
+ * works — the hub has no browser key, and the identity is a signed cookie the
+ * browser cannot read. Everything it needs now arrives from the server page as
+ * a prop, and everything it writes goes through `/api/workspace`.
  */
-export function NewIdeaForm({ projectSlug, anuncios, usosPorAnuncio }: {
+export function NewIdeaForm({ projectSlug, projectId, anuncios, usosPorAnuncio }: {
   projectSlug: string;
+  projectId: string | null;
   anuncios: { id: string; name: string; platform: string; format: string; externalUrl: string; objective: string; brand: string }[];
   usosPorAnuncio: Record<string, number>;
 }) {
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
   const [form, setForm] = useState<FormState>(empty);
   const [notice, setNotice] = useState('');
   const [saving, setSaving] = useState(false);
-  const [projectId, setProjectId] = useState('');
-  const [code, setCode] = useState('');
 
   const contentType = form.type === 'Orgánico' ? 'organic' : 'paid';
   const update = (field: keyof FormState, value: string) => setForm((current) => ({ ...current, [field]: value }));
 
-  // Preview the code the piece will receive, so it is never created anonymous.
-  const refreshCode = useCallback(async () => {
-    if (!supabase) return;
-    const { data: project } = await supabase.from('rr_hub_projects').select('id').eq('slug', projectSlug).maybeSingle();
-    if (!project) return;
-    setProjectId(project.id);
-    setCode(await nextIdeaCode(project.id, contentType));
-  }, [supabase, projectSlug, contentType]);
-
-  useEffect(() => { const timer = window.setTimeout(refreshCode, 0); return () => window.clearTimeout(timer); }, [refreshCode]);
+  // El código de la pieza (O1, P7...) ya no se calcula en el navegador. Antes se
+  // predecía leyendo `rr_hub_ideas` con la clave anónima para enseñarlo antes de
+  // guardar: era una vista previa, no el código real, y dos personas guardando a
+  // la vez podían ver el mismo número. El servidor asigna el definitivo al
+  // insertar, y con el RLS cerrado esa lectura ya no era posible de todos modos.
+  // El proyecto llega como prop porque la página es de servidor y sí puede leerlo.
 
   const referenceValid = looksLikeUrl(form.reference);
   const generated = buildIdeaPack({ title: form.title, objective: form.objective, description: form.description, reference: form.reference });
@@ -52,7 +50,7 @@ export function NewIdeaForm({ projectSlug, anuncios, usosPorAnuncio }: {
     if (saving) return;
     if (!form.title.trim() || !form.objective.trim()) { avisar('Falta el título o el objetivo.'); return; }
     if (!referenceValid) { avisar('La referencia debe ser un enlace válido (https://…).'); return; }
-    if (!supabase) { avisar('Supabase no está configurado en este entorno. Avisa al administrador.'); return; }
+    if (!projectId) { avisar('No se pudo identificar el cliente de esta idea. Recarga la página.'); return; }
     setSaving(true);
     setNotice('');
     // The insert and the event go through the server: it checks that this
@@ -107,7 +105,15 @@ export function NewIdeaForm({ projectSlug, anuncios, usosPorAnuncio }: {
     )}
 
     <div className="grid gap-6 md:grid-cols-[120px_1fr]">
-      <label className="block"><span className="mono-label mb-2 block text-blanco-50">// CÓDIGO</span><input value={code || '—'} disabled className="input-brutal bg-blanco-10 text-center font-display text-xl text-blanco" /><span className="mt-2 block font-mono text-[10px] text-blanco-40">Se genera solo</span></label>
+      <div className="block">
+        <span className="mono-label mb-2 block text-blanco-50">// CÓDIGO</span>
+        <div className="input-brutal bg-blanco-10 px-2 py-2 text-center font-display text-xl text-blanco-40">AUTO</div>
+        {/* Antes aquí se predecía el número (O7, P3) leyendo las ideas con la
+            clave anónima. Se quitó porque era una mentira útil: dos personas
+            guardando a la vez veían el mismo número, y el definitivo lo ponía
+            el servidor. Ahora el campo dice lo que es y no promete nada. */}
+        <span className="mt-2 block font-mono text-[10px] text-blanco-40">Se genera al guardar</span>
+      </div>
       <Field label="TÍTULO *" value={form.title} onChange={(value) => update('title', value)} placeholder="Ej. La textura que se siente" />
     </div>
 
@@ -181,7 +187,7 @@ export function NewIdeaForm({ projectSlug, anuncios, usosPorAnuncio }: {
 
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
       <button disabled={saving || !referenceValid} className="btn-brutal" type="submit">{saving ? 'GUARDANDO…' : 'CREAR IDEA →'}</button>
-      <span className="font-mono text-[10px] text-blanco-50">{supabase ? `SE GUARDARÁ COMO ${code || 'NUEVA IDEA'}` : 'GUARDADO COMPARTIDO NO DISPONIBLE'}</span>
+      <span className="font-mono text-[10px] text-blanco-50">GUARDADO EN EL HUB COMPARTIDO</span>
     </div>
   </form>;
 }
