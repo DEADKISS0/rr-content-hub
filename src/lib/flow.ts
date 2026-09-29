@@ -214,20 +214,82 @@ export function allowedTransitions(role: RoleKey, status: WorkflowStatus): Allow
 }
 
 /**
+ * Cuántas personas tienen que coincidir para que la votación decida sola.
+ *
+ * Santiago, 2026-09-29: la mayoría simple sola no es una votación. Medido ese día
+ * en producción: con la regla de "más sí que no", UN voto a favor y ninguno en
+ * contra mandaba la pieza al cliente. Quien votara primero decidía por toda la
+ * casa, y no había forma de saber si el resto de la gente ni lo había mirado.
+ *
+ * Tres es el número que pidió, y sale de la medida del equipo: de cada pieza la
+ * votan cuatro o cinco personas de la casa, así que un mínimo de tres exige que
+ * al menos la mitad la mire antes de que se mueva sola.
+ *
+ * El mínimo aplica a los DOS lados: tres en contra también son una decisión (la
+ * pieza cae), no tres votos de más. Y sin alcanzar el mínimo, la votación NO está
+ * empatada: está incompleta, y son cosas distintas. Una empatada de 2-2 no se
+ * resuelve voteando una vez más —quedaría 3-2, que sí decide, o 2-3, que también—,
+ * así que en la práctica el empate se resuelve con el voto que llegue. Lo que no
+ * puede pasar es que 1-0 mueva la pieza.
+ */
+export const VOTOS_NECESARIOS = 3;
+
+/**
  * ¿La votación se ganó y esta idea tiene que salir al cliente?
  *
- * Santiago eligió mayoría simple el 2026-09-28: sale si hay más votos a favor
- * que en contra. La regla vive AQUÍ y no en la acción `vote` por dos razones:
+ * La regla vive AQUÍ y no en la acción `vote` por dos razones:
  *
  * 1. Es dominio, y el dominio vive en este archivo. Si el criterio de "ganó"
  *    estuviera en la API, habría que leer la API para saber cuándo una idea
  *    avanza, y la regla no sería verificable por `verify-flow`.
  * 2. Un empate NO aprueba: sin decir esto explícitamente, `aFavor > enContra` con
  *    1 contra y 1 a favor deja la decisión en manos de quién llegara después.
+ *
+ * Y el mínimo de `VOTOS_NECESARIOS`: con menos, la votación está incompleta y la
+ * pieza se queda donde está, sin error y sin avanzar.
  */
 export function ganoLaVotacion(aFavor: number, enContra: number): boolean {
+  if (aFavor < VOTOS_NECESARIOS) return false;
   return aFavor > enContra;
 }
+
+/**
+ * ¿La votación se decidió en contra, y por tanto la idea cae?
+ *
+ * El espejo exacto de `ganoLaVotacion`, y vive aquí por el mismo motivo: quien
+ * decide si una pieza cae tiene que poder leerse sin abrir la API. Son dos
+ * funciones y no una con signo, porque tienen dos salidas distintas —una manda al
+ * cliente, la otra devuelve a revisión interna— y porque el mínimo se mira en
+ * lados distintos: para ganar hay que llegar a 3 sí, para perder a 3 no.
+ */
+export function perdioLaVotacion(aFavor: number, enContra: number): boolean {
+  if (enContra < VOTOS_NECESARIOS) return false;
+  return enContra > aFavor;
+}
+
+/**
+ * Cómo va la votación, para la interfaz.
+ *
+ * Tres estados distintos, y confundirlos es lo que hace que "2 sí y 1 no" se lea
+ * como "va ganando":
+ *
+ * - `ganada`    → sale al cliente.
+ * - `perdida`   → vuelve a revisión interna.
+ * - `esperando` → todavía no hay suficientes votos. Se dicen cuántos faltan.
+ */
+export type EstadoVotacion = 'ganada' | 'perdida' | 'esperando';
+
+export function estadoVotacion(aFavor: number, enContra: number): EstadoVotacion {
+  if (ganoLaVotacion(aFavor, enContra)) return 'ganada';
+  if (perdioLaVotacion(aFavor, enContra)) return 'perdida';
+  return 'esperando';
+}
+
+/** Cuántos votos faltan para que la votación decida, por el lado más cerca. */
+export function votosParaDecidir(aFavor: number, enContra: number): number {
+  return Math.max(0, Math.min(VOTOS_NECESARIOS - aFavor, VOTOS_NECESARIOS - enContra));
+}
+
 /**
  * El estado al que salta una idea cuando su votación se gana.
  *

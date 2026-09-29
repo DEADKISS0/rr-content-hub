@@ -230,6 +230,21 @@ export type VotoResultado = {
   enContra?: number;
   gano?: boolean;
   estado?: string;
+  /**
+   * Qué decidió la votación, según el servidor: `ganada`, `perdida` o
+   * `esperando`.
+   *
+   * Antes solo venía `gano`, y con la regla de mayoría simple a secas eso bastaba.
+   * Con el mínimo de tres, `gano === false` ya no distingue "no ha voted enough"
+   * de "se decidió en contra", y la diferencia importa: una deja la pieza donde
+   * está y la otra la devuelve a revisión interna. Los dos vienen del servidor,
+   * calculados en `flow.ts`.
+   */
+  votacion?: 'ganada' | 'perdida' | 'esperando';
+  /** Cuántos votos faltan para que la votación decida. */
+  faltan?: number;
+  /** El mínimo vigente, para poder decirlo en el texto sin inventarlo. */
+  minimo?: number;
 };
 
 export async function voteIdea(
@@ -248,6 +263,9 @@ export async function voteIdea(
     enContra: Number(response.enContra ?? 0),
     gano: Boolean(response.gano),
     estado: String(response.estado ?? ''),
+    votacion: (response.votacion as VotoResultado['votacion']) ?? 'esperando',
+    faltan: Number(response.faltan ?? 0),
+    minimo: Number(response.minimo ?? 0),
   };
 }
 

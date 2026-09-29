@@ -7,7 +7,7 @@
 import {
   STATUS_ORDER, PHASES, STATUS_OWNERS, TRANSITIONS_FOR_TEST,
   allowedTransitions, waitingOn, nextStatus, esEsperaDelCliente, esTerminal,
-  ganoLaVotacion, salidaDeLaVotacion,
+  ganoLaVotacion, perdioLaVotacion, VOTOS_NECESARIOS, votosParaDecidir, salidaDeLaVotacion,
 } from '../src/lib/flow.ts';
 import { QUEUES, BOARD_COLUMNS, inQueue } from '../src/lib/queues.ts';
 
@@ -141,13 +141,33 @@ check('pauta puede abrir la votacion (las ideas de pauta las vota quien las paut
 check('la votacion cerrada se puede devolver a revision interna',
   allowedTransitions('owner', 'voting').some(m => m.to === 'internal_review'));
 
-// 12. La regla de mayoría simple, casos que importan. Un empate NO aprueba:
-//     es la diferencia entre "decidieron" y "no decidió nadie".
-check('mayoria simple: 1 a favor 0 en contra gana', ganoLaVotacion(1, 0));
-check('mayoria simple: 2 a favor 1 en contra gana', ganoLaVotacion(2, 1));
-check('mayoria simple: 1 a favor 1 en contra es empate y NO gana', !ganoLaVotacion(1, 1));
-check('mayoria simple: 0 a favor 1 en contra NO gana', !ganoLaVotacion(0, 1));
-check('mayoria simple: 0 y 0 no aprueba una idea sin votos', !ganoLaVotacion(0, 0));
+// 12. La regla de la votación: mayoría simple CON un mínimo de tres.
+//
+//     El mínimo no es un detalle, es lo que impide que la primera persona que
+//     pulse mueva la pieza. Medido en producción el 2026-09-29: con "más sí que
+//     no" a secas, 1-0 sacaba la idea al cliente. Santiago pidió tres en los dos
+//     lados. Estos checks son el sitio donde la regla se lee sin abrir el código
+//     de la acción, y el que fuerza a actualizarlos cuando cambie.
+check('el minimo de la votacion son tres', VOTOS_NECESARIOS === 3);
+check('mayoria simple con minimo: 1 a favor 0 en contra NO gana (el fallo medido)',
+  !ganoLaVotacion(1, 0));
+check('mayoria simple con minimo: 2 a favor 0 en contra TAMPOCO gana',
+  !ganoLaVotacion(2, 0));
+check('mayoria simple con minimo: 3 a favor 0 en contra gana', ganoLaVotacion(3, 0));
+check('mayoria simple con minimo: 3 a favor 2 en contra gana', ganoLaVotacion(3, 2));
+check('mayoria simple con minimo: 1 a favor 1 en contra es empate y NO gana',
+  !ganoLaVotacion(1, 1));
+check('mayoria simple con minimo: 0 y 0 no aprueba una idea sin votos',
+  !ganoLaVotacion(0, 0));
+check('el lado que pierde tambien necesita el minimo: 2 en contra no decae',
+  !perdioLaVotacion(1, 2));
+check('3 en contra si hacen caer la idea', perdioLaVotacion(0, 3));
+check('ganar y perder nunca coinciden a la vez',
+  [[3, 0], [4, 2], [2, 2], [0, 0]].every(([a, n]) => !(ganoLaVotacion(a, n) && perdioLaVotacion(a, n))));
+check('los votos que faltan nunca son negativos',
+  [votosParaDecidir(0, 0), votosParaDecidir(5, 0), votosParaDecidir(9, 9)].every((n) => n >= 0));
+check('con 1 a favor faltan 2, con 2 a favor falta 1',
+  votosParaDecidir(1, 0) === 2 && votosParaDecidir(2, 0) === 1);
 check('mayoria simple: 3 a favor 2 en contra gana', ganoLaVotacion(3, 2));
 // La salida de la votación tiene que ser un estado REAL, no un string inventado.
 check('la votacion tiene salida y es un estado del motor',

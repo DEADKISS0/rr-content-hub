@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { voteIdea, type VotoResultado } from '@/lib/workspace-client';
+import { estadoVotacion, votosParaDecidir, VOTOS_NECESARIOS } from '@/lib/flow';
 import { Icon } from '@/components/ui/icons';
 
 /**
@@ -20,10 +21,16 @@ import { Icon } from '@/components/ui/icons';
  *   inventar un token, y el conteo que decide si una pieza avanza al cliente lo
  *   podía falsear cualquiera que abriera la URL.
  *
- * - **Mayoría simple, no un número fijo.** Es la regla que eligió Santiago: sale
- *   si hay más votos a favor que en contra. Con un número fijo, una idea con dos
- *   votos a favor y uno en contra se quedaba parada, que es lo contrario de lo
- *   que se busca.
+ * - **Mayoría simple CON un mínimo de tres.** Santiago eligió mayoría simple el
+ *   2026-09-28, y al medirla en producción salió el defecto: con "más sí que no"
+ *   a secas, un solo voto a favor movía la pieza al cliente y quien pulsaba
+ *   primero decidía por toda la casa. El 2026-09-29 añadió un mínimo de TRES
+ *   votos, en los dos lados. Los números salen de `flow.ts`, no de aquí: si
+ *   cambia el mínimo, esta pantalla lo dice solo.
+ *
+ * - **La pantalla dice cuántos votos faltan.** Un "1 a favor" a secas se lee como
+ *   que va ganando, y no es así: es una votación incompleta. El número solo no
+ *   informa de si decide o no.
  *
  * - **El contador se lee del servidor, nunca se acumula en local.** Si el
  *   navegador sumara, recargar la página bastaría para inflar la votación.
@@ -49,6 +56,10 @@ export function IdeaVoting({
   const [fallo, setFallo] = useState('');
 
   const total = aFavor + enContra;
+  // La regla vive en el dominio: aquí solo se pinta lo que ya decidió. Si el
+  // mínimo cambia en `flow.ts`, esta pantalla no se toca.
+  const comoVa = estadoVotacion(aFavor, enContra);
+  const faltan = votosParaDecidir(aFavor, enContra);
 
   // Solo hay algo que hacer en `voting`. En cualquier otro estado el bloque
   // informa, o desaparece si nunca hubo votación.
@@ -68,16 +79,25 @@ export function IdeaVoting({
     setAFavor(resultado.aFavor ?? 0);
     setEnContra(resultado.enContra ?? 0);
 
-    if (resultado.gano) {
-      // La idea ya salió al cliente. Se avisa y se recarga para que la ficha
-      // entera (estado, botón de siguiente paso) quede coherente: votar no
-      // refleja solo un número, refleja un cambio de fase.
-      setAviso('Aprobada por mayoría. La idea ya pasó a revisión del cliente.');
+    // Lo que dice el servidor, no lo que el navegador supone. Antes, con un
+    // voto a favor la respuesta decía "que se adelante" aunque la pieza ya
+    // hubiera salido: el `gano` del cliente no miraba el mínimo de tres.
+    if (resultado.votacion === 'ganada') {
+      // La idea salió al cliente. Se avisa y se recarga para que la ficha entera
+      // (estado, botón de siguiente paso) quede coherente: votar no refleja solo
+      // un número, refleja un cambio de fase.
+      setAviso('Aprobada. La idea ya pasó a revisión del cliente.');
       window.setTimeout(() => window.location.reload(), 1400);
-    } else if (decision === 'yes') {
-      setAviso('Tu voto a favor quedó registrado. Falta que se adelante al de los demás.');
+    } else if (resultado.votacion === 'perdida') {
+      setAviso('La votación se decidió en contra. La idea vuelve a revisión interna.');
+      window.setTimeout(() => window.location.reload(), 1400);
     } else {
-      setAviso('Tu voto en contra quedó registrado.');
+      const faltanAhora = resultado.faltan ?? 1;
+      setAviso(
+        `Tu voto quedó registrado. Falta${faltanAhora === 1 ? '' : 'n'} ${faltanAhora} `
+        + `voto${faltanAhora === 1 ? '' : 's'} para que la votación decida `
+        + `(hacen falta ${VOTOS_NECESARIOS}).`,
+      );
     }
   }, [ideaId, enviando]);
 
@@ -91,6 +111,12 @@ export function IdeaVoting({
         <p className="mono-label text-blanco-50">// VOTACIÓN INTERNA</p>
         <p className="font-mono text-[10px] text-blanco-50">
           {total === 0 ? 'SIN VOTOS TODAVÍA' : `${total} ${total === 1 ? 'VOTO' : 'VOTOS'}`}
+          {/* El número solo no dice si la votación decide. Con el mínimo de tres,
+              "1 a favor" se leería como que va ganando y no es así: está
+              incompleta. La línea de debajo dice si falta y cuánto. */}
+          {abierto && comoVa === 'esperando' && total > 0 && (
+            <span className="text-mostaza"> · FALTAN {faltan}</span>
+          )}
         </p>
       </div>
 
@@ -114,7 +140,8 @@ export function IdeaVoting({
       {abierto ? (
         <>
           <p className="mt-4 text-xs leading-5 text-blanco-60">
-            Sale al cliente con más votos a favor que en contra. Puedes cambiar tu
+            Sale al cliente con más votos a favor que en contra, y hacen falta{' '}
+            {VOTOS_NECESARIOS} votos para que la votación decida. Puedes cambiar tu
             voto: el último vale.
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
@@ -140,7 +167,8 @@ export function IdeaVoting({
         </>
       ) : (
         <p className="mt-4 font-mono text-[10px] text-blanco-50">
-          VOTACIÓN CERRADA · {aFavor} A FAVOR · {enContra} EN CONTRA
+          VOTACIÓN {comoVa === 'ganada' ? 'GANADA' : comoVa === 'perdida' ? 'PERDIDA' : 'SIN DECIDIR'} ·{' '}
+          {aFavor} A FAVOR · {enContra} EN CONTRA
         </p>
       )}
 

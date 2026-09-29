@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
-import { allowedTransitions, ganoLaVotacion, ROLE_LABEL, salidaDeLaVotacion, type RoleKey, type WorkflowStatus, PUEDE_EDITAR, PUEDE_ESCRIBIR_GUION, PUEDE_COMENTAR } from '@/lib/flow';
+import { allowedTransitions, ganoLaVotacion, perdioLaVotacion, estadoVotacion, VOTOS_NECESARIOS, votosParaDecidir, ROLE_LABEL, salidaDeLaVotacion, type RoleKey, type WorkflowStatus, PUEDE_EDITAR, PUEDE_ESCRIBIR_GUION, PUEDE_COMENTAR } from '@/lib/flow';
 import { rolEnProyecto } from '@/lib/project-guard';
 import { quienEs } from '@/lib/quien-es';
 
@@ -418,14 +418,18 @@ export async function POST(request: NextRequest) {
     const aFavor = (votos ?? []).filter((v) => v.decision === 'yes').length;
     const enContra = (votos ?? []).filter((v) => v.decision === 'no').length;
     const gano = ganoLaVotacion(aFavor, enContra);
+    const perdio = perdioLaVotacion(aFavor, enContra);
+    const comoVa = estadoVotacion(aFavor, enContra);
+    const faltan = votosParaDecidir(aFavor, enContra);
 
     // El estado al que se mueve la idea lo decide el motor, no esta acción.
     const SALIDA_VOTACION = salidaDeLaVotacion();
     if (!SALIDA_VOTACION) return error('La votación no tiene salida a revisión del cliente.', 500);
     const ESTADO_VOTANDO = idea.status;
 
-    // Un empate (o solo negativos) deja la idea donde está: la votación sigue
-    // abierta. Nadie avanza por hablar más fuerte.
+    // Un empate, o una votación que todavía no tiene suficientes votos, deja la
+    // idea donde está. Nadie avanza por hablar más fuerte, y tampoco por ser el
+    // primero en pulsar: hacen falta `VOTOS_NECESARIOS` (tres) para que decida.
     if (gano) {
       const { error: moveError } = await service
         .from('rr_hub_ideas')
@@ -449,8 +453,14 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true, decision, aFavor, enContra, gano,
-      // El estado real se relee: si no movió, sigue en votación.
+      // `estado` es el estado real, no el esperado: se relee de la base, así que
+      // si la votación no decidió, la respuesta lo dice en vez de dejar creer que
+      // la pieza se movió. `votacion` y `faltan` son para el texto que lo explica:
+      // sin ellos, quien vota ve "1 a favor" y no sabe si eso decidía algo.
       estado: gano ? SALIDA_VOTACION : idea.status,
+      votacion: comoVa,
+      faltan,
+      minimo: VOTOS_NECESARIOS,
     });
   }
 
