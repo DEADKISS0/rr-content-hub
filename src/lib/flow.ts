@@ -35,7 +35,9 @@ export const ROLE_KEYS: readonly RoleKey[] = [
  * errata en la base, entra por descarte. Aquí la lista es positiva: lo que no
  * está aquí, no escribe.
  */
-export const PUEDE_EDITAR: readonly RoleKey[] = ['owner', 'creator', 'camera', 'model', 'editor'] as const;
+export const PUEDE_EDITAR: readonly RoleKey[] = [
+  'owner', 'creator', 'camera', 'model', 'editor', 'publisher', 'media_buyer',
+] as const;
 /** El guion es de quien produce, no de quien aprueba ni de quien solo mira. */
 export const PUEDE_ESCRIBIR_GUION: readonly RoleKey[] = ['owner', 'creator', 'editor'] as const;
 /** Comentar es de cualquiera del equipo: es la vía para pedir un cambio. */
