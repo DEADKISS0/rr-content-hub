@@ -68,7 +68,15 @@ function FormularioLogin() {
    */
   const params = useSearchParams();
   const pedido = params.get('next') ?? '/select-project';
-  const destino = pedido.startsWith('/') && !pedido.startsWith('//') ? pedido : '/select-project';
+  // Solo rutas internas de verdad: un único `/` inicial, sin `//` y sin barra
+  // invertida. `/\evil.example` pasa un `startsWith('/')` ingenuo, pero el
+  // navegador lo resuelve como protocolo-relativo si se lo pasa tal cual. Se
+  // normaliza la barra y se vuelve a comprobar; lo que no sea interno, cae al
+  // tablero en vez de inventarse un destino.
+  const normalizado = pedido.replace(/\\/g, '/');
+  const destino = normalizado.startsWith('/') && !normalizado.startsWith('//')
+    ? normalizado
+    : '/select-project';
 
   // Tres motivos por los que se vuelve aquí, y confundirlos hace que el equipo
   // piense que la contraseña está mal cuando el problema es otro:

@@ -1,19 +1,35 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Recorridos de punta a punta, SIEMPRE de lectura.
+ * Recorridos de punta a punta.
  *
- * No escriben en la base real: el hub corre contra el Supabase de producción y
- * una prueba que mueva una pieza estaría tocando datos de clientes. Lo que se
- * verifica aquí son las invariantes visibles (una sola acción por superficie,
- * la cola ordenada por urgencia, el roadmap sin barras clonadas, los avisos
- * honestos), que es justo lo que se rompió y nadie vio.
+ * Lo que este archivo afirmaba antes, y era falso: "siempre de lectura, no
+ * escriben en la base real". Dos recorridos pulsaban VOTO A FAVOR y GUARDAR
+ * sobre piezas reales; con el hub apuntando a producción, cada
+ * `npx playwright test` movía el estado de una pieza de Wundeer. Ahora lo que
+ * ESCRIBE pide una variable explícita —ver `votacion-interna.spec.ts` y
+ * `idea-editor.spec.ts`— y lo que solo LEE corre siempre.
  *
- * El servidor lo reutiliza si ya está levantado: no arranca uno nuevo por gusto.
- * El puerto se puede mover con HUB_E2E_PORT: en esta máquina hay otras ventanas
- * con sus propios dev servers y el 3100 se ocupa solo.
+ * Y el problema inverso, que llegó después: al encender la autenticación, las
+ * páginas del hub pasaron a pedir sesión y los recorridos se ejecutaron sin
+ * notion de ella. 38 de 42 dejaron de informar: la puerta redirigía a /login y
+ * el selector nunca aparecía. Un rojo que dice "el producto está roto" cuando
+ * en realidad dice "el test no sabe entrar" es peor que no tener la prueba.
+ *
+ * Aquí no se arregla con un `storageState` comiteado: las cuentas del equipo no
+ * están en el repo y las claves no se inventan. Entonces lo que se hace es
+ * decirlo:
+ *
+ *   · Sin sesión, lo que necesita sesión se SALTA con el motivo escrito. Verde,
+ *     pero sin mentir sobre qué se probó.
+ *   · Con `HUB_E2E_STATE` apuntando a un storageState exportado por una persona
+ *     con acceso, corre entero.
+ *
+ * `storageState` nunca se pone por defecto: un archivo de sesión en el repo es
+ * una sesión de producción versionada.
  */
 const PUERTO = process.env.HUB_E2E_PORT ?? '3100';
+const STATE = process.env.HUB_E2E_STATE;
 
 /**
  * `HUB_BASE_URL` corre los recorridos contra un build ya desplegado en vez del
@@ -35,6 +51,8 @@ export default defineConfig({
   reporter: [['list']],
   use: {
     baseURL: BASE,
+    // Solo si alguien la exportó a propósito. Ver la nota de arriba.
+    ...(STATE ? { storageState: STATE } : {}),
     trace: 'retain-on-failure',
   },
   projects: [{

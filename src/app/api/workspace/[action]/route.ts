@@ -530,6 +530,12 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === 'resolve-comment') {
+    // Marcar un comentario como resuelto es decir que ya se hizo: es una decisión
+    // sobre la pieza, no una opinión. Por eso no es de cualquiera, como comentar.
+    // `comment` una rama más arriba sí lo exige; esta se había quedado sin puerta.
+    if (!PUEDE_EDITAR.includes(role)) {
+      return error('Tu rol no resuelve comentarios. Puedes comentar para pedirlo.', 403);
+    }
     const commentId = str(body.commentId, 64);
     if (!commentId) return error('Falta commentId.', 400);
     const { error: updateError } = await service
