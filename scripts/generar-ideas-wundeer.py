@@ -484,8 +484,15 @@ def main() -> int:
     # se avisa "ya llené más" sino "no llené nada porque estabas lleno". Es la
     # diferencia entre un tope y un promedio.
     #
-    # El umbral es un argumento, no una constante enterrada: con `--tope-alto`
-    # se puede subir a mano el día que haya más manos mirando.
+    # El tope es POR CLIENTE, y no por accidente. `tamano_cola()` ya filtra por
+    # `project_id`, y siempre lo ha hecho: el día que se creó un cliente nuevo
+    # llegó con cero ideas y el generador dijo "hay 20 esperando". Eran las 20 de
+    # Wundeer, que tiene 41 piezas y su propio equipo revisándolas. Un cliente
+    # lleno de trabajo no puede impedir que un cliente nuevo empiece, y al revés:
+    # un tope compartido convierte a Wundeer en dueño del ritmo de Candilejas.
+    #
+    # Por eso el primer día de un cliente nuevo se genera saltándose el tope una
+    # vez, con `--tope-cola 0`, y desde ahí el cron respeta el límite por cliente.
     en_cola = tamano_cola(proyecto)
     print(f"[info] ideas sin revisar: {en_cola} (tope {opciones.tope_cola})", file=sys.stderr)
     if en_cola >= opciones.tope_cola:

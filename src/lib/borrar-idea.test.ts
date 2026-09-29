@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   PHASES,
   PUEDE_BORRAR,
@@ -106,5 +108,40 @@ describe('borrar una idea', () => {
     for (const estado of PUEDE_BORRAR_ESTADOS) {
       expect(ESTADOS_REALES).toContain(estado);
     }
+  });
+});
+
+/**
+ * El 500 silencioso del archivado.
+ *
+ * El endpoint hacía `.eq('archived_at', null)`. PostgREST traduce eso a
+ * `archived_at=eq.null`, que busca la cadena de texto "null" y no casa con el
+ * valor NULL: no actualizaba ninguna fila, `maybeSingle()` devolvía `null` y la
+ * API respondía 500 — sin borrar nada y sin decir por qué. `.is()` sí genera
+ * `archived_at=is.null`.
+ *
+ * Este test no puede ejecutar la API, así que fija la regla en el código: donde
+ * se compara una columna con NULL, se usa `.is()`.
+ */
+describe('comparar una columna con NULL', () => {
+  const fuente = readFileSync(
+    join(process.cwd(), 'src/app/api/workspace/[action]/route.ts'),
+    'utf8',
+  );
+
+  it('el archivado usa .is() y no .eq(..., null)', () => {
+    const bloque = fuente.slice(
+      fuente.indexOf("if (action === 'borrar')"),
+      fuente.indexOf("if (action === 'assign')"),
+    );
+    expect(bloque).toContain(".is('archived_at', null)");
+    expect(bloque).not.toMatch(/\.eq\(\s*'archived_at'\s*,\s*null\s*\)/);
+  });
+
+  it('en todo el endpoint no hay ni un .eq() contra null', () => {
+    // El fallo no era del archivado: era de cómo se compara con NULL. Un solo
+    // `.eq(col, null)` en cualquier acción es un 500 esperando a ocurrir.
+    const ofensas = [...fuente.matchAll(/\.eq\(\s*'([a-z_]+)'\s*,\s*null\s*\)/g)];
+    expect(ofensas.map((m) => m[1])).toEqual([]);
   });
 });

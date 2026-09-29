@@ -660,7 +660,12 @@ export async function POST(request: NextRequest) {
       .from('rr_hub_ideas')
       .update({ archived_at: new Date().toISOString(), archived_by: userId })
       .eq('id', ideaId)
-      .eq('archived_at', null)
+      // `.is()`, NO `.eq(..., null)`. PostgREST traduce `.eq(col, null)` a
+      // `col=eq.null`, que busca la cadena de texto "null" y no casa con el valor
+      // NULL. Con `.eq` no se actualizaba ninguna fila, `maybeSingle()` devolvía
+      // null y la API respondía 500 sin borrar nada. `.is()` sí genera
+      // `col=is.null`, que es lo que hace falta para el "solo si sigue viva".
+      .is('archived_at', null)
       .select('id, archived_at')
       .maybeSingle();
     if (errorBorrar || !borrada) {
