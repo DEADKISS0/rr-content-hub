@@ -654,3 +654,80 @@ export async function getTimeline(ideaId: string) {
     createdAt: (e.created_at as string) ?? '',
   }));
 }
+
+/**
+ * A qué clientes tiene acceso la persona que entró, y a cuáles no.
+ *
+ * Para el selector de clientes. La respuesta tiene las dos mitades a propósito:
+ * Santiago pidió (2026-09-29) que se vieran **los dos** clientes, con candado en
+ * el que no se puede entrar. Mostrar solo los que puede abrir esconde que existe
+ * otro cliente; mostrar los dos sin decir nada invita a pulsar donde no se puede.
+ *
+ * La regla de qué se puede abrir NO está aquí: el servidor la vuelve a
+ * comprobar en `/api/cambiar-cliente` contra `rr_hub_access` antes de emitir la
+ * cookie nueva. Esto es la lista para pintar; la decisión, la ruta.
+ *
+ * El admin global entra en todos los clientes, con o sin fila de acceso: es lo
+ * que ya hacía el resto del hub y lo que espera quien administra. El resto solo
+ * ve los que tiene en `rr_hub_access`.
+ */
+export async function getClientesDeLaPersona(): Promise<{
+  abiertos: { slug: string; name: string; client_name: string; brand_primary_color: string | null; description: string | null; rol: string }[];
+  cerrados: { slug: string; name: string; client_name: string; brand_primary_color: string | null; description: string | null }[];
+  actual: string | null;
+}> {
+  const vacio = { abiertos: [], cerrados: [], actual: null as string | null };
+  const supabase = await createServiceClient() ?? await createClient();
+  if (!supabase) return vacio;
+
+  const sesion = await quienEs();
+  if (!sesion) return vacio;
+
+  const { data: perfil } = await supabase
+    .from('rr_hub_profiles')
+    .select('id, global_role')
+    .ilike('email', sesion.email)
+    .maybeSingle();
+  if (!perfil) return vacio;
+
+  // Las dos consultas van en paralelo y el cruce de `access` con `proyectos` se
+  // hace por `project_id`, que es una columna real de las dos. Nada de embed
+  // aquí: `rr_hub_access` no tiene FK con `rr_hub_profiles` (verificado en
+  // `pg_constraint`), y ese embed devolvía PGRST200 con `data: null` sin lanzar.
+  const [catalogo, accesos] = await Promise.all([
+    supabase
+      .from('rr_hub_projects')
+      .select('id, slug, name, client_name, brand_primary_color, description')
+      .order('name'),
+    supabase.from('rr_hub_access').select('project_id, role_in_project').eq('user_id', perfil.id),
+  ]);
+
+  const proyectos = (catalogo.data ?? []) as {
+    id: string; slug: string; name: string; client_name: string;
+    brand_primary_color: string | null; description: string | null;
+  }[];
+  if (proyectos.length === 0) return vacio;
+
+  const esAdmin = perfil.global_role === 'admin';
+  const rolPorProyecto = new Map<string, string>();
+  for (const fila of (accesos.data ?? []) as { project_id: string; role_in_project: string }[]) {
+    rolPorProyecto.set(fila.project_id, fila.role_in_project);
+  }
+
+  // La lista corta manda: un cliente que no está en `CLIENTES_CONOCIDOS` no se
+  // ofrece, aunque tenga fila de acceso. Satiro y Boga no tienen código, así que
+  // salen con candado y no se pueden abrir. Cuando tengan, basta con añadirlos a
+  // esa lista — aquí no hay que tocar nada.
+  const conocidos = proyectos.filter((p) => isVisibleProject(p.slug));
+
+  const abiertos = conocidos
+    .filter((p) => esAdmin || rolPorProyecto.has(p.id))
+    .map((p) => ({ ...p, rol: esAdmin ? 'owner' : (rolPorProyecto.get(p.id) ?? 'sin_rol') }));
+
+  const slugsAbiertos = new Set(abiertos.map((p) => p.slug));
+  const cerrados = conocidos
+    .filter((p) => !slugsAbiertos.has(p.slug))
+    .map(({ id: _id, ...resto }) => resto);
+
+  return { abiertos, cerrados, actual: sesion.proyecto };
+}

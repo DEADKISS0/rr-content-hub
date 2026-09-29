@@ -13,7 +13,7 @@ export type IconName =
   | 'plus' | 'chevron' | 'arrow' | 'clock' | 'link' | 'image' | 'video' | 'stack'
   | 'spark' | 'user' | 'alert' | 'check' | 'close' | 'chart' | 'file' | 'comment'
   | 'upload' | 'target' | 'bolt' | 'eye' | 'pin' | 'pen' | 'scissors' | 'flag'
-  | 'leaf';
+  | 'leaf' | 'lock';
 
 const PATHS: Record<IconName, ReactNode> = {
   map: <><rect x="3" y="4" width="18" height="16" /><path d="M9 4v16M15 4v16" /></>,
@@ -41,6 +41,10 @@ const PATHS: Record<IconName, ReactNode> = {
   check: <><path d="M5 13l4 4L19 7" /></>,
   close: <><path d="M6 6l12 12M18 6L6 18" /></>,
   chart: <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></>,
+  // Candado para lo que existe pero no se puede abrir (un cliente sin acceso).
+  // Sin relleno, con la anilla encima del cuerpo: si se rellenara, el hueco de la
+  // anilla se perdería y se leería como un cuadrado más.
+  lock: <><rect x="5" y="11" width="14" height="10" /><path d="M8 11V8a4 4 0 018 0v3" /></>,
   file: <><path d="M6 3h8l4 4v14H6z" /><path d="M14 3v5h4" /></>,
   comment: <><path d="M4 5h16v11H9l-5 4z" /></>,
   upload: <><path d="M12 17V5M6 11l6-6 6 6" /><path d="M4 21h16" /></>,

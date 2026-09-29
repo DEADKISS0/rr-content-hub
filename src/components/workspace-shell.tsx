@@ -9,6 +9,7 @@ import { GuidedTour } from './guided-tour';
 import { Icon, type IconName } from './ui/icons';
 import { AUTH_ENABLED } from '@/lib/mode';
 import { HubFooter } from '@/components/hub-footer';
+import { SelectorCliente, type ClienteParaPintar } from '@/components/selector-cliente';
 
 /**
  * Cascarón del proyecto.
@@ -112,7 +113,19 @@ function useSesion(emailServidor?: string) {
   return { correo, cerrarSesion };
 }
 
-export function WorkspaceShell({ children, project, role, email, puedeEscribir = true }: { children: React.ReactNode; project: { slug: string; name: string; client_name: string }; role: string; email?: string; puedeEscribir?: boolean }) {
+/**
+ * `clientes` lo pasa el servidor (`getClientesDeLaPersona`): qué clientes puede
+ * abrir esta persona y cuáles existen pero no puede. Sin esta prop el hub se
+ * quedaba en un solo cliente y cambiar obligaba a cerrar sesión —que era
+ * exactamente el reporte del 2026-09-29—.
+ */
+type ListaDeClientes = {
+  abiertos: ClienteParaPintar[];
+  cerrados: ClienteParaPintar[];
+  actual: string | null;
+};
+
+export function WorkspaceShell({ children, project, role, email, puedeEscribir = true, clientes }: { children: React.ReactNode; project: { slug: string; name: string; client_name: string }; role: string; email?: string; puedeEscribir?: boolean; clientes?: ListaDeClientes }) {
   const params = useParams<{ projectSlug: string }>();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -179,6 +192,25 @@ export function WorkspaceShell({ children, project, role, email, puedeEscribir =
             </span>
           </button>
         </div>
+
+        {/* Selector de cliente, justo debajo de la marca. Va en la barra y no en
+            el header porque la barra es lo que se mantiene al navegar entre
+            clientes: `/candilejas` vuelve a pintar el mismo shell, así que el
+            selector está siempre en el mismo sitio sin trabajo extra.
+
+            Con la barra compactada solo se ve el punto de color, para no gastar
+            los 4,5 rem en texto. El nombre completo sigue en el `title` y en la
+            etiqueta accesible. */}
+        {clientes && (clientes.abiertos.length > 1 || clientes.cerrados.length > 0) && (
+          <div className={`mb-4 ${collapsed ? 'md:px-0' : ''}`}>
+            <SelectorCliente
+              actual={clientes.actual ?? slug}
+              abiertos={clientes.abiertos}
+              cerrados={clientes.cerrados}
+              compacto={collapsed}
+            />
+          </div>
+        )}
 
         <nav className="mt-2 space-y-1" aria-label="Menú principal">
           {PRINCIPAL.map(enlace)}
