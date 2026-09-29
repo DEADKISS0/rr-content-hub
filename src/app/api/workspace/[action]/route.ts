@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { allowedTransitions, ganoLaVotacion, ROLE_LABEL, salidaDeLaVotacion, type RoleKey, type WorkflowStatus, PUEDE_EDITAR, PUEDE_ESCRIBIR_GUION, PUEDE_COMENTAR } from '@/lib/flow';
 import { rolEnProyecto } from '@/lib/project-guard';
+import { quienEs } from '@/lib/quien-es';
 
 export const dynamic = 'force-dynamic';
 
@@ -95,16 +96,27 @@ async function context(request: NextRequest) {
     return { service, supabase: service, userId: null, email: null, abierto: true };
   }
 
-  // The caller's own client, carrying their session cookie. Its RLS applies,
-  // which is what lets a member read their own project and stops an outsider.
+  // La puerta es un código por cliente (2026-09-28): la identidad viene de la
+  // cookie firmada del hub. Se resuelve el `user_id` DESDE el correo, porque
+  // `rr_hub_profiles.id` sigue siendo la PK pero ya no hay sesión de Supabase
+  // que lo dé. Buscar por correo es la misma fila y no depende de que exista
+  // una cuenta en `auth.users`.
+  const sesion = await quienEs();
+  if (!sesion) return { response: unauthorized() as NextResponse };
+  const { data: perfil } = await service
+    .from('rr_hub_profiles')
+    .select('id')
+    .ilike('email', sesion.email)
+    .maybeSingle();
+  if (!perfil) return { response: unauthorized() as NextResponse };
+
+  // El cliente propio de quien llama. Su RLS se aplica, y eso es lo que deja
+  // leer solo lo que le toca.
   const supabase = createClient(url, anonKey, {
     global: { headers: { authorization: request.headers.get('authorization') ?? '' } },
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const { data } = await supabase.auth.getUser();
-  if (!data.user?.email) return { response: unauthorized() as NextResponse };
-
-  return { supabase, service, userId: data.user.id, email: data.user.email.toLowerCase(), abierto: false };
+  return { supabase, service, userId: perfil.id, email: sesion.email, abierto: false };
 }
 
 /** The caller's real role in the project that owns this idea. Never from the body. */

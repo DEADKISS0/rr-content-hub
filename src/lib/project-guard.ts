@@ -1,6 +1,7 @@
 // `server-only` on purpose: a guard that leaks into the browser is not a guard.
 import 'server-only';
 import { createClient } from '@/lib/supabase/server';
+import { quienEs } from '@/lib/quien-es';
 import { AUTH_ENABLED } from '@/lib/mode';
 import { PUEDE_EDITAR, type RoleKey } from '@/lib/flow';
 
@@ -61,8 +62,12 @@ export async function rolEnProyecto(projectId: string): Promise<VeredictoProyect
   const supabase = await createClient();
   if (!supabase) return { rol: 'sin_rol', email: null, puedeEscribir: false, puedeAprobar: false, via: 'sin-tabla' };
 
-  const { data: usuario } = await supabase.auth.getUser();
-  const email = usuario.user?.email?.toLowerCase() ?? null;
+  // La puerta es un código por cliente (2026-09-28), así que la identidad viene
+  // de la cookie firmada del hub y no de `supabase.auth.getUser()`. El correo es
+  // la llave: con la sesión se buscaba por `auth.uid()`, y ese id ya no existe
+  // como identidad, aunque siga siendo la PK de `rr_hub_profiles`.
+  const sesion = await quienEs();
+  const email = sesion?.email ?? null;
 
   // Sin sesión. El hub está en modo abierto (el login de Google pelea con
   // Medellín Guide) y el servidor de escritura opera con rol `owner` en esa
@@ -91,11 +96,13 @@ export async function rolEnProyecto(projectId: string): Promise<VeredictoProyect
     return { rol: 'owner', email, puedeEscribir: true, puedeAprobar: true, via: 'session' };
   }
 
+  // Se une por correo en vez de por id: es la misma fila, pero sin depender de
+  // que exista una sesión de Supabase que dé el `user_id`.
   const { data } = await supabase
     .from('rr_hub_access')
-    .select('role_in_project')
-    .eq('user_id', usuario.user!.id)
+    .select('role_in_project, user:rr_hub_profiles!inner(email)')
     .eq('project_id', projectId)
+    .eq('user.email', email)
     .maybeSingle();
 
   const rol = (data?.role_in_project as RolProyecto | undefined) ?? 'sin_rol';

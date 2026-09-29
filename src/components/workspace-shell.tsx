@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { salir } from '@/lib/hub-client';
 import Link from 'next/link';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, useSyncExternalStore } from 'react';
@@ -86,26 +87,25 @@ function useSesion(emailServidor?: string) {
   const router = useRouter();
 
   useEffect(() => {
-    const supabase = createClient();
-    if (!supabase) return;
+    // La puerta es un código por cliente (2026-09-28), así que no hay sesión de
+    // Supabase que escuchar: la cookie del hub no emite eventos. Se pregunta una
+    // vez quién entró, con `no-store` para que no se quede pegado el nombre de
+    // la persona anterior.
     let vivo = true;
-    // El callback actualiza el estado; el `getUser` solo cubre el caso de una
-    // cookie de servidor que el cliente aún no conoce. Así el estado se cambia
-    // desde la suscripción, no desde el cuerpo del efecto.
-    const { data: sub } = supabase.auth.onAuthStateChange((_evento, sesion) => {
-      if (!vivo) return;
-      setCorreo(sesion?.user?.email ?? null);
-    });
-    void supabase.auth.getUser().then(({ data }) => {
-      if (!vivo) return;
-      setCorreo((actual) => actual ?? data.user?.email ?? null);
-    });
-    return () => { vivo = false; sub.subscription.unsubscribe(); };
+    void fetch('/api/quien-soy', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((cuerpo) => {
+        if (!vivo) return;
+        setCorreo(cuerpo?.email ?? null);
+      })
+      .catch(() => {
+        if (vivo) setCorreo(null);
+      });
+    return () => { vivo = false; };
   }, []);
 
   async function cerrarSesion() {
-    const supabase = createClient();
-    await supabase?.auth.signOut();
+    await salir();
     router.push('/');
     router.refresh();
   }

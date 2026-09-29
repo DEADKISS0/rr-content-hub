@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { quienEs } from '@/lib/quien-es';
 
 /**
  * El latido: quién está conectado ahora mismo.
@@ -28,10 +29,13 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   if (!supabase) return NextResponse.json({ error: 'Supabase no configurado.' }, { status: 503 });
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user?.email) {
-    return NextResponse.json({ error: 'Necesitas una sesión.' }, { status: 401 });
+  // La puerta es un código por cliente (2026-09-28), así que la identidad sale
+  // de la cookie firmada y no de una sesión de Supabase.
+  const sesion = await quienEs();
+  if (!sesion) {
+    return NextResponse.json({ error: 'Entra con el código de tu cliente.' }, { status: 401 });
   }
+  const correo = sesion.email;
 
   let sesionId = '';
   try {
@@ -42,10 +46,10 @@ export async function POST(request: Request) {
   }
 
   const { data: perfil } = await supabase
-    .from('rr_hub_profiles').select('id').eq('email', user.email).maybeSingle();
+    .from('rr_hub_profiles').select('id').ilike('email', correo).maybeSingle();
 
   const { error } = await supabase.from('rr_hub_presencia').upsert({
-    email: user.email.toLowerCase(),
+    email: correo,
     profile_id: perfil?.id ?? null,
     last_seen_at: new Date().toISOString(),
     sesion_id: sesionId || null,

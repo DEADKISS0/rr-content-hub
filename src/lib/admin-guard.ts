@@ -3,6 +3,7 @@
 // dependency just pins the version alongside the rest.
 import 'server-only';
 import { createClient } from '@/lib/supabase/server';
+import { correoDeQuienEntra } from '@/lib/quien-es';
 
 /**
  * Gate for administrative routes.
@@ -54,9 +55,12 @@ export async function requireAdmin(): Promise<AdminVerdict> {
   return { allowed: true, via: 'database', email };
 }
 
+/**
+ * El correo de quien entró por la puerta. Desde el 2026-09-28 la puerta es un
+ * código por cliente, así que esto lee la cookie firmada del hub y no pregunta
+ * a Supabase Auth. El resultado es el mismo —el correo con el que esa persona
+ * está en `rr_hub_profiles`— y es más rápido: no hay ida a la red.
+ */
 async function currentEmail(): Promise<string | null> {
-  const supabase = await createClient();
-  if (!supabase) return null;
-  const { data } = await supabase.auth.getUser();
-  return data.user?.email?.toLowerCase() ?? null;
+  return correoDeQuienEntra();
 }

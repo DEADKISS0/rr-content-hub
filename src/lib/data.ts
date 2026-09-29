@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { quienEs } from '@/lib/quien-es';
 import { DEMO_MODE, SupabaseNotConfiguredError } from './demo-mode';
 import { demoIdeas, demoProjects, getDemoIdea, getDemoProject } from './demo-data';
 import { isVisibleProject } from './projects';
@@ -80,13 +81,25 @@ function mapIdea(row: RawIdea) {
 
 export async function getCurrentUser() {
   const supabase = await createClient();
-  if (!supabase) {
-    // Previously this invented a signed-in demo user. In production that meant
-    // an anonymous visitor was handed an identity instead of none.
-    return { user: null, supabase: null };
-  }
-  const { data: { user } } = await supabase.auth.getUser();
-  return { user, supabase };
+  if (!supabase) return { user: null, supabase: null };
+
+  // Desde el 2026-09-28 la puerta es un código por cliente, así que la identidad
+  // viene de la cookie firmada del hub. Antes venía de `supabase.auth.getUser()`,
+  // que era una ida a la red en cada carga de página; ahora es leer la cookie.
+  //
+  // La forma es la misma (`user` con `email`), porque quien usa esta función
+  // solo necesita saber quién es, no tener una sesión de Supabase.
+  const sesion = await quienEs();
+  if (!sesion) return { user: null, supabase };
+
+  const { data: perfil } = await supabase
+    .from('rr_hub_profiles')
+    .select('id, full_name, email, global_role')
+    .ilike('email', sesion.email)
+    .maybeSingle();
+  if (!perfil) return { user: null, supabase };
+
+  return { user: { id: perfil.id, email: perfil.email, name: sesion.nombre }, supabase };
 }
 
 export async function getProject(slug: string) {
@@ -104,26 +117,30 @@ export async function getProject(slug: string) {
     .maybeSingle();
   if (!project) return { project: null, access: null, supabase };
 
-  const { data: { user } } = await supabase.auth.getUser();
-  // Public mode: an anonymous visitor may browse Wundeer, but browsing is not
-  // ownership. This used to return `owner`, which is the one role that bypasses
-  // every transition rule in flow.ts — it handed write controls to the public.
-  if (!user) return { project, access: { role_in_project: 'client_viewer' }, supabase };
+  const sesion = await quienEs();
+  // Sin cookie se puede ver, pero ver no es tener el control. Antes esto
+  // devolvía `owner`, que es el único rol que se salta todas las transiciones de
+  // flow.ts: le daba los botones de escribir al público.
+  if (!sesion) return { project, access: { role_in_project: 'client_viewer' }, supabase };
 
+  // Se busca por correo en vez de por `user_id`: es la misma fila, y no depende
+  // de que exista una sesión de Supabase de la que sacar el id.
   const { data: access } = await supabase
     .from('rr_hub_access')
     .select('role_in_project')
-    .eq('user_id', user.id)
     .eq('project_id', project.id)
+    .eq('user:rr_hub_profiles!inner(email)', sesion.email)
     .maybeSingle();
 
   if (access) return { project, access, supabase };
 
   // Global admins supervise every project even without an explicit access row.
+  // El admin global es `owner` en todos los clientes. Se busca por correo: es la
+  // misma fila y no depende de una sesión de Supabase para el id.
   const { data: profile } = await supabase
     .from('rr_hub_profiles')
     .select('global_role')
-    .eq('id', user.id)
+    .ilike('email', sesion.email)
     .maybeSingle();
   if (profile?.global_role === 'admin') return { project, access: { role_in_project: 'owner' }, supabase };
 
@@ -159,10 +176,12 @@ export async function getProjects() {
     return { projects: [], supabase: null };
   }
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const sesion = await quienEs();
 
-  // Public mode: without a session the hub lists every project, browse-only.
-  if (!user) {
+  // Sin cookie, la portada se ve pero no se listan clientes con código: entrar
+  // es lo que enseña qué hay. Antes listaba solo Wundeer en abierto; ahora la
+  // lista la da la cookie.
+  if (!sesion) {
     const { data: allProjects } = await supabase
       .from('rr_hub_projects')
       .select('id, name, slug, client_name, brand_primary_color, description')
@@ -170,13 +189,14 @@ export async function getProjects() {
     return { projects: (allProjects ?? []).filter((project) => isVisibleProject(project.slug)).map((project) => ({ projects: project, role_in_project: 'owner' })), supabase };
   }
 
+  // Global admins supervisan every project even without an explicit access row.
+  // Se busca por correo: es la misma fila, y el id ya no viene de una sesión
+  // de Supabase.
   const { data: profile } = await supabase
     .from('rr_hub_profiles')
-    .select('global_role')
-    .eq('id', user.id)
+    .select('id, global_role')
+    .ilike('email', sesion.email)
     .maybeSingle();
-
-  // Global admins supervise every project even without an explicit access row.
   if (profile?.global_role === 'admin') {
     const { data: allProjects } = await supabase
       .from('rr_hub_projects')
@@ -188,10 +208,19 @@ export async function getProjects() {
     };
   }
 
+  // Los proyectos de esa persona, por correo: `rr_hub_access` no tiene columna
+  // de correo, se une con `rr_hub_profiles` a través del `user_id`.
+  const { data: perfil } = await supabase
+    .from('rr_hub_profiles')
+    .select('id')
+    .ilike('email', sesion.email)
+    .maybeSingle();
+  if (!perfil) return { projects: [], supabase };
+
   const { data } = await supabase
     .from('rr_hub_access')
     .select('role_in_project, projects:rr_hub_projects(id, name, slug, client_name, brand_primary_color, description)')
-    .eq('user_id', user.id);
+    .eq('user_id', perfil.id);
 
   return { projects: (data ?? []).filter((row: any) => isVisibleProject(row.projects?.slug)), supabase };
 }

@@ -1,4 +1,5 @@
 'use client';
+import { idDeQuienEntra } from '@/lib/quien-es';
 
 import { createClient } from '@/lib/supabase/client';
 import { ROLE_LABEL, allowedTransitions, type RoleKey, type WorkflowStatus } from '@/lib/flow';
@@ -125,15 +126,14 @@ export async function postWorkspaceAction(
   const supabase = createClient();
   if (!supabase) return { error: 'Supabase no está configurado en este entorno.' };
 
-  const { data: sessionData } = await supabase.auth.getSession();
+  // La cookie de la puerta viaja sola: es la misma del navegador y no hace
+  // falta ponerla a mano en una cabecera. Antes iba aquí un token de sesión de
+  // Supabase; con la puerta por código ya no hay token que mandar, y el
+  // `credentials` explícito evita que el navegador la omita.
   const response = await fetch(`/api/workspace/${action}`, {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      // The session token is what lets the server look up the real role. Without
-      // it the route answers 401 rather than trusting anything sent by the page.
-      ...(sessionData.session?.access_token ? { authorization: `Bearer ${sessionData.session.access_token}` } : {}),
-    },
+    credentials: 'same-origin',
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
 
@@ -304,11 +304,11 @@ export async function voteIdea(
 export type RosterMember = { userId: string; nombre: string; rol: string; email: string | null };
 
 export async function loadRoster(projectSlug: string): Promise<RosterMember[]> {
-  // Va por el servidor, no por el cliente de Supabase del navegador: el RLS de
-  // `rr_hub_access` solo deja leer con sesión (`user_id = auth.uid()`), y en
-  // modo abierto no la hay. Además no hay FK entre `rr_hub_access` y
-  // `rr_hub_profiles`, así que el join anidado devolvía PGRST200 — que PostgREST
-  // reporta como `data = null` y la interfaz pintaba como "no hay nadie".
+  // Va por el servidor y no por el cliente de Supabase del navegador: el RLS de
+  // `rr_hub_access` no deja leerlo sin ir por la clave del servidor. Además no
+  // hay FK entre `rr_hub_access` y `rr_hub_profiles`, así que el join anidado
+  // devolvía PGRST200 — que PostgREST reporta como `data = null` y la interfaz
+  // pintaba como "no hay nadie".
   const response = await postWorkspaceAction('roster', { projectSlug });
   // El servidor ya devuelve el roster con la forma correcta; se narrow porque
   // el transporte es genérico y no conoce la forma de cada acción.
@@ -346,17 +346,13 @@ export async function createIdea(input: {
   const supabase = createClient();
   if (!supabase) return { error: 'Supabase no está configurado en este entorno.' };
 
-  // El token de sesión va en la CABECERA, no en el cuerpo. Antes no se mandaba
-  // porque el hub vivía en modo abierto; esa premisa murió cuando se encendió
-  // el login, y el comentario se quedó mintiendo. Sin `authorization` el
-  // servidor ve a nadie y devuelve 401: crear ideas quedaba roto.
-  const { data: sesion } = await supabase.auth.getSession();
+  // La identidad va en la cookie de la puerta, que el navegador manda solo.
+  // Antes hacía falta un token en la cabecera: sin él el servidor veía a nadie
+  // y crear ideas quedaba roto con un 401.
   const response = await fetch('/api/workspace/create-idea', {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      ...(sesion.session?.access_token ? { authorization: `Bearer ${sesion.session.access_token}` } : {}),
-    },
+    credentials: 'same-origin',
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
   });
   const payload = (await response.json().catch(() => null)) as { error?: string; id?: string } | null;
@@ -428,12 +424,12 @@ export async function uploadAsset(input: {
   }
 
   const safeName = input.file.name.replace(/[^\w.\-]+/g, '_');
-  // The session id is part of the path because the server checks for it: it
-  // ties the stored object to whoever uploaded it, so a member of one project
-  // cannot register an asset inside another's folder.
-  const { data: sessionData } = await supabase.auth.getSession();
-  const userId = sessionData.session?.user?.id;
-  if (!userId) return { error: 'Necesitas una sesión para subir archivos.' };
+  // El id de la persona va en la ruta porque el servidor lo comprueba: ata el
+  // archivo a quien lo subió, así que alguien con acceso a un proyecto no puede
+  // registrar un archivo dentro de la carpeta de otro. Antes venía de la sesión
+  // de Supabase; ahora el servidor lo resuelve por la cookie.
+  const userId = await idDeQuienEntra();
+  if (!userId) return { error: 'Entra con el código de tu cliente para subir archivos.' };
 
   const path = `${input.projectSlug}/${input.ideaId}/${input.stage}/${userId}-${Date.now()}-${safeName}`;
 
