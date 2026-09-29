@@ -50,33 +50,42 @@ function error(message: string, status: number) {
 }
 
 function unauthorized() {
-  // One message for "no session" and for "not a member of this project": a
-  // distinct reply for each would be a probe for enumerating who has access.
-  return error('Necesitas una sesión con acceso a este proyecto para hacer eso.', 401);
+  // Un solo mensaje para "no entraste" y para "no tienes acceso aquí": responder
+  // distinto a cada caso sería una forma de averiguar quién tiene acceso a qué.
+  //
+  // El texto ya no dice "sesión" porque no hay ninguna. La puerta es un código
+  // por cliente, y cuando esto salía significaba una de dos cosas que se veían
+  // igual desde fuera: que no habías entrado, o que habías entrado y el rol
+  // salía vacío. Un 401 que no dice cuál de las dos es no dice nada.
+  return error('Entra con el código de tu cliente y con un correo de la lista.', 401);
 }
 
 /**
- * Modo abierto.
+ * YA NO HAY MODO ABIERTO.
  *
- * El hub está detrás de un login de Google que comparte proyecto de Supabase con
- * Medellín Guide, y los dos se pisan la sesión: entrar a uno te manda al otro.
- * Mientras eso no se resuelve en el otro lado, `NEXT_PUBLIC_AUTH_ENABLED=false`
- * deja el hub utilizable sin cuenta.
+ * Existió entre 2026-09-26 y 2026-09-28: mientras el login de Google peleaba
+ * con Medellín Guide por la sesión de Supabase, una variable de entorno
+ * apagaba la puerta y el hub quedaba abierto para cualquiera con la URL.
  *
- * Por qué el mismo interruptor apaga las dos cosas: si la puerta se abriera
- * pero el servidor siguiera exigiendo sesión, la persona vería el formulario y
- * el guardado fallaría igual — o peor, quien tenga una sesión abierta en el
- * otro proyecto escribiría con el rol de este.
+ * Se quitó porque la puerta ya no es una sesión de Supabase. Ahora es un código
+ * de cuatro dígitos por cliente, y la variable `NEXT_PUBLIC_AUTH_ENABLED` que
+ * lo apagaba no la controla: en Vercel no está puesta, así que `ABIERTO` salía
+ * `true` siempre. El hub se creía abierto por un interruptor que ya no
+ * controlaba nada — y `unauthorized()` tiraba un 401 a quien entraba bien, con
+ * un mensaje que además hablaba de una "sesión" que no existe.
  *
- * El riesgo es real y conviene decirlo: abierto, cualquiera con la URL puede
- * crear y mover piezas, y los cambios quedan sin rastro de quién los hizo. Es
- * una medida temporal; para volver, `NEXT_PUBLIC_AUTH_ENABLED=true` y la
- * lista de roles en `rr_hub_access` siguen siendo la autoridad.
+ * La consecuencia de dejarlo como estaba: la puerta de `/login` abría, el
+ * tablero cargaba, y todo lo que se intentaba escribir rebotaba con un 401 que
+ * no señalaba su causa. Un 401 sin causa es un apagón, no un permiso.
+ *
+ * Lo que decide ahora si una petición vale es la cookie firmada
+ * (`hub-session.ts`) y el guard (`project-guard.ts`). No hay interruptor que
+ * apagar, y esa es la diferencia entre una puerta y una puerta con un botón de
+ * "abrir" que nadie vigila.
  */
-const ABIERTO = process.env.NEXT_PUBLIC_AUTH_ENABLED !== 'true';
 
-/** Quien figura en las piezas cuando no hay sesión: explícito, nunca inventado. */
-const ABIERTO_ACTOR = 'sin-sesion';
+/** Quien figura en las piezas cuando la subida no trae id resuelto. */
+const SIN_QUIEN = 'sin-quien';
 
 async function context(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -86,15 +95,10 @@ async function context(request: NextRequest) {
     return { response: error('El servidor no tiene la configuración de Supabase.', 500) as NextResponse };
   }
 
-  // The service client is what actually performs the write, because the anon
-  // client cannot write to the workflow tables while RLS is closed. In open mode
-  // it is also the identity: there is no one to ask, so writes go through with
-  // a marker instead of pretending to be somebody.
+  // El service client es quien escribe. Ya no hay cliente anónimo para quien
+  // llama: con la puerta por código el RLS no tiene contra qué comparar, y
+  // mandar un `authorization` vacío no abría nada, solo hacía ruido.
   const service = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
-
-  if (ABIERTO) {
-    return { service, supabase: service, userId: null, email: null, abierto: true };
-  }
 
   // La puerta es un código por cliente (2026-09-28): la identidad viene de la
   // cookie firmada del hub. Se resuelve el `user_id` DESDE el correo, porque
@@ -110,13 +114,10 @@ async function context(request: NextRequest) {
     .maybeSingle();
   if (!perfil) return { response: unauthorized() as NextResponse };
 
-  // El cliente propio de quien llama. Su RLS se aplica, y eso es lo que deja
-  // leer solo lo que le toca.
-  const supabase = createClient(url, anonKey, {
-    global: { headers: { authorization: request.headers.get('authorization') ?? '' } },
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  return { supabase, service, userId: perfil.id, email: sesion.email, abierto: false };
+  // Lectura y escritura van por el service client, siempre. El RLS ya no decide
+  // nada aquí porque ya no hay identidad de Supabase que comparar; lo que
+  // autoriza es el guard de cada mutación, que corre con estos mismos datos.
+  return { supabase: service, service, userId: perfil.id, email: sesion.email, abierto: false };
 }
 
 /** The caller's real role in the project that owns this idea. Never from the body. */
@@ -573,8 +574,8 @@ export async function POST(request: NextRequest) {
     // this idea and to this session.
     // En modo abierto no hay id de sesión que atar a la ruta: se usa un
     // marcador fijo y explícito. Así el path sigue siendo verificable y además
-    // dice a simple vista que la subida vino sin sesión.
-    const check = validateAssetPath(str(body.path, 300), ideaId, userId ?? ABIERTO_ACTOR);
+    // dice a simple vista que la subida vino sin quien.
+    const check = validateAssetPath(str(body.path, 300), ideaId, userId ?? SIN_QUIEN);
     if ('pathError' in check) return error(check.pathError, 400);
 
     const { error: insertError } = await service.from('rr_hub_assets').insert({

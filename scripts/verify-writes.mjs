@@ -75,6 +75,17 @@ check('el servidor usa la service role para escribir', /SUPABASE_SERVICE_ROLE_KE
 // La puerta: el servidor tiene que saber quien entra por la cookie firmada, y
 // no aceptar ninguna identidad que venga en el cuerpo de la peticion.
 check('el servidor exige la cookie de la puerta', /quienEs\(\)/.test(route));
+
+// El modo abierto se fue con la puerta por codigo (2026-09-28). Si vuelve, la
+// variable que lo apagaba es la que hay que vigilar: NEXT_PUBLIC_AUTH_ENABLED no
+// estaba puesta en Vercel, asi que el hub se creia abierto siempre y el 401 le
+// salia a quien entraba bien. Una puerta con un boton de "abrir" que nadie
+// vigila no es una puerta.
+// Se mira que no quede una ASIGNACION, no la palabra: el comentario explica que
+// la variable se quito, y el comentario es lo que hay que conservar.
+check('el modo abierto no vuelve', !/=\s*process\.env\.NEXT_PUBLIC_AUTH_ENABLED/.test(route));
+check('nadie decide el acceso leyendo una variable de entorno', !/process\.env\.NEXT_PUBLIC_AUTH_ENABLED\s*[!=]/.test(route));
+check('el 401 no habla de una sesion que ya no existe', !/Necesitas una sesi/.test(route));
 check('el servidor NO acepta la identidad del cuerpo', !/body\.email\b/.test(route));
 check('el rol se lee de rr_hub_access, no del cuerpo', /from\('rr_hub_access'\)[\s\S]{0,80}role_in_project/.test(route));
 check('el servidor NO acepta el rol del cliente', !/body\.role\b/.test(route));
