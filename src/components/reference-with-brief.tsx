@@ -12,7 +12,30 @@ function platform(url: string) {
   return 'EXTERNA';
 }
 
-function instagramEmbed(url: string) { const clean = url.split('?')[0].replace(/\/$/, ''); return `${clean}/embed/captioned/`; }
+/**
+ * URL del embed de Instagram.
+ *
+ * Un reel y un post NO se embeben igual: el reel necesita `/embed` a secas,
+ * mientras que el post con caption necesita `/embed/captioned/`. Con una sola
+ * regla (la de `captioned` para todo) el reel devuelve un marco vacío: el
+ * iframe carga, `onLoad` se dispara igual porque el error también es una
+ * respuesta, y la pantalla dice "viendo la referencia" sobre un rectángulo gris.
+ * Medido el 2026-09-29 con las dos piezas de Candilejas.
+ *
+ * Además, Instagram sirve el reel en dos formas —`/reel/ABC` y `/reels/ABC`— y
+ * el shortcode solo puede ser de `[A-Za-z0-9_-]`: un guion bajo cambia de
+ * shortcode si el regex no lo admite.
+ */
+function instagramEmbed(url: string) {
+  const clean = url.split('?')[0].replace(/\/$/, '');
+  const esReel = /\/(?:reels?|tv)\//.test(clean);
+  // El permalink del embed debe llevar `/reel/`, no `/p/`: con `/p/` Meta
+  // responde 200 pero sin post y sin `onRender`.
+  const base = esReel
+    ? `https://www.instagram.com/reel/${clean.match(/\/(?:reels?|tv)\/([A-Za-z0-9_-]+)/)?.[1] ?? ''}`
+    : clean.replace(/\/reels?\//, '/p/');
+  return `${base}/embed${esReel ? '' : '/captioned'}/`;
+}
 function youtubeEmbed(url: string) { const match = url.match(/(?:youtu\.be\/|v=|embed\/)([\w-]{6,})/); return match ? `https://www.youtube.com/embed/${match[1]}` : null; }
 function tiktokEmbed(url: string) { const match = url.match(/video\/(\d+)/); return match ? `https://www.tiktok.com/embed/v2/${match[1]}` : null; }
 function driveEmbed(url: string) { const match = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|file\/d\/e\/)([\w-]+)/); if (!match) return null; const id = match[1]; return `https://drive.google.com/file/d/${id}/preview`; }

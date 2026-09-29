@@ -648,7 +648,14 @@ export async function getAssets(ideaId: string) {
     stage: f.asset_stage as string,
     version: (f.version_label as string) || 'v1',
     createdAt: (f.created_at as string) || '',
-    url: (f.storage_path as string) || (f.external_url as string) || null,
+    // `external_url` PRIMERO, `storage_path` de reserva.
+    //
+    // El orden estaba invertido y por eso la ficha no mostraba ninguna imagen:
+    // `storage_path` es la ruta DENTRO del bucket (`candilejas/<id>/...`), no
+    // una dirección. Al devolverla en `url`, un `<img src>` la pedía como si
+    // fuera una URL relativa y no cargaba nada — 200 OK, marco vacío, sin error
+    // en consola. `external_url` es la que sí abre el CDN.
+    url: (f.external_url as string) || (f.storage_path as string) || null,
   }));
 }
 

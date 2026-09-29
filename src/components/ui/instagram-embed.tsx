@@ -20,7 +20,7 @@ import { useEffect, useRef, useState } from 'react';
  * post se pintó, y se mide el alto del iframe. Si en 6 s no llega nada, se cae
  * al post compuesto de marca, que es honesto y sigue pareciendo contenido.
  */
-export function InstagramEmbed({ url, title }: { url: string; title: string }) {
+export function InstagramEmbed({ url, title, marca = 'instagram' }: { url: string; title: string; marca?: string }) {
   const [estado, setEstado] = useState<'cargando' | 'listo' | 'fallo'>('cargando');
   const [alto, setAlto] = useState(480);
   const marco = useRef<HTMLDivElement>(null);
@@ -71,11 +71,20 @@ export function InstagramEmbed({ url, title }: { url: string; title: string }) {
     return () => { vivo = false; window.clearTimeout(t); window.removeEventListener('message', alMensaje); };
   }, [shortcode]);
 
-  if (!shortcode) return <InstagramMock title={title} />;
+  if (!shortcode) return <InstagramMock title={title} marca={marca} />;
 
-  const esReel = /\/reels?\/|\/tv\//.test(url);
+  // `\/(reels?|tv)\/`, NO `\/reels?\/`.
+  //
+  // Instagram sirve el reel en las dos formas: `/reel/ABC` y `/reels/ABC`. Con
+  // `reels?` (una "s" opcional pegada) el patrón pedía `/reel/` o `/reels/`
+  // **seguido de otra barra**, así que `/reel/Dbs5ndARCKW/` no casaba, `esReel`
+  // salía false y el iframe pedía `/p/shortcode/embed/captioned/`: la URL del
+  // post de fotos, no la del reel. Meta responde con un marco vacío y sin
+  // `onRender`, así que la pieza se quedaba en "cargando" y luego caía al
+  // post compuesto — un fallo que se lee como "Instagram no deja ver nada".
+  const esReel = /\/(?:reels?|tv)\//.test(url);
 
-  if (estado === 'fallo') return <InstagramMock title={title} shortcode={shortcode} />;
+  if (estado === 'fallo') return <InstagramMock title={title} shortcode={shortcode} marca={marca} />;
 
   return (
     <div className="relative w-full overflow-hidden border border-blanco-20 bg-negro">
@@ -118,13 +127,13 @@ export function InstagramEmbed({ url, title }: { url: string; title: string }) {
 }
 
 /** Post compuesto cuando el embed real no carga. Nunca inventa la foto. */
-function InstagramMock({ title, shortcode }: { title: string; shortcode?: string }) {
+function InstagramMock({ title, shortcode, marca = 'instagram' }: { title: string; shortcode?: string; marca?: string }) {
   return (
     <div className="relative w-full border border-blanco-20 bg-negro p-4">
       <div className="mb-3 flex items-center gap-3">
         <div className="h-8 w-8 border border-mostaza/60 bg-mostaza/20" />
         <div>
-          <p className="font-mono text-xs text-blanco">wundeer</p>
+          <p className="font-mono text-xs text-blanco">{marca}</p>
           <p className="font-mono text-[10px] text-blanco-50">{shortcode ? `/${shortcode}` : 'Instagram'}</p>
         </div>
       </div>
@@ -137,7 +146,7 @@ function InstagramMock({ title, shortcode }: { title: string; shortcode?: string
       </div>
 
       <p className="mt-2 font-mono text-[10px] leading-relaxed text-blanco-50">
-        <b className="text-blanco">wundeer</b> {title}
+        <b className="text-blanco">{marca}</b> {title}
       </p>
     </div>
   );
