@@ -7,34 +7,35 @@ import { AUTH_ENABLED } from '@/lib/mode';
 
 /**
  * La pantalla de acceso del equipo. Esta es la que ve todo el mundo: el
- * middleware manda aquí (`middleware.ts` lo hace en las tres ramas), y no hay
- * ninguna otra enlazada.
+ * middleware manda aquí, y no hay ninguna otra enlazada.
  *
  * ⚠️ Historia que no se debe repetir (2026-09-28): se escribió una segunda
  * pantalla en `src/app/auth/login/page.tsx` con Google + contraseña, creyendo
  * que era "la" pantalla de login. El middleware nunca se cambió y seguía
- * apuntando a esta. El equipo aterrizaba en la de aquí, que solo tenía magic
- * link, y la pantalla con contraseña quedaba inalcanzable salvo que alguien
- * escribiera la URL a mano. La puerta que se probaba en el navegador no era la
- * puerta que ve la gente.
+ * apuntando a esta. Si algún día se escribe otra, hay que cambiar el middleware
+ * en el MISMO commit, o reproducir el mismo bug.
  *
- * Por eso ahora NO hay dos pantallas: la de auth/login se borró y esta es la
- * única. Si algún día se escribe otra, hay que cambiar el middleware en el MISMO
- * commit, o reproducir el mismo bug.
+ * UNA sola puerta, y es un código (decisión de Santiago, 2026-09-28): se
+ * escribe el correo, le llega un código de un solo uso, y con eso se entra.
  *
- * Tres puertas, como pidió Santiago:
+ * Por qué sin Google y sin contraseña, y no por capricho:
  *
- * 1. **Google** — la que usa el equipo. Devuelve SIEMPRE a `/auth/callback`,
- *    nunca al destino final: el Content Hub y Medellín Guide comparten proyecto
- *    de Supabase y Google, y Supabase solo tiene un destino de respaldo. Por eso
- *    un login sin destino abre Medellín Guide en vez del hub.
+ * - **Nadie recuerda contraseñas.** El equipo entra una vez y ya no vuelve a
+ *   inventar una. Un método que exige recordar algo se abandona.
  *
- * 2. **Correo y contraseña** — el respaldo. Si el OAuth falla o se queda pegado,
- *    hay una segunda vía que no depende de Google.
+ * - **El código no se puede robar ni reusar.** Se pide para el correo REAL de
+ *   esa persona, así que solo quien tiene ese buzón puede pedirlo. Una
+ *   contraseña se filtra, se reutiliza y se acaba en una lista; un código de un
+ *   uso caduca en minutos y no sirve para nada más.
  *
- * 3. **Link por correo** — sin contraseña, para quien no la tenga. Llega al
- *    correo real de esa persona, así que no sirve para averiguar qué correos hay
- *    dados de alta.
+ * - **No hay dos caminos que se contradigan.** Antes esta pantalla tenía tres:
+ *   Google, contraseña y link. Tres caminos son tres formas de que alguien se
+ *   quede afuera sin saber por qué, y fue justo lo que pasó.
+ *
+ * Lo que el código NO dice: si el correo está o no en la lista del equipo. Se
+ * contesta igual a todos, siempre con el mismo texto. Si el código se pide con
+ * un correo que no está dado de alta no llega nada, y por tanto no hay forma de
+ * averiguar qué correos existen.
  */
 
 export default function LoginPage() {
@@ -48,119 +49,114 @@ export default function LoginPage() {
 function FormularioLogin() {
   const router = useRouter();
   const [email, setEmail] = useState('');
-  const [clave, setClave] = useState('');
+  const [codigo, setCodigo] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
 
+  // El cliente de Supabase queda solo para VERIFICAR el código. Pedirlo ya no
+  // pasa por aquí: eso va por la API del servidor, que es la que consulta la
+  // lista blanca antes de pedir nada.
   const supabase = createClient();
 
   // Si la escritura está apagada, entrar es opcional: el tablero se puede ver
-  // igual, pero crear y mover piezas no. Decirlo aquí evita la ronda de
-  // "entré y me expulsó", que es lo que pasaba sin este aviso.
+  // igual, pero crear y mover piezas no.
   const soloLectura = !AUTH_ENABLED;
 
   /**
    * A dónde volver. Sin esto, entrar devolvía a la persona al tablero y perdía
-   * el formulario a medio llenar: la razón de que la gate de auth se sintiera
-   * como un callejón. Solo se aceptan rutas internas — un `?next=https://otro`
-   * sería un redirect abierto.
+   * el formulario a medio llenar. Solo se aceptan rutas internas: un
+   * `?next=https://otro` sería un redirect abierto, y `/\\evil.example` pasa un
+   * `startsWith('/')` ingenuo pero el navegador lo resuelve como
+   * protocolo-relativo. Se normaliza la barra y se vuelve a comprobar; lo que
+   * no sea interno, cae al tablero en vez de inventarse un destino.
    */
   const params = useSearchParams();
   const pedido = params.get('next') ?? '/select-project';
-  // Solo rutas internas de verdad: un único `/` inicial, sin `//` y sin barra
-  // invertida. `/\evil.example` pasa un `startsWith('/')` ingenuo, pero el
-  // navegador lo resuelve como protocolo-relativo si se lo pasa tal cual. Se
-  // normaliza la barra y se vuelve a comprobar; lo que no sea interno, cae al
-  // tablero en vez de inventarse un destino.
   const normalizado = pedido.replace(/\\/g, '/');
   const destino = normalizado.startsWith('/') && !normalizado.startsWith('//')
     ? normalizado
     : '/select-project';
 
-  // Tres motivos por los que se vuelve aquí, y confundirlos hace que el equipo
-  // piense que la contraseña está mal cuando el problema es otro:
+  // Tres motivos por los que se vuelve aquí, y confundirlos hace que alguien
+  // piense que el código está mal cuando el problema es otro:
   //   · `sinAcceso=1`  la cuenta existe pero el correo no está en la lista.
-  //   · `error=...`    Google o Supabase rechazaron el ingreso.
+  //   · `error=...`    Supabase rechazó el ingreso.
   //   · `next`         aún no se ha entrado, esto es normal.
   const sinAcceso = params.get('sinAcceso') === '1';
   const errorVuelta = params.get('error');
 
-  /**
-   * Dónde aterriza OAuth. SIEMPRE el callback, que ya sabe a dónde mandarle a
-   * esta persona, y no el destino final.
-   *
-   * Por qué importa tanto: el Content Hub y Medellín Guide comparten proyecto
-   * de Supabase y cliente de Google. Supabase solo tiene UN destino de
-   * respaldo (su SITE_URL, que es el de la app que configuró el proyecto), así
-   * que si el login se pide sin `redirectTo`, Google devuelve a la otra
-   * aplicación — de eso venía "entro al hub y me abre Medellín Under".
-   *
-   * Mandar el destino final directamente también falla: si se rechaza, cae
-   * igual al SITE_URL equivocado. El callback es la ruta estable.
-   */
-  const callback = () => `${window.location.origin}/auth/callback?next=${encodeURIComponent(destino)}`;
-
-  async function entrarConClave(e: React.FormEvent) {
+  async function pedirCodigo(e: React.FormEvent) {
     e.preventDefault();
     if (!supabase) {
       setError('El sistema de acceso no está configurado.');
       return;
     }
-    if (!email || !clave) {
-      setError('Escribí tu correo y tu contraseña.');
+    const limpio = email.trim().toLowerCase();
+    if (!limpio) {
+      setError('Escribí tu correo.');
       return;
     }
     setLoading(true);
     setError('');
-    const { error: err } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password: clave,
+    // Va por la API del servidor, no por el cliente de Supabase del navegador:
+    // el servidor consulta la lista blanca ANTES de pedir nada, y así pedir el
+    // código no crea la cuenta de un correo inventado. Además la respuesta es
+    // la misma para todos, para no convertir esta pantalla en un directorio de
+    // qué correos están dados de alta.
+    const respuesta = await fetch('/api/pedir-codigo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: limpio }),
+    });
+    setLoading(false);
+    if (!respuesta.ok) {
+      setError('No pudimos mandarte el código. Escríbele a Dirección.');
+      return;
+    }
+    setSent(true);
+  }
+
+  async function entrar(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supabase) {
+      setError('El sistema de acceso no está configurado.');
+      return;
+    }
+    if (!codigo.trim()) {
+      setError('Escribí el código que te llegó.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    const { error: err } = await supabase.auth.verifyOtp({
+      email: email.trim().toLowerCase(),
+      token: codigo.trim(),
+      type: 'email',
     });
     setLoading(false);
     if (err) {
-      // Genérico a propósito: decir "ese correo no existe" confirmaría qué
-      // correos están dados de alta.
-      setError('No pude entrar con ese correo y esa contraseña.');
+      // No se distingue "código equivocado" de "código vencido": se dice lo
+      // mismo para no dar pistas sobre qué códigos existen.
+      setError('Ese código no sirve. Revisa el correo y escríbelo tal cual.');
       return;
     }
     router.push(destino);
+    router.refresh();
   }
 
-  async function sendLink(e: React.FormEvent) {
-    e.preventDefault();
-    if (!supabase) {
-      setError('El sistema de acceso no está configurado.');
-      return;
-    }
-    setLoading(true);
+  /** Cambia el correo y vuelve a pedir: el código anterior ya no vale. */
+  function cambiarCorreo() {
+    setSent(false);
+    setCodigo('');
     setError('');
-    const { error: err } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: callback() },
-    });
-    setLoading(false);
-    if (err) setError(err.message);
-    else setSent(true);
-  }
-
-  async function signInWithGoogle() {
-    if (!supabase) {
-      setError('El sistema de acceso no está configurado.');
-      return;
-    }
-    const { error: err } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: callback() },
-    });
-    if (err) setError(err.message);
   }
 
   return (
     <main className="mx-auto max-w-md px-6 py-20">
       <h1 className="font-display text-3xl font-bold text-blanco">Acceder al hub</h1>
       <p className="mt-3 text-sm leading-6 text-blanco-60">
-        Acceso para el equipo. Tu correo ya está en la lista, no hay que pedirte registro.
+        Escribe tu correo y te llega un código. No hay contraseña que recordar.
       </p>
 
       {soloLectura && (
@@ -177,19 +173,57 @@ function FormularioLogin() {
 
       {!sinAcceso && errorVuelta && (
         <p role="status" className="mt-6 border-l-2 border-mostaza bg-mostaza/10 px-4 py-3 text-sm leading-6 text-mostaza">
-          Google no pudo completar el ingreso. Probá con el correo y la contraseña, o con el link.
+          No pudimos completar el ingreso. Pedí un código nuevo y escríbelo tal cual.
         </p>
       )}
 
       {sent ? (
-        <div className="brutal-panel mt-8 anim-rise">
-          <p className="font-display font-bold text-blanco">Link enviado</p>
-          <p className="mt-2 text-sm text-blanco-60">
-            Revisa tu correo (y la carpeta de spam). El enlace caduca en una hora.
-          </p>
-        </div>
+        <form onSubmit={entrar} className="mt-8 space-y-5">
+          <div className="brutal-panel anim-rise">
+            <p className="font-display font-bold text-blanco">Código enviado</p>
+            <p className="mt-2 text-sm text-blanco-60">
+              Va a <b className="font-mono text-blanco">{email.trim().toLowerCase()}</b>. Revisa
+              también la carpeta de spam. Caduca en unos minutos.
+            </p>
+          </div>
+
+          <div>
+            <label htmlFor="codigo" className="mono-label block text-blanco-50">
+              EL CÓDIGO
+            </label>
+            <input
+              id="codigo"
+              // `inputMode` sin `type="number"`: los códigos pueden traer letra
+              // y un teclado numérico en el móvil no las tiene.
+              inputMode="text"
+              autoComplete="one-time-code"
+              autoFocus
+              required
+              value={codigo}
+              onChange={(e) => setCodigo(e.target.value)}
+              placeholder="El código que te llegó"
+              className="mt-2 w-full border border-blanco-30 bg-negro p-3 font-mono text-sm text-blanco placeholder:text-blanco-20 focus:border-blanco-40 focus:outline-none"
+            />
+          </div>
+
+          {error && (
+            <p role="alert" className="text-sm text-mostaza">{error}</p>
+          )}
+
+          <button type="submit" disabled={loading} className="btn-brutal w-full disabled:opacity-50">
+            {loading ? 'VERIFICANDO…' : 'ENTRAR'}
+          </button>
+
+          <button
+            type="button"
+            onClick={cambiarCorreo}
+            className="w-full pt-2 font-mono text-[10px] text-blanco-40 underline underline-offset-4 hover:text-blanco-70"
+          >
+            Usar otro correo
+          </button>
+        </form>
       ) : (
-        <form onSubmit={entrarConClave} className="mt-8 space-y-5">
+        <form onSubmit={pedirCodigo} className="mt-8 space-y-5">
           <div>
             <label htmlFor="email" className="mono-label block text-blanco-50">
               TU CORREO
@@ -198,6 +232,7 @@ function FormularioLogin() {
               id="email"
               type="email"
               required
+              autoFocus
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="tu@email.com"
@@ -205,53 +240,12 @@ function FormularioLogin() {
             />
           </div>
 
-          <div>
-            <label htmlFor="clave" className="mono-label block text-blanco-50">
-              TU CONTRASEÑA
-            </label>
-            <input
-              id="clave"
-              type="password"
-              value={clave}
-              onChange={(e) => setClave(e.target.value)}
-              autoComplete="current-password"
-              className="mt-2 w-full border border-blanco-30 bg-negro p-3 font-mono text-sm text-blanco placeholder:text-blanco-20 focus:border-blanco-40 focus:outline-none"
-            />
-          </div>
-
           {error && (
-            <p role="alert" className="text-sm text-blanco-60">{error}</p>
+            <p role="alert" className="text-sm text-mostaza">{error}</p>
           )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn-brutal w-full disabled:opacity-50"
-          >
-            {loading ? 'ENTRANDO…' : 'ENTRAR'}
-          </button>
-
-          <div className="flex items-center gap-3">
-            <div className="h-px flex-1 bg-blanco-20" />
-            <span className="font-mono text-[10px] text-blanco-40">O CON GOOGLE</span>
-            <div className="h-px flex-1 bg-blanco-20" />
-          </div>
-
-          <button
-            type="button"
-            onClick={signInWithGoogle}
-            className="btn-brutal w-full bg-transparent text-blanco-70 hover:text-blanco hover:bg-blanco-05"
-          >
-            Entrar con Google
-          </button>
-
-          <button
-            type="button"
-            onClick={sendLink}
-            disabled={loading}
-            className="w-full pt-2 font-mono text-[10px] text-blanco-40 underline underline-offset-4 hover:text-blanco-70"
-          >
-            ¿No recuerdas la contraseña? Recibe un link por correo
+          <button type="submit" disabled={loading} className="btn-brutal w-full disabled:opacity-50">
+            {loading ? 'MANDANDO…' : 'MANDARME EL CÓDIGO'}
           </button>
         </form>
       )}
