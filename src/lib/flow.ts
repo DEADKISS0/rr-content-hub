@@ -45,6 +45,17 @@ export const PUEDE_COMENTAR: readonly RoleKey[] = [
   'owner', 'creator', 'camera', 'model', 'editor', 'publisher', 'media_buyer',
   'client_approver', 'client_viewer',
 ] as const;
+/**
+ * Los roles que ven el tablero pero no cuentan para la votacion.
+ *
+ * Votar NO es un permiso por rol de proyecto: es "estar en la lista blanca del
+ * equipo y con la fila activa". No se puede escribir como lista de roles porque
+ * la condición que manda es otra — hay gente con rol `client_viewer` que sí
+ * vota, y hay gente con rol `owner` a la que se le puede desactivar sin que
+ * deje de ser owner. La fuente de verdad es `rr_hub_can_vote_by_email()` en la
+ * base; esto vive aquí para que el cliente no invente su propia regla.
+ */
+export const SOLO_MIRA_EN_EL_VOTEO: readonly RoleKey[] = ['client_viewer'] as const;
 
 export const STATUS_ORDER: WorkflowStatus[] = [
   'draft', 'internal_review', 'voting', 'pending_approval', 'needs_changes', 'approved',
