@@ -38,10 +38,10 @@ export type ClienteParaPintar = {
   /** Solo en los abiertos: el rol que la persona tiene en ese cliente. */
   rol?: string;
   /**
-   * Por qué está cerrado. Sin esto el candado decía "tu correo no tiene acceso"
-   * también para un cliente al que SÍ tiene fila pero que todavía no tiene
-   * código de entrada — que fue lo que se vio el 2026-09-29: Boga y Satiro
-   * tienen accesos en la base y el candado afirmaba lo contrario.
+   * Por qué está cerrado. Sin esto el candado dice siempre lo mismo, y se
+   * equivoca en uno de los dos casos: `sin-fila` es "tu correo no tiene
+   * acceso", pero `sin-codigo` es "existe y tienes fila, todavía no hay puerta".
+   * Confundirlos hace que un equipo con acceso pida permisos que ya tiene.
    */
   motivo?: 'sin-fila' | 'sin-codigo';
 };
@@ -214,7 +214,7 @@ export function SelectorCliente({
           {cerrados.length > 0 && (
             <>
               <p className="mt-2 border-t border-blanco-10 px-3 pt-2 font-mono text-[10px] text-blanco-40">
-                SIN ACCESO
+                NO PUEDES ABRIRLOS
               </p>
               {cerrados.map((cliente) => (
                 <div

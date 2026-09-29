@@ -96,14 +96,14 @@ describe('el selector de la interfaz', () => {
     // Mostrarlo todo sin candado invita a pulsar donde no se puede.
     expect(componente).toMatch(/cerrados/);
     expect(componente).toMatch(/name="lock"/);
-    expect(componente).toMatch(/SIN ACCESO/);
+    expect(componente).toMatch(/NO PUEDES ABRIRLOS/);
   });
 
   it('no pone un enlace en un cliente sin acceso', () => {
     // El candado es `<div aria-disabled>`, no un `<Link>`. Si algún día se
     // convierte en enlace, un cliente sin fila de acceso se abre en el
     // navegador aunque el servidor lo rechace: se ve un tablero y luego un 404.
-    const bloqueCerrado = componente.slice(componente.indexOf('SIN ACCESO'));
+    const bloqueCerrado = componente.slice(componente.indexOf('NO PUEDES ABRIRLOS'));
     expect(bloqueCerrado).not.toMatch(/<Link/);
     expect(bloqueCerrado).toMatch(/aria-disabled/);
   });
@@ -188,17 +188,25 @@ describe('la lista la da el servidor, no el navegador', () => {
     expect(seccionCerrados).not.toMatch(/knowns|conocidos\.filter/);
   });
 
-  it('el candado dice POR QUE esta cerrado', () => {
-    // Boga y Satiro tienen filas de acceso reales en la base; lo que no tienen
-    // es código de cuatro dígitos. Decirles "tu correo no tiene acceso" a sus
-    // equipos es falso, y fue lo que se leyó el 2026-09-29.
+  it('el candado dice POR QUE esta cerrado, y son dos motivos', () => {
+    // Un solo texto miente en uno de los dos casos. Con el motivo unico, una
+    // creativa con filas en Wundeer y Candilejas veia "tu correo no tiene
+    // acceso" sobre Boga y Satiro. Para ella era verdad, pero el mismo texto
+    // tapaba que esos clientes existen con equipo propio y que a otros miembros
+    // del equipo si les abre.
+    //
+    //   sin-fila   → no hay fila. Pidesela.
+    //   sin-codigo → hay fila, pero el cliente no tiene codigo de cuatro
+    //                digitos, asi que no hay puerta por la que entrar.
     const data = leer('lib/data.ts');
     const componente = leer('components/selector-cliente.tsx');
     expect(data).toMatch(/sin-codigo/);
     expect(data).toMatch(/sin-fila/);
     expect(componente).toMatch(/sin-codigo/);
-    // Y el texto de "sin acceso" solo aparece en el motivo `sin-fila`.
+    // Los dos textos existen y son distintos: uno habla de permisos y el otro
+    // de que falta la puerta. Confundirlos hace pedir permisos que ya se tienen.
     expect(componente).toMatch(/Todav[ií]a no tiene c[oó]digo de entrada/);
+    expect(componente).toMatch(/Tu correo no tiene acceso/);
   });
 
   it('la puerta sigue cerrada para los que solo se ven', () => {

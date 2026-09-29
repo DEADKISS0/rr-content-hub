@@ -740,14 +740,15 @@ export async function getClientesDeLaPersona(): Promise<{
     .filter((p) => !slugsAbiertos.has(p.slug))
     .map(({ id: _id, ...resto }) => ({
       ...resto,
-      // Por qué está cerrado este cliente. Se distinguen los dos casos porque el
-      // texto del candado miente si no: Boga y Satiro tienen filas de acceso
-      // reales, lo que no tienen es código de cuatro dígitos. Decirles a sus
-      // equipos "tu correo no tiene acceso" es falso, y medido el 2026-09-29 eso
-      // era exactamente lo que se veía.
+      // Por qué está cerrado este cliente, que no es lo mismo siempre:
+      //   - sin-fila   → tu correo no tiene fila de acceso. Pídeselo.
+      //   - sin-codigo → tienes fila, pero el cliente no tiene código de
+      //                  cuatro dígitos, así que no hay puerta por la que entrar.
       //
-      // `sin-fila` gana sobre `sin-codigo`: si además de no tener código la
-      // persona no tiene fila, el problema real es la fila.
+      // Medido el 2026-09-29: con el motivo único, una creativa con filas en
+      // Wundeer y Candilejas veía "tu correo no tiene acceso" sobre Boga y
+      // Satiro, que era verdad para ella, pero el mismo texto ocultaba que
+      // esos clientes existen con equipo propio. El motivo lo hace exacto.
       motivo: (rolPorProyecto.has(_id) ? 'sin-codigo' : 'sin-fila') as 'sin-codigo' | 'sin-fila',
     }));
 
