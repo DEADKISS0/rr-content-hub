@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
-import { allowedTransitions, ganoLaVotacion, perdioLaVotacion, estadoVotacion, VOTOS_NECESARIOS, votosParaDecidir, ROLE_LABEL, salidaDeLaVotacion, caidaDeLaVotacion, hayCambioPedido, frenaLaVotacion, salidaDelCambioPedido, DECISIONES_VOTO, type DecisionVoto, type RoleKey, type WorkflowStatus, PUEDE_EDITAR, PUEDE_ESCRIBIR_GUION, PUEDE_COMENTAR } from '@/lib/flow';
+import { allowedTransitions, ganoLaVotacion, perdioLaVotacion, estadoVotacion, VOTOS_NECESARIOS, votosParaDecidir, ROLE_LABEL, salidaDeLaVotacion, caidaDeLaVotacion, hayCambioPedido, frenaLaVotacion, salidaDelCambioPedido, DECISIONES_VOTO, type DecisionVoto, type RoleKey, type WorkflowStatus, PUEDE_EDITAR, PUEDE_ESCRIBIR_GUION, PUEDE_COMENTAR, PUEDE_BORRAR, PUEDE_BORRAR_ESTADOS } from '@/lib/flow';
 import { rolEnProyecto } from '@/lib/project-guard';
 import { quienEs } from '@/lib/quien-es';
 
@@ -582,6 +582,115 @@ export async function POST(request: NextRequest) {
    * metadata, no un cambio de fase. Aun así exige `owner`, porque nombrar a
    * alguien como responsable de una pieza es una decisión de dirección.
    */
+  /**
+   * Borrar una idea.
+   *
+   * "Borrar" aquí significa ARCHIVAR: la fila se queda, con `archived_at` y
+   * `archived_by`, y desaparece del tablero. No es un `DELETE`.
+   *
+   * Por qué no un DELETE de verdad, aunque el botón se llame borrar:
+   *
+   * - Un `DELETE` en cascada borra también los votos y los comentarios. Votos que
+   * Contaron tres aprobaciones y luego desaparecen. Eso rompe la regla de que la
+   *   votación tiene memoria, y hace que el resultado de una pieza sea
+   *   indefendible después.
+   * - Nadie puede deshacer un `DELETE`. Con varias personas trabajando, el
+   *   "borra esto que se me coló" llega siempre tarde.
+   *
+   * El borrado real se reserva para ideas que no han salido de casa. Lo decide
+   * `PUEDE_BORRAR_ESTADOS` en `flow.ts`: solo `draft` e `internal_review`. Si la
+   * pieza ya se votó o salió, el endpoint responde que se archive, y para eso está
+   * `archive`.
+   *
+   * El permiso NO viene del body. Es el rol que el servidor resolvió de
+   * `rr_hub_access`, y solo `owner` pasa la lista.
+   */
+  /**
+   * Borrar una idea.
+   *
+   * "Borrar" aquí significa ARCHIVAR: la fila se queda, con `archived_at` y
+   * `archived_by`, y desaparece del tablero. No es un `DELETE`.
+   *
+   * Por qué no un DELETE de verdad, aunque el botón se llame borrar:
+   *
+   * - Un `DELETE` en cascada se lleva los votos y los comentarios. Una pieza que
+   *  se aprobó con tres sí y luego desaparece deja de tener resultado, y nadie
+   *  puede reconstruir por qué salió. Eso rompe la regla de que la votación tiene
+   *  memoria.
+   * - Nadie puede deshacer un `DELETE`. Con varias personas trabajando, el
+   *  "borra esto que se me coló" llega siempre tarde.
+   *
+   * El borrado real se reserva para ideas que no han salido de casa. Lo decide
+   * `PUEDE_BORRAR_ESTADOS` en `flow.ts`: solo `draft` e `internal_review`. Si la
+   * pieza ya se votó, se produjo o salió, responde 409 y la vía es archivar.
+   *
+   * El permiso NO viene del body: es el rol que el servidor resolvió con
+   * `roleForIdea`, y solo `owner` pasa `PUEDE_BORRAR`.
+   */
+  if (action === 'borrar') {
+    const ideaId = str(body.ideaId, 64);
+    if (!ideaId) return error('Falta la idea.', 400);
+
+    const role: RoleKey | null = ctx.abierto ? 'owner' : await roleForIdea(supabase, userId!, email!, ideaId);
+    if (!role) return error('No se pudo comprobar tu acceso a esa idea.', 403);
+    if (!PUEDE_BORRAR.includes(role)) {
+      return error('Solo Dirección borra ideas. Si una pieza sobra, avísame y la archivo.', 403);
+    }
+
+    const { data: idea, error: errorIdea } = await service
+      .from('rr_hub_ideas')
+      .select('id, status, title, archived_at')
+      .eq('id', ideaId)
+      .maybeSingle();
+    if (errorIdea) {
+      console.error('[borrar] no se pudo leer la idea:', errorIdea.message);
+      return error('No pudimos comprobar la idea.', 500);
+    }
+    if (!idea) return error('Esa idea ya no existe.', 404);
+    if (idea.archived_at) return NextResponse.json({ ok: true, yaArchivada: true, mensaje: 'Esa idea ya estaba fuera del tablero.' });
+
+    if (!PUEDE_BORRAR_ESTADOS.includes(idea.status as WorkflowStatus)) {
+      return error(
+        `"${idea.title}" ya no es un borrador: está en ${idea.status}. Se archiva en vez de borrarse, para no perder los votos ni los comentarios.`,
+        409,
+      );
+    }
+
+    const { data: borrada, error: errorBorrar } = await service
+      .from('rr_hub_ideas')
+      .update({ archived_at: new Date().toISOString(), archived_by: userId })
+      .eq('id', ideaId)
+      .eq('archived_at', null)
+      .select('id, archived_at')
+      .maybeSingle();
+    if (errorBorrar || !borrada) {
+      console.error('[borrar] no se pudo archivar:', errorBorrar?.message);
+      return error('No pudimos borrar la idea.', 500);
+    }
+
+    // La trazabilidad necesita un evento. Sin él, la idea desaparece del tablero
+    // y nadie sabe que existió ni quién la quitó.
+    //
+    // `rr_hub_events` no tiene columna `kind`: el tipo de evento se deduce de
+    // `from_status` contra `to_status`. Como archivar NO cambia la fase, el
+    // evento va con la fase igual en ambos lados y el texto dice qué pasó. Es la
+    // misma convención que usa `assign`: un cambio de metadata se registra con
+    // `from_status = to_status` y la interfaz lo marca como "sin cambio de fase".
+    await service.from('rr_hub_events').insert({
+      idea_id: ideaId,
+      actor_id: userId,
+      from_status: idea.status,
+      to_status: idea.status,
+      comment: `Borrada del tablero por ${email}`,
+    });
+
+    return NextResponse.json({
+      ok: true,
+      borrada: true,
+      mensaje: `"${idea.title}" está fuera del tablero. La idea y su historial siguen guardados.`,
+    });
+  }
+
   if (action === 'assign') {
     if (role !== 'owner') return error(`Solo el owner puede asignar responsable. Tu rol es ${ROLE_LABEL[role]}.`, 403);
 

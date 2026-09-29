@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { transitionIdeaStatus, type TimelineEvent } from '@/lib/workspace-client';
-import { STATUS_META, TONE_CLASS, allowedTransitions, statusMeta, waitingOn, ROLE_KEYS, type RoleKey, type WorkflowStatus } from '@/lib/flow';
+import { STATUS_META, TONE_CLASS, allowedTransitions, statusMeta, waitingOn, ROLE_KEYS, PUEDE_BORRAR, PUEDE_BORRAR_ESTADOS, type RoleKey, type WorkflowStatus } from '@/lib/flow';
 import { PUBLIC_MODE } from '@/lib/mode';
 
 /**
@@ -167,5 +168,87 @@ export function IdeaActions({ ideaId, currentStatus = 'pending_approval', role =
         <p className="mt-1 text-xs leading-5 text-blanco-60">{event.note}</p>
       </li>; })}</ol>
     </details>}
+
+    <BorrarIdea ideaId={ideaId} rol={activeRole} estado={status} onNotice={setNotice} />
+  </div>;
+}
+
+/**
+ * Borrar la pieza.
+ *
+ * Santiago lo pidió el 2026-09-29. Aparece solo a `owner` y solo mientras la
+ * idea sea borrador o revisión interna: una vez que se votó, se archivó.
+ *
+ * Tres cosas que este botón NO es:
+ *
+ * 1. **No es un `DELETE`.** Marca `archived_at` y `archived_by`. La idea sigue
+ *    en la base con sus votos y sus comentarios. La razón está en la migración.
+ * 2. **No es un clic.** Igual que los movimientos de fase, tiene dos pasos: el
+ *    primero arma y explica, el segundo confirma. Borrar es la acción de la que
+ *    más se arrepiente la gente.
+ * 3. **No es para el que solo mira.** `PUEDE_BORRAR.includes(rol)`; el servidor
+ *    vuelve a comprobarlo. Ocultar el botón es cortesía, no seguridad.
+ *
+ * Si la idea ya no está en un estado borrable, el servidor responde 409 y el
+ * botón dice que se archive. Aquí solo se oculta para no ofrecer algo que va a
+ * fallar.
+ */
+function BorrarIdea({ ideaId, rol, estado, onNotice }: {
+  ideaId: string;
+  rol: RoleKey;
+  estado: WorkflowStatus;
+  onNotice: (texto: string) => void;
+}) {
+  const [armado, setArmado] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const router = useRouter();
+
+  const puedeBorrar = PUEDE_BORRAR.includes(rol) && PUEDE_BORRAR_ESTADOS.includes(estado);
+  if (!puedeBorrar) return null;
+
+  async function borrar() {
+    if (busy) return;
+    setBusy(true);
+    const res = await fetch('/api/workspace/borrar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ ideaId }),
+    });
+    const cuerpo = await res.json().catch(() => ({}));
+    setBusy(false);
+    setArmado(false);
+    if (!res.ok) {
+      onNotice(`⚠ ${cuerpo.error ?? 'No se pudo borrar la idea.'}`);
+      return;
+    }
+    onNotice(`✓ ${cuerpo.mensaje ?? 'Idea borrada.'}`);
+    // Al volver al tablero, la idea ya no está. Un `router.refresh()` deja claro
+    // que el cambio ocurrió en el servidor y no solo en esta pantalla.
+    router.refresh();
+  }
+
+  return <div className="border-t border-blanco-20 pt-4">
+    {!armado
+      ? <button
+        type="button"
+        onClick={() => setArmado(true)}
+        className="font-mono text-[10px] text-blanco-40 uppercase transition-colors hover:text-mostaza"
+      >[ BORRAR ESTA IDEA ]</button>
+      : <div className="anim-slide-down border border-mostaza-60 bg-mostaza-05 p-4">
+        <p className="mono-label text-mostaza">[ESTO QUITA LA IDEA DEL TABLERO]</p>
+        <p className="mt-2 text-xs leading-5 text-blanco-70">
+          La idea desaparece del tablero. <strong className="text-blanco">No se borra de verdad</strong>:
+          queda guardada con su historial, sus votos y sus comentarios, por si hay que recuperarla.
+        </p>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button type="button" disabled={busy} onClick={borrar} className="border border-mostaza px-4 py-2 font-display text-xs font-bold text-mostaza transition-colors hover:bg-mostaza hover:text-negro disabled:opacity-50">
+            {busy ? 'BORRANDO…' : 'SÍ, QUITAR DEL TABLERO'}
+          </button>
+          <button type="button" onClick={() => setArmado(false)} className="font-mono text-xs text-blanco-60 underline transition-colors hover:text-blanco">
+            CANCELAR
+          </button>
+        </div>
+      </div>}
   </div>;
 }

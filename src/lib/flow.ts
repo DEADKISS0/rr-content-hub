@@ -45,6 +45,40 @@ export const PUEDE_COMENTAR: readonly RoleKey[] = [
   'owner', 'creator', 'camera', 'model', 'editor', 'publisher', 'media_buyer',
   'client_approver', 'client_viewer',
 ] as const;
+
+/**
+ * Borrar una idea, y solo borrarla. Dirección y nadie más.
+ *
+ * Santiago lo pidió el 2026-09-29: "añade la función de que se puedan borrar
+ * las ideas". El permiso es el más estrecho de todos a propósito, por tres
+ * razones que vienen de lo que ya salió mal:
+ *
+ * 1. **Solo `owner`.** Editar ya es de siete roles; si borrar fuera igual de
+ *    abierto, un creativo podría tirar una pieza que lleva semanas de trabajo.
+ * 2. **Nada publicado.** Una idea que ya salió a producción tiene historial,
+ *    evidencia y comentarios de gente que firmó. Borrarla no es borrar una idea
+ *    equivocada, es borrar el registro de lo que pasó. Por eso se comprueba el
+ *    estado, no solo el rol: `PUEDE_BORRAR_ESTADOS` son los que aún no tocan al
+ *    mundo.
+ * 3. **No es un borrado físico.** Se marca como archivada, con quién y cuándo.
+ *    Un `DELETE` sin rastro no deja forma de deshacerlo, y con 41 ideas y varias
+ *    personas trabajando, la que se borre por error tiene que volver.
+ *
+ * Para retirar de verdad una idea ya pasada, la vía es archivarla: la desaparece
+ * del tablero sin perder la historia.
+ */
+export const PUEDE_BORRAR: readonly RoleKey[] = ['owner'] as const;
+
+/**
+ * Los estados desde los que se puede borrar.
+ *
+ * La idea se puede tirar mientras es un borrador de trabajo o está en revisión.
+ * Una vez que se votó, quedó en manos de otras personas o salió, ya no se
+ * borra: se archiva.
+ */
+export const PUEDE_BORRAR_ESTADOS: readonly WorkflowStatus[] = [
+  'draft', 'internal_review',
+] as const;
 /**
  * Los roles que ven el tablero pero no cuentan para la votacion.
  *
