@@ -1,0 +1,87 @@
+-- Cuentas que existen en la tabla pero no para quien tiene que entrar.
+--
+-- Éste es el arreglo de lo que se rompió el 2026-09-28, y vale la pena contarlo
+-- entero porque el síntoma mentía:
+--
+-- Once cuentas del equipo (Tefa, Santiago Medina, Andrés, Juan Sebastián,
+-- Juliana, María, Samuel, Somewhere Lek, Benitez, Carlos y Jimenez) habían
+-- sido creadas con un INSERT directo en `auth.users`. Tenían perfil, acceso a
+-- los proyectos y todo lo demás. Lo que NO tenían era fila en
+-- `auth.identities`.
+--
+-- Esa fila es la que dice "esta cuenta existe y entra por correo". Sin ella,
+-- GoTrue no conocía las cuentas: su API de administración devolvía `404 user_not_
+-- found` para usuarios que existían, y pedirles el código de acceso devolvía
+--
+--     23505 duplicate key value violates unique constraint
+--          "users_email_partial_key"
+--
+-- Traducido: "ese correo ya está dado de alta". Y es verdad —la fila existe en
+-- la tabla— pero el sistema no puede usarla, así que no mandaba nada. Once
+-- personas del roster, Tefa entre ellas, no podían entrar por ningún camino.
+--
+-- Lo que distingue a una cuenta sana de una que no lo es: pasó por GoTrue.
+-- Cuando alguien entra con magic link, GoTrue escribe la fila de identidad. Un
+-- INSERT a mano escribe la mitad de lo que hace falta, y esa mitad que falta es
+-- justo la que decide si el código de acceso llega. Por eso preaprovisionar
+-- cuentas NO es un INSERT en `auth.users`: es crearlas por la API de
+-- administración, o insertar en las dos tablas.
+--
+-- Este archivo no se puede aplicar desde SQL: el rol del proyecto no es dueño de
+-- `auth.users` ni de `auth.identities`, así que ni `DELETE` ni `INSERT` pasan por
+-- ahí. Por eso el arreglo se hizo desde la API de administración con la clave
+-- `service_role`, y esto queda como el acta de lo que se hizo y por qué.
+
+-- ---------------------------------------------------------------------------
+-- Cómo se verificó, y cómo se vuelve a verificar.
+-- ---------------------------------------------------------------------------
+--
+-- 1. Inventario del problema:
+--
+--      select u.email
+--        from auth.users u
+--       where not exists (select 1 from auth.identities i where i.user_id = u.id);
+--
+-- 2. Lo que se hizo, por cada una de esas cuentas:
+--
+--      a) Se guardó su nombre, su id viejo y sus roles por proyecto. Los roles
+--         se guardaron POR CORREO y no por id, y esa es la parte que importa:
+--         recrear una cuenta le da un id nuevo, así que cualquier cosa atada al
+--         id viejo se queda colgando. El correo es lo único estable.
+--
+--      b) Se borró la fila de `auth.users`. La FK de `rr_hub_profiles` está en
+--         `ON DELETE CASCADE`, así que sus perfiles se fueron con ella. Es lo
+--         correcto y no un accidente: el perfil tiene el MISMO id que la cuenta
+--         (su PK es la FK a `auth.users`), y una cuenta recreada con otro id
+--         deja al perfil apuntando a la nada.
+--
+--      c) Se recreó la cuenta por `POST /auth/v1/admin/users`, que sí escribe
+--         la identidad. Devolvió `identities: [{provider: "email"}]`.
+--
+--      d) Se devolvieron los roles, ahora sí por correo, y se puso
+--         `is_team_member = true` — porque el trigger de alta deja ese campo en
+--         `false` a propósito, y recrear la cuenta es crear una cuenta nueva.
+--
+-- Lo que NO se tocó: las 8 cuentas que ya tenían identidad (Google, GitHub y el
+-- bot). Esas funcionaban y no se movieron.
+
+-- ---------------------------------------------------------------------------
+-- La trampa que hace que esto vuelva a pasar
+-- ---------------------------------------------------------------------------
+--
+-- El `INSERT` directo en `auth.users` es cómodo y por eso es peligroso: no da
+-- ningún error, la fila aparece, el perfil se enlaza, los roles se asignan, y
+-- todo parece listo. Lo único que falta es la fila que decide si esa persona
+-- puede entrar. Falla tarde, en producción, y solo para las cuentas creadas a
+-- mano: las de Google entran bien, lo que hace que el problema parezca
+-- intermitente y se atribuya a la pantalla de login en vez de al alta.
+--
+-- La comprobación que hay que hacer siempre, después de dar de alta a alguien:
+--
+--      select p.email, count(i.id) as identidades
+--        from rr_hub_profiles p
+--        left join auth.identities i on i.user_id = p.id
+--       group by p.email
+--      having count(i.id) = 0;
+--
+-- Si eso devuelve algo, la persona existe en el roster y no puede entrar.
