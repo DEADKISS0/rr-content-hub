@@ -54,7 +54,11 @@ check('un rechazo no renderiza nada de la pagina', !/if \(!admin\.allowed\)[\s\S
 //    se pone en rojo sin motivo.
 const legacyCode = read('src/app/admin/page.tsx').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 check('/admin no llama a ninguna funcion de datos', !/getAudit|getProjects|getRoster|roster\./.test(legacyCode));
-check('/admin solo redirige', /redirect\('/.test(legacyCode) && !/return <[a-z]/.test(legacyCode));
+check('/admin solo redirige', /redirect\(/.test(legacyCode) && !/return <[a-z]/.test(legacyCode));
+// Y que no mande a un cliente fijo. Con la puerta por codigo, `/admin` tiene que
+// ir al cliente de la cookie: entering con 2222 y caer en Wundeer seria un
+// enlace que funciona y lleva al sitio equivocado.
+check('/admin no manda a un cliente fijo', !/redirect\('\/(wundeer|candilejas|boga|satiro)/.test(legacyCode));
 
 console.log(fails === 0 ? '\nTODO OK' : `\n${fails} FALLO(S)`);
 process.exit(fails === 0 ? 0 : 1);
