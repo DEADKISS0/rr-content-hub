@@ -447,6 +447,15 @@ def main() -> int:
     # `CLIENTE` es global y se cambia segun `--cliente`, asi que la declaracion
     # va PRIMERO: si aparece despues de haberla leido, Python la rechaza. No es
     # un detalle de estilo, es un SyntaxError que tumba el cron entero.
+    #
+    # Y tiene que ser `global`, no una asignacion normal. Sin esta linea, la linea
+    # de mas abajo crea una variable LOCAL de `main`, y `proyecto_id()` —que lee
+    # el `CLIENTE` del modulo— sigue viendo "wundeer". El sintoma era el peor
+    # posible: el log decia "[info] cliente: candilejas", `proyecto_id()` devolvia
+    # el id de Wundeer, las ideas se guardaban ahi, y el pack de WhatsApp
+    # anunciaba WUNDEER con enlaces de Wundeer. Todo coherente por separado y
+    # equivocado junto: el mismo bug que la nota de arriba intentaba evitar.
+    global CLIENTE
 
     analizador = argparse.ArgumentParser()
     # El default se escribe literal, no como `CLIENTE`: dentro de una función
@@ -494,8 +503,17 @@ def main() -> int:
     # Por eso el primer día de un cliente nuevo se genera saltándose el tope una
     # vez, con `--tope-cola 0`, y desde ahí el cron respeta el límite por cliente.
     en_cola = tamano_cola(proyecto)
-    print(f"[info] ideas sin revisar: {en_cola} (tope {opciones.tope_cola})", file=sys.stderr)
-    if en_cola >= opciones.tope_cola:
+    # `--tope-cola 0` significa SIN TOPE, no "tope cero". Con la comparación tal
+    # cual, `20 >= 0` siempre era cierto: el primer lote de un cliente nuevo se
+    # pedía con 0 para saltarse la cola y el generador se negaba. Un 0 que no
+    # salta nada es un 0 que no significa lo que dice.
+    sin_tope = opciones.tope_cola <= 0
+    print(
+        f"[info] ideas sin revisar: {en_cola} "
+        f"(tope {'sin tope' if sin_tope else opciones.tope_cola})",
+        file=sys.stderr,
+    )
+    if not sin_tope and en_cola >= opciones.tope_cola:
         mensaje = (
             f"⏸️ No generé ideas: hay {en_cola} esperando y el tope es {opciones.tope_cola}.\n\n"
             "Ideas que más generan: revisar y sacar de la cola las que ya no "

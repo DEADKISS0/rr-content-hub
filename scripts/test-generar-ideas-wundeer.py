@@ -145,7 +145,7 @@ comprobar("la cola cuenta lo que espera revision", "status in ('draft', 'interna
 # DEFINICION de la funcion, que esta antes, y hace fallar el test sin motivo.
 fuente = pathlib.Path(generador.__file__).read_text()
 cuerpo_main = fuente[fuente.find("def main"):]
-i_pausa = cuerpo_main.find("if en_cola >= opciones.tope_cola:")
+i_pausa = cuerpo_main.find("if not sin_tope and en_cola >= opciones.tope_cola:")
 i_crea = cuerpo_main.find("crear_idea(proyecto")
 comprobar("la pausa va antes de crear", 0 < i_pausa < i_crea, f"pausa={i_pausa} crear={i_crea}")
 comprobar("la pausa se comprueba antes de pedirle nada al bot",
@@ -154,6 +154,31 @@ comprobar("la pausa se comprueba antes de pedirle nada al bot",
 # El tope se puede cambiar a mano sin tocar codigo.
 comprobar("el tope es un argumento, no una constante", "--tope-cola" in fuente)
 comprobar("el tope tiene valor por defecto 20", "default=20" in fuente)
+
+# `global CLIENTE` es OBLIGATORIO, no una recomendacion de estilo.
+#
+# Sin ella, `CLIENTE = opciones.cliente` crea una variable LOCAL de `main`, y
+# `proyecto_id()` sigue leyendo el `CLIENTE` del modulo ("wundeer"). El log miente
+# ("[info] cliente: candilejas"), las ideas se guardan en Wundeer, y el pack de
+# WhatsApp anuncia WUNDEER. Medido el 2026-09-29: dos ideas creadas para
+# Candilejas acabaron en rr_hub_ideas con project_id de Wundeer.
+i_global = cuerpo_main.find("global CLIENTE")
+i_asig = cuerpo_main.find("CLIENTE = opciones.cliente")
+comprobar("main declara global CLIENTE", i_global != -1, "no hay `global CLIENTE`: el valor se queda local")
+comprobar("la declaracion va antes de asignarlo", 0 < i_global < i_asig,
+          f"global={i_global} asignacion={i_asig}")
+
+# `--tope-cola 0` tiene que significar SIN TOPE.
+#
+# El 2026-09-29 se pidió el primer lote de Candilejas con `--tope-cola 0` para
+# saltarse la cola de Wundeer, y el generador se negó: `20 >= 0` es siempre
+# cierto, asi que un tope de cero frenaba TODO en vez de no frenar nada. Un
+# cliente nuevo jamas podria arrancar con la cola llena de otro.
+comprobar("tope 0 significa sin tope", "sin_tope = opciones.tope_cola <= 0" in cuerpo_main,
+           "no hay bandera de sin tope: el 0 no se puede usar para arrancar un cliente")
+comprobar("la pausa respeta la bandera de sin tope",
+           "if not sin_tope and en_cola" in cuerpo_main,
+           "la pausa no mira sin_tope: con 0 frena igual")
 
 # Los estados de la cola son los de flow.ts, no inventados.
 comprobar("la cola usa estados que existen en el flujo",
