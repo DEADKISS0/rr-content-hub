@@ -55,7 +55,11 @@ def main() -> int:
     idea_id, slug, imagen = sys.argv[1], sys.argv[2], pathlib.Path(sys.argv[3])
     datos = imagen.read_bytes()
     sufijo = imagen.suffix.lstrip(".").lower()
-    mime = f"image/{sufijo}" if sufijo else "image/png"
+    # El bucket acepta `image/jpeg`, no `image/jpg`: con la forma abreviada el
+    # Storage responde 415 `invalid_mime_type` y no sube NADA. La extensión
+    # `.jpg` sigue siendo valida, el nombre del mime no.
+    mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+            "webp": "image/webp", "gif": "image/gif"}.get(sufijo, f"image/{sufijo}")
     key = service_role()
     url = f"https://{REF}.supabase.co"
 
