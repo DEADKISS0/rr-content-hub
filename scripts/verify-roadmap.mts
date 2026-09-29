@@ -1,6 +1,14 @@
 // Verificacion de las funciones de roadmap anadidas. Corre con:
 //   node --experimental-strip-types scripts/verify-roadmap.mts
-import { contentRoadmap, isRoadmapStale, roadmapWeekNumber, ROADMAP_START_ISO } from '../src/lib/roadmap.ts';
+//
+// Reescrito el 2026-09-29 con el cambio de cadencia: el plan paso de 22 semanas
+// con 5 entregas a UNA sesion de graduacion al mes, y arranca el 1 de octubre.
+// Este archivo era el que rompia el CI: importaba `isRoadmapStale` y
+// `roadmapWeekNumber`, que ya no existen porque la cadencia cambio.
+import {
+  contentRoadmap, currentSession, sessionState, contentProgress,
+  PILLAR_LABEL, ROADMAP_START_ISO, devWindows, designWindows, daysBetween,
+} from '../src/lib/roadmap.ts';
 
 let fails = 0;
 const check = (name: string, ok: boolean, detail = '') => {
@@ -8,21 +16,25 @@ const check = (name: string, ok: boolean, detail = '') => {
   if (!ok) fails += 1;
 };
 
-check('el plan tiene semanas', contentRoadmap.length > 0, `${contentRoadmap.length} semanas`);
+check('el plan tiene sesiones', contentRoadmap.length > 0, `${contentRoadmap.length} meses`);
 check('la primera sesion es la fecha declarada', contentRoadmap[0].sessionIso === ROADMAP_START_ISO, `${contentRoadmap[0].sessionIso}`);
-check('cada semana entrega 1..5 piezas', contentRoadmap.every(w => w.deliveries.length === 5));
-check('cada semana tiene tema', contentRoadmap.every(w => w.theme.length > 0));
-check('las fechas de entrega caen tras la sesion', contentRoadmap.every(w => w.deliveries.every(d => d.iso >= w.sessionIso)));
+check('el arranque es el 1 de octubre', ROADMAP_START_ISO === '2026-10-01', ROADMAP_START_ISO);
+check('cada mes tiene tema', contentRoadmap.every(s => s.theme.length > 0));
+check('cada sesion cierra dentro de su mes', contentRoadmap.every(s => s.closeIso.slice(0, 7) === s.sessionIso.slice(0, 7)));
+check('cada sesion cierra despues de abrir', contentRoadmap.every(s => s.closeIso >= s.sessionIso));
+check('cada mes trae piezas', contentRoadmap.every(s => s.pieces.length >= 4));
+check('los pilares de las piezas existen en la etiqueta', contentRoadmap.every(
+  s => s.pieces.every(p => Boolean(PILLAR_LABEL[p.pillar])),
+));
+check('octubre lleva enfasis en pauta', contentRoadmap[0].pauta >= 3, `${contentRoadmap[0].pauta} de pauta`);
+check('ningun tramo arranca antes del 1 de octubre', [...devWindows, ...designWindows].every(w => w.startIso >= ROADMAP_START_ISO));
+check('ningun tramo esta al reves', [...devWindows, ...designWindows].every(w => daysBetween(w.startIso, w.endIso) > 0));
 
-// isRoadmapStale: antes de la ultima sesion => vigente; despues => caducado.
-const lastSession = `${contentRoadmap.at(-1)!.sessionIso}T23:59:59`;
-check('el plan NO es caduco antes de terminar', isRoadmapStale(new Date(contentRoadmap[0].sessionIso)) === false);
-check('el plan ES caduco un dia despues de la ultima sesion', isRoadmapStale(new Date(Date.parse(lastSession) + 86_400_000)) === true);
-
-// roadmapWeekNumber: semana 1 al arrancar, y se detiene en el total.
-check('semana 1 en la fecha de arranque', roadmapWeekNumber(new Date(ROADMAP_START_ISO)) === 1, String(roadmapWeekNumber(new Date(ROADMAP_START_ISO))));
-check('semana 1 antes de arrancar (nunca 0 ni negativo)', roadmapWeekNumber(new Date('2020-01-01')) === 1);
-check('se detiene en el total de semanas', roadmapWeekNumber(new Date('2030-01-01')) === contentRoadmap.length, String(roadmapWeekNumber(new Date('2030-01-01'))));
+// Estado: antes de arrancar nada esta pendiente; durante el mes 1 esta en curso.
+check('antes de arrancar no hay mes cerrado', contentProgress('2026-09-26').done === 0);
+check('el 1 de octubre la sesion 1 esta en curso', sessionState(contentRoadmap[0], ROADMAP_START_ISO) === 'en-curso');
+check('cerrado octubre, la sesion que toca es la 2', currentSession('2026-11-02')?.month === 2);
+check('octubre cerrado suma 1 al progreso', contentProgress('2026-11-02').done === 1);
 
 console.log(fails === 0 ? '\nTODO OK' : `\n${fails} FALLO(S)`);
 process.exit(fails === 0 ? 0 : 1);
