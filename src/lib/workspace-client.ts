@@ -1,6 +1,5 @@
 'use client';
 
-import { createClient } from '@/lib/supabase/client';
 import { ROLE_LABEL, allowedTransitions, type RoleKey, type WorkflowStatus } from '@/lib/flow';
 
 /**
@@ -61,25 +60,6 @@ const stamp = (value: string | null) =>
   value
     ? new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
     : 'Ahora';
-
-export async function loadTimeline(ideaId: string): Promise<TimelineEvent[]> {
-  const supabase = createClient();
-  if (!supabase) return [];
-  const { data } = await supabase
-    .from('rr_hub_events')
-    .select('id, from_status, to_status, comment, actor_label, created_at')
-    .eq('idea_id', ideaId)
-    .order('created_at', { ascending: false });
-  return (data ?? []).map((row: any) => ({
-    id: row.id,
-    status: row.to_status,
-    fromStatus: row.from_status ?? null,
-    actor: row.actor_label || 'RR ALIADOS',
-    note: row.comment || 'Sin nota registrada.',
-    createdAt: stamp(row.created_at),
-  }));
-}
-
 export async function transitionIdeaStatus(input: {
   ideaId: string;
   fromStatus?: string;
@@ -122,8 +102,6 @@ export async function postWorkspaceAction(
   action: string,
   body: Record<string, unknown>,
 ): Promise<Record<string, unknown> | null> {
-  const supabase = createClient();
-  if (!supabase) return { error: 'Supabase no está configurado en este entorno.' };
 
   // La cookie de la puerta viaja sola: es la misma del navegador y no hace
   // falta ponerla a mano en una cabecera. Antes iba aquí un token de sesión de
@@ -142,25 +120,6 @@ export async function postWorkspaceAction(
   }
   return payload;
 }
-
-export async function loadComments(ideaId: string): Promise<IdeaComment[]> {
-  const supabase = createClient();
-  if (!supabase) return [];
-  const { data } = await supabase
-    .from('rr_hub_comments')
-    .select('id, body, role_label, author_label, resolved_at, created_at')
-    .eq('idea_id', ideaId)
-    .order('created_at', { ascending: true });
-  return (data ?? []).map((row: any) => ({
-    id: row.id,
-    author: row.author_label || 'RR ALIADOS',
-    role: row.role_label,
-    text: row.body,
-    createdAt: stamp(row.created_at),
-    resolved: Boolean(row.resolved_at),
-  }));
-}
-
 export async function addComment(input: { ideaId: string; body: string; roleLabel: string }): Promise<{ error?: string }> {
   // `roleLabel` used to be written straight into the row, so the browser chose
   // how a comment was attributed — anyone could post as "Owner". The server
@@ -342,8 +301,6 @@ export async function createIdea(input: {
    */
   adId?: string | null;
 }): Promise<{ error?: string; id?: string }> {
-  const supabase = createClient();
-  if (!supabase) return { error: 'Supabase no está configurado en este entorno.' };
 
   // La identidad va en la cookie de la puerta, que el navegador manda solo.
   // Antes hacía falta un token en la cabecera: sin él el servidor veía a nadie
@@ -366,26 +323,6 @@ export async function saveIdeaScript(input: { ideaId: string; script: string; ro
   const response = await postWorkspaceAction('script', { ideaId: input.ideaId, script: input.script });
   return response ?? {};
 }
-
-export async function loadAssets(ideaId: string): Promise<IdeaAsset[]> {
-  const supabase = createClient();
-  if (!supabase) return [];
-  const { data } = await supabase
-    .from('rr_hub_assets')
-    .select('id, file_name, mime_type, asset_stage, version_label, storage_path, external_url, created_at')
-    .eq('idea_id', ideaId)
-    .order('created_at', { ascending: true });
-  return (data ?? []).map((row: any) => ({
-    id: row.id,
-    name: row.file_name,
-    kind: (row.mime_type || '').split('/')[0].toUpperCase() || 'ARCHIVO',
-    stage: row.asset_stage,
-    version: row.version_label || 'v1',
-    createdAt: stamp(row.created_at),
-    url: row.storage_path || row.external_url || null,
-  }));
-}
-
 export async function uploadAsset(input: {
   ideaId: string;
   projectSlug: string;
@@ -478,33 +415,32 @@ function leerComoBase64(archivo: File): Promise<string | null> {
 }
 
 export async function signedAssetUrl(path: string): Promise<string | null> {
-  const supabase = createClient();
-  if (!supabase || !path || /^https?:\/\//.test(path)) return path || null;
-  // Wundeer deliveries are intentionally shared with the public workspace.
-  // Use the bucket URL directly instead of creating a misleading expiring URL.
-  //
-  // `getPublicUrl` never fails: it builds a string from the path whether or not
-  // the bucket or the object exists, so a dead asset rendered as a broken image
-  // with no error anywhere. Listing the containing folder is the cheap way to
-  // find out — `download()` would pull the whole file (up to 100 MB) just to
-  // learn that it is there.
-  const folder = path.slice(0, path.lastIndexOf('/') + 1);
-  const file = path.slice(path.lastIndexOf('/') + 1);
-  const { data, error } = await supabase.storage.from(STORAGE_BUCKET).list(folder, { search: file });
-  if (error || !data?.some((entry) => entry.name === file)) return null;
-  return supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path).data.publicUrl || null;
+  if (!path || /^https?:\/\//.test(path)) return path || null;
+  // La lista la hace el servidor. Antes se llamaba a Storage desde el navegador
+  // con la clave anónima para comprobar que el archivo existe; con la puerta
+  // por código esa clave no lee el bucket y la comprobación devolvía siempre
+  // "no está", o sea que toda imagen ya subida se veía rota.
+  const existe = await comprobarArchivo(path);
+  if (!existe) return null;
+  return rutaPublica(path);
 }
 
-/**
- * Next human-readable code for a project+type: O1, O2 for organic and P1, P2 for
- * paid. Codes let people reference a piece out loud or in an email, so every
- * idea gets one at creation instead of staying anonymous.
- */
-/**
- * Light-weight reference check. Cross-origin HEAD calls are opaque, so a
- * failure here means "not obviously a URL", not "definitely broken". We only
- * reject text that cannot be a link at all.
- */
+async function comprobarArchivo(path: string): Promise<boolean> {
+  try {
+    const respuesta = await fetch(`/api/archivo?path=${encodeURIComponent(path)}`, {
+      cache: 'no-store', credentials: 'same-origin',
+    });
+    if (!respuesta.ok) return false;
+    const cuerpo = await respuesta.json() as { existe?: boolean };
+    return cuerpo.existe === true;
+  } catch { return false; }
+}
+
+function rutaPublica(path: string): string {
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+  return base ? `${base}/storage/v1/object/public/rr-content-assets/${path}` : path;
+}
+
 export function looksLikeUrl(value: string): boolean {
   const text = value.trim();
   if (!text) return true;

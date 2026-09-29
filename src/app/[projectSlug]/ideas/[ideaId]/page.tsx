@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { getIdea, getProject, getProfileName, getVotos, getPresencia } from '@/lib/data';
+import { getIdea, getProject, getProfileName, getVotos, getPresencia, getComentarios, getAssets, getTimeline } from '@/lib/data';
 import { rolEnProyecto } from '@/lib/project-guard';
 import { StatusBadge, STATUS_ICON } from '@/components/status-badge';
 import { IdeaActions } from '@/components/idea-actions';
@@ -41,6 +41,11 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
   // la página no puede exponer quién votó aunque quiera mostrarlo.
   const votos = await getVotos(ideaId);
   const presencia = await getPresencia();
+  // Comentarios, archivos e historial llegan desde aqui, no desde el navegador:
+  // el cliente anon ya no lee esas tablas y llegaban vacios sin dar error.
+  const [comentarios, assets, timeline] = await Promise.all([
+    getComentarios(ideaId), getAssets(ideaId), getTimeline(ideaId),
+  ]);
 
   // El responsable se resuelve en el servidor y se pasa como NOMBRE, no como
   // id: el navegador no necesita saber el uuid de nadie, y `created_by` es la
@@ -190,7 +195,13 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
         <section className="space-y-5">
           {idea.script_content && <ScriptEditor ideaId={ideaId} initialScript={idea.script_content} />}
           <div data-guia="comentarios">
-            <EnhancedIdeaCollaboration projectSlug={projectSlug} ideaId={ideaId} />
+            <EnhancedIdeaCollaboration
+              projectSlug={projectSlug}
+              ideaId={ideaId}
+              comentariosIniciales={comentarios}
+              assetsIniciales={assets}
+              timelineInicial={timeline}
+            />
           </div>
         </section>
 

@@ -3,9 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   addComment,
-  loadAssets,
-  loadComments,
-  loadTimeline,
   resolveComment,
   signedAssetUrl,
   uploadAsset,
@@ -14,7 +11,6 @@ import {
   type IdeaComment,
   type TimelineEvent,
 } from '@/lib/workspace-client';
-import { createClient } from '@/lib/supabase/client';
 import { statusMeta } from '@/lib/flow';
 
 const stageOptions: Array<{ value: AssetStage; label: string }> = [
@@ -32,6 +28,15 @@ const stageLabel = (stage: string) => stageOptions.find((option) => option.value
 interface EnhancedIdeaCollaborationProps {
   projectSlug: string;
   ideaId: string;
+  /**
+   * Lo que el servidor ya leyó. Antes venía de `loadComments`/`loadAssets`/
+   * `loadTimeline` en el navegador, con la clave anónima; con la puerta por
+   * código el anon no lee esas tablas y llegaban vacías. Sin error visible: una
+   * lista vacía y una lista que no se cargó se ven igual en la ficha.
+   */
+  comentariosIniciales: IdeaComment[];
+  assetsIniciales: IdeaAsset[];
+  timelineInicial: TimelineEvent[];
 }
 
 /**
@@ -41,47 +46,44 @@ interface EnhancedIdeaCollaborationProps {
  * - Barra de progreso básica
  * - Comentarios con estado en vivo
  */
-export function EnhancedIdeaCollaboration({ projectSlug, ideaId }: EnhancedIdeaCollaborationProps) {
-  const [comments, setComments] = useState<IdeaComment[]>([]);
-  const [assets, setAssets] = useState<IdeaAsset[]>([]);
+export function EnhancedIdeaCollaboration({ projectSlug, ideaId, comentariosIniciales, assetsIniciales, timelineInicial }: EnhancedIdeaCollaborationProps) {
+  // Arrancan con lo que leyó el servidor, para que la ficha se pinte con su
+  // contenido en el primer render y no con tres listas vacías.
+  const [comments, setComments] = useState<IdeaComment[]>(comentariosIniciales);
+  const [assets, setAssets] = useState<IdeaAsset[]>(assetsIniciales);
   const [text, setText] = useState('');
   const [showResolved, setShowResolved] = useState(false);
   const [stage, setStage] = useState<AssetStage>('reference_brief');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
-  const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
+  const [timeline, setTimeline] = useState<TimelineEvent[]>(timelineInicial);
 
   const refresh = useCallback(async () => {
-    const [nextComments, nextAssets, nextTimeline] = await Promise.all([
-      loadComments(ideaId),
-      loadAssets(ideaId),
-      loadTimeline(ideaId),
-    ]);
-    setComments(nextComments);
-    setAssets(nextAssets);
-    setTimeline(nextTimeline);
+    // Por la API del servidor, no con la clave del navegador. `loadComments` y
+    // compañía leían `rr_hub_comments` con el anon, que ya no tiene permiso: el
+    // refresco cada 20 segundos se enteraba de que no había nada y lo pintaba
+    // como que no había nada. Era peor que no refrescar, porque el seemed
+    // vivo.
+    try {
+      const respuesta = await fetch(`/api/workspace/pieza?ideaId=${encodeURIComponent(ideaId)}`, {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      });
+      if (!respuesta.ok) return;
+      const cuerpo = await respuesta.json() as {
+        comentarios: IdeaComment[]; assets: IdeaAsset[]; timeline: TimelineEvent[];
+      };
+      setComments(cuerpo.comentarios ?? []);
+      setAssets(cuerpo.assets ?? []);
+      setTimeline(cuerpo.timeline ?? []);
+    } catch {
+      // Un refresco fallido no puede romper la ficha ni vaciar lo que ya está
+      // en pantalla: se conserva lo anterior y se vuelve a intentar en 20 s.
+    }
   }, [ideaId]);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => { refresh(); }, 0);
-    return () => window.clearTimeout(timer);
-  }, [refresh]);
-
-  // Suscripción en tiempo real a comentarios y assets
-  useEffect(() => {
-    const supabase = createClient();
-    if (!supabase) return;
-    
-    const channel = supabase.channel(`wundeer-collaboration-${ideaId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'rr_hub_comments', filter: `idea_id=eq.${ideaId}` }, refresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'rr_hub_assets', filter: `idea_id=eq.${ideaId}` }, refresh)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'rr_hub_events', filter: `idea_id=eq.${ideaId}` }, refresh)
-      .subscribe();
-    
-    return () => { supabase.removeChannel(channel); };
-  }, [ideaId, refresh]);
-
+  // (realtime retirado: el anon ya no lee estas tablas — ver el bloque de refresco)
   // Sin simulación de "usuarios escribiendo": si no hay movimiento real, no se
   // muestra nada. El movimiento sale de rr_hub_events (quién cambió qué estado
   // y cuándo), no de un Math.random().

@@ -1,10 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { loadTimeline, transitionIdeaStatus, type TimelineEvent } from '@/lib/workspace-client';
+import { transitionIdeaStatus, type TimelineEvent } from '@/lib/workspace-client';
 import { STATUS_META, TONE_CLASS, allowedTransitions, statusMeta, waitingOn, ROLE_KEYS, type RoleKey, type WorkflowStatus } from '@/lib/flow';
 import { PUBLIC_MODE } from '@/lib/mode';
-import { createClient } from '@/lib/supabase/client';
 
 /**
  * Guided hand-off. The person sees where the piece is, who acts now, and at
@@ -20,22 +19,25 @@ export function IdeaActions({ ideaId, currentStatus = 'pending_approval', role =
   const [busy, setBusy] = useState(false);
   const [justChanged, setJustChanged] = useState(false);
 
-  const refresh = useCallback(() => { loadTimeline(ideaId).then(setHistory); }, [ideaId]);
-  useEffect(() => { const timer = window.setTimeout(refresh, 0); return () => window.clearTimeout(timer); }, [refresh]);
+  // El historial viene de la misma API que los comentarios y los archivos.
+  // Antes lo leía `loadTimeline` con la clave anónima del navegador, que ya no
+  // lee `rr_hub_events`: la línea de tiempo salía vacía sin decir nada.
+  const refresh = useCallback(() => {
+    fetch(`/api/workspace/pieza?ideaId=${encodeURIComponent(ideaId)}`, {
+      cache: 'no-store', credentials: 'same-origin',
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((cuerpo) => { if (cuerpo?.timeline) setHistory(cuerpo.timeline); })
+      .catch(() => {
+        // Un refresco fallido no vacía lo que ya está en pantalla.
+      });
+  }, [ideaId]);
 
   useEffect(() => {
-    const supabase = createClient();
-    if (!supabase) return;
-    const channel = supabase.channel(`wundeer-idea-${ideaId}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rr_hub_ideas', filter: `id=eq.${ideaId}` }, (payload) => {
-        const nextStatus = payload.new.status as WorkflowStatus | undefined;
-        if (nextStatus) setStatus(nextStatus);
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'rr_hub_events', filter: `idea_id=eq.${ideaId}` }, refresh)
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [ideaId, refresh]);
-
+    const t0 = window.setTimeout(refresh, 0);
+    const id = window.setInterval(refresh, 20_000);
+    return () => { window.clearTimeout(t0); window.clearInterval(id); };
+  }, [refresh]);
   /**
    * `readOnly` no puede depender de `PUBLIC_MODE`.
    *

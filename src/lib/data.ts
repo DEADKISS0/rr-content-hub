@@ -567,3 +567,73 @@ export async function getAuditAssets(ideaId: string) {
     createdAt: row.created_at as string,
   }));
 }
+
+/**
+ * Comentarios, archivos y línea de tiempo de una pieza.
+ *
+ * Antes los leía el navegador con la clave anónima. Con la puerta por código el
+ * anon no tiene permiso de lectura sobre esas tablas, así que llegaban vacíos y
+ * la ficha parecía una pieza sin comentarios ni historial. No había error
+ * visible: una lista vacía y una lista que no se cargó se ven igual.
+ *
+ * Ahora se leen aquí, con la clave del servidor, y llegan como props. La cookie
+ * ya checked en la página: quien no entra no llega a este punto.
+ */
+export async function getComentarios(ideaId: string) {
+  const supabase = await createServiceClient() ?? await createClient();
+  if (!supabase) return [];
+  const { data } = await supabase
+    .from('rr_hub_comments')
+    .select('id, body, author_label, resolved, created_at')
+    .eq('idea_id', ideaId)
+    .order('created_at', { ascending: true });
+  // Se devuelve con la forma que el componente ya espera (`text`, `author`,
+  // `createdAt`), no con los nombres de columna. Que el mapeo esté aquí y no
+  // en el componente es lo que evita tener dos versiones de la misma cosa: si
+  // el componente se cambia, el servidor sigue hablando su idioma.
+  return (data ?? []).map((c) => ({
+    id: c.id as string,
+    text: (c.body as string) ?? '',
+    author: (c.author_label as string) ?? 'RR ALIADOS',
+    role: 'colaboracion',
+    createdAt: (c.created_at as string) ?? '',
+    resolved: Boolean(c.resolved),
+  }));
+}
+
+export async function getAssets(ideaId: string) {
+  const supabase = await createServiceClient() ?? await createClient();
+  if (!supabase) return [];
+  const { data } = await supabase
+    .from('rr_hub_assets')
+    .select('id, asset_stage, storage_path, external_url, file_name, mime_type, version_label, created_at')
+    .eq('idea_id', ideaId)
+    .order('created_at', { ascending: true });
+  return (data ?? []).map((f) => ({
+    id: f.id as string,
+    name: (f.file_name as string) || 'archivo',
+    kind: (f.mime_type as string) || 'archivo',
+    stage: f.asset_stage as string,
+    version: (f.version_label as string) || 'v1',
+    createdAt: (f.created_at as string) || '',
+    url: (f.storage_path as string) || (f.external_url as string) || null,
+  }));
+}
+
+export async function getTimeline(ideaId: string) {
+  const supabase = await createServiceClient() ?? await createClient();
+  if (!supabase) return [];
+  const { data } = await supabase
+    .from('rr_hub_events')
+    .select('id, from_status, to_status, comment, actor_label, created_at')
+    .eq('idea_id', ideaId)
+    .order('created_at', { ascending: true });
+  return (data ?? []).map((e) => ({
+    id: e.id as string,
+    status: (e.to_status as string) ?? '',
+    from: (e.from_status as string) ?? null,
+    actor: (e.actor_label as string) ?? 'Sistema',
+    note: (e.comment as string) ?? '',
+    createdAt: (e.created_at as string) ?? '',
+  }));
+}

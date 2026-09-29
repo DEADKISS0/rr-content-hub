@@ -7,7 +7,6 @@ import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { GuidedTour } from './guided-tour';
 import { Icon, type IconName } from './ui/icons';
-import { createClient } from '@/lib/supabase/client';
 import { AUTH_ENABLED } from '@/lib/mode';
 import { HubFooter } from '@/components/hub-footer';
 

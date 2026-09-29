@@ -159,5 +159,35 @@ for (const [name, file] of [
 check('access-admin.tsx ya no existe', !fs.existsSync(path.join(repoRoot, 'src/components/access-admin.tsx')));
 check('no queda ningun escritor de rr_hub_access', offenders.every((o) => !o.includes('access')));
 
+// ---------------------------------------------------------------------------
+// 6. El navegador no lee NADA de la base.
+//
+// La puerta es un código por cliente, así que la identidad es una cookie firmada
+// que el navegador no puede firmar. Toda lectura con la clave anónima devolvió
+// cero filas en silencio: comentarios, archivos, historial y hasta la
+// comprobación de si una imagen existe. El síntoma era siempre el mismo — una
+// lista vacía o una imagen rota — y nunca un error, que es lo que hace que
+// estas cosas se descubran tarde.
+// Se mira lo que se importa, no lo que hay en disco: `server.ts` es el cliente
+// de SERVIDOR y tiene que seguir existiendo. Lo que no puede existir es un
+// cliente de navegador.
+const publico = walk(path.join(repoRoot, 'src')).filter((f) => !/supabase[\\/]server\.ts$/.test(f));
+const lecturasDirectas = publico.filter((f) => {
+  const fuente = fs.readFileSync(f, 'utf8');
+  return /supabase\/client|createBrowserClient|createServerClient/.test(fuente);
+});
+check('el navegador no habla con Supabase directo', lecturasDirectas.length === 0,
+  lecturasDirectas.map((f) => path.relative(repoRoot, f)).join(', '));
+check('el servidor si tiene su cliente', fs.existsSync(path.join(repoRoot, 'src/lib/supabase/server.ts')));
+
+check('no queda el modulo del cliente de navegador',
+  !fs.existsSync(path.join(repoRoot, 'src/lib/supabase/client.ts')));
+
+// Y la regla de que los tres lectores viven en el servidor.
+const data = fs.readFileSync(path.join(repoRoot, 'src/lib/data.ts'), 'utf8');
+for (const lector of ['getComentarios', 'getAssets', 'getTimeline']) {
+  check(`${lector} lee en el servidor`, new RegExp(`export async function ${lector}`).test(data));
+}
+
 console.log(fails === 0 ? '\nTODO OK' : `\n${fails} FALLO(S)`);
 process.exit(fails === 0 ? 0 : 1);
