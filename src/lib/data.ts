@@ -673,7 +673,7 @@ export async function getTimeline(ideaId: string) {
  */
 export async function getClientesDeLaPersona(): Promise<{
   abiertos: { slug: string; name: string; client_name: string; brand_primary_color: string | null; description: string | null; rol: string }[];
-  cerrados: { slug: string; name: string; client_name: string; brand_primary_color: string | null; description: string | null }[];
+  cerrados: { slug: string; name: string; client_name: string; brand_primary_color: string | null; description: string | null; motivo: 'sin-fila' | 'sin-codigo' }[];
   actual: string | null;
 }> {
   const vacio = { abiertos: [], cerrados: [], actual: null as string | null };
@@ -738,7 +738,18 @@ export async function getClientesDeLaPersona(): Promise<{
   const slugsAbiertos = new Set(abiertos.map((p) => p.slug));
   const cerrados = proyectos
     .filter((p) => !slugsAbiertos.has(p.slug))
-    .map(({ id: _id, ...resto }) => resto);
+    .map(({ id: _id, ...resto }) => ({
+      ...resto,
+      // Por qué está cerrado este cliente. Se distinguen los dos casos porque el
+      // texto del candado miente si no: Boga y Satiro tienen filas de acceso
+      // reales, lo que no tienen es código de cuatro dígitos. Decirles a sus
+      // equipos "tu correo no tiene acceso" es falso, y medido el 2026-09-29 eso
+      // era exactamente lo que se veía.
+      //
+      // `sin-fila` gana sobre `sin-codigo`: si además de no tener código la
+      // persona no tiene fila, el problema real es la fila.
+      motivo: (rolPorProyecto.has(_id) ? 'sin-codigo' : 'sin-fila') as 'sin-codigo' | 'sin-fila',
+    }));
 
   return { abiertos, cerrados, actual: sesion.proyecto };
 }

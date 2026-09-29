@@ -37,6 +37,13 @@ export type ClienteParaPintar = {
   description: string | null;
   /** Solo en los abiertos: el rol que la persona tiene en ese cliente. */
   rol?: string;
+  /**
+   * Por qué está cerrado. Sin esto el candado decía "tu correo no tiene acceso"
+   * también para un cliente al que SÍ tiene fila pero que todavía no tiene
+   * código de entrada — que fue lo que se vio el 2026-09-29: Boga y Satiro
+   * tienen accesos en la base y el candado afirmaba lo contrario.
+   */
+  motivo?: 'sin-fila' | 'sin-codigo';
 };
 
 const ETIQUETA_ROL: Record<string, string> = {
@@ -223,7 +230,9 @@ export function SelectorCliente({
                       {cliente.name.toUpperCase()}
                     </span>
                     <span className="mt-1 block text-[10px] leading-4 text-blanco-40">
-                      Tu correo no tiene acceso. Pídeselo a quien administra el hub.
+                      {cliente.motivo === 'sin-codigo'
+                        ? 'Todavía no tiene código de entrada. Pídeselo a quien administra el hub.'
+                        : 'Tu correo no tiene acceso. Pídeselo a quien administra el hub.'}
                     </span>
                   </span>
                 </div>

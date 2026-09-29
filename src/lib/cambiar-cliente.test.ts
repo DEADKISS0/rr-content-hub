@@ -188,6 +188,19 @@ describe('la lista la da el servidor, no el navegador', () => {
     expect(seccionCerrados).not.toMatch(/knowns|conocidos\.filter/);
   });
 
+  it('el candado dice POR QUE esta cerrado', () => {
+    // Boga y Satiro tienen filas de acceso reales en la base; lo que no tienen
+    // es código de cuatro dígitos. Decirles "tu correo no tiene acceso" a sus
+    // equipos es falso, y fue lo que se leyó el 2026-09-29.
+    const data = leer('lib/data.ts');
+    const componente = leer('components/selector-cliente.tsx');
+    expect(data).toMatch(/sin-codigo/);
+    expect(data).toMatch(/sin-fila/);
+    expect(componente).toMatch(/sin-codigo/);
+    // Y el texto de "sin acceso" solo aparece en el motivo `sin-fila`.
+    expect(componente).toMatch(/Todav[ií]a no tiene c[oó]digo de entrada/);
+  });
+
   it('la puerta sigue cerrada para los que solo se ven', () => {
     // Ver un cliente en el desplegable no lo abre: la ruta valida la lista
     // corta por separado. Si esta comprobación se rompe, el candado se vuelve
