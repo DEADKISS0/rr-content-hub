@@ -91,11 +91,18 @@ const solape = QUEUES.aprobaciones.statuses.filter(s => QUEUES.produccion.status
 check('el solape entre colas es solo la frontera final',
   solape.every(s => s === 'ready_to_publish'), solape.join(', ') || 'sin solape');
 
-// 8b. El tablero de 4 columnas y las colas no pueden desincronizarse. El
-//     tablero tenia su propia lista escrita a mano, y por eso un estado nuevo
-//     aparecia en un sitio y no en el otro.
+// 8b. El tablero y las colas no pueden desincronizarse. El tablero tenia su
+//     propia lista escrita a mano, y por eso un estado nuevo aparecia en un
+//     sitio y no en el otro.
+//
+//     El numero de columnas NO va escrito a mano (Santiago, 2026-09-30): al
+//     sacar `closed` de `live` y darle columna propia, el tablero paso a 5 y un
+//     `=== 4` fijo dio FAIL con todo lo demas en verde. Un numero que hay que
+//     recordar actualizar es un numero que miente. Ahora sale del motor: una
+//     columna por cola.
 const boardStates = BOARD_COLUMNS.flatMap(c => c.statuses as readonly string[]);
-check('el tablero tiene 4 columnas', BOARD_COLUMNS.length === 4, `${BOARD_COLUMNS.length}`);
+check('el tablero tiene una columna por cola', BOARD_COLUMNS.length === Object.keys(QUEUES).length,
+  `${BOARD_COLUMNS.length} columnas, ${Object.keys(QUEUES).length} colas`);
 check('el tablero cubre los 15 estados sin repetir', new Set(boardStates).size === 15, `${new Set(boardStates).size} unicos`);
 const boardMissing = STATUS_ORDER.filter(s => !boardStates.includes(s));
 check('el tablero incluye todo estado del motor', boardMissing.length === 0, boardMissing.join(', ') || 'todos');

@@ -8,7 +8,13 @@
  */
 import { PHASES, type WorkflowStatus } from '@/lib/flow';
 
-export type QueueKey = 'ideacion' | 'aprobaciones' | 'produccion' | 'publicaciones';
+/**
+ * `descartadas` es nueva (Santiago, 2026-09-30). Antes `closed` estaba dentro de
+ * `publicaciones` porque `live` agrupaba `published` y `closed` juntos, y una idea
+ * que se descartó a propósito aparecia en la cola de PUBLICACIONES. Lo que salió
+ * y lo que se tiró son dos hechos distintos y necesitan dos sitios.
+ */
+export type QueueKey = 'ideacion' | 'aprobaciones' | 'produccion' | 'publicaciones' | 'descartadas';
 
 type QueueDef = { title: string; statuses: readonly WorkflowStatus[]; empty: string };
 
@@ -54,6 +60,14 @@ export const QUEUES: Record<QueueKey, QueueDef> = {
     statuses: ['ready_to_publish', ...byPhase('live')],
     empty: 'Todavía no hay piezas publicadas.',
   },
+  // Lo que NO va a salir. Se conserva con todo su historial —no se borra— pero
+  // fuera de la cola de lo publicado, para no volver a mirarla creyendo que se
+  // publicó.
+  descartadas: {
+    title: 'DESCARTADAS',
+    statuses: [...byPhase('closed')],
+    empty: 'No se ha descartado nada.',
+  },
 };
 
 /** Narrowing helper so queue pages stop casting every idea to `any`. */
@@ -72,10 +86,21 @@ export const READY_FOR_SHOOTING: readonly WorkflowStatus[] = QUEUES.produccion.s
  * The four-column board. It reads from the same queues, so a state added to the
  * engine shows up here automatically — this used to be a second, hand-kept
  * list that silently drifted from the queues the pages actually used.
+ *
+ * LA CUARTA COLUMNA TENIA UN BUG QUE SE VEIA EN CADA CARRGA (Santiago,
+ * 2026-09-30: "bloqueamos una idea que no nos gustó y meterse bloqueado se fue a
+ * otra categoría que se llama publicado"). Decía PUBLICADO y sus estados venían
+ * de `byPhase('live')`, que incluía `closed`. O sea: una idea DESCARTADA
+ * aparecía en la columna de lo publicado. Al revés, y sin que nada fallara.
+ *
+ * Ahora hay dos columnas y cada una dice lo que es: lo que salió, y lo que se
+ * descartó. Se cuentan por separado, que es lo que hace falta para no volver a
+ * mirar una idea archivada creyendo que se publicó.
  */
 export const BOARD_COLUMNS = [
   { key: 'ideas', label: 'IDEAS', plain: 'Propuesta y decisión del cliente', statuses: byPhase('idea') },
   { key: 'scripts', label: 'GUIONES', plain: 'Escritura y aprobación', statuses: byPhase('script') },
   { key: 'production', label: 'PRODUCCIÓN', plain: 'Rodaje, edición y revisión final', statuses: [...byPhase('shoot'), ...byPhase('edit')] },
-  { key: 'published', label: 'PUBLICADO', plain: 'Salida y cierre', statuses: byPhase('live') },
+  { key: 'published', label: 'PUBLICADO', plain: 'Ya salió a la cuenta', statuses: byPhase('live') },
+  { key: 'closed', label: 'DESCARTADAS', plain: 'No salió y no va a salir', statuses: byPhase('closed') },
 ] as const;

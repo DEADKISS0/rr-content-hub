@@ -104,7 +104,14 @@ export const PHASES = [
   { key: 'script', label: 'GUIÓN', detail: 'Se escribe y se aprueba', statuses: ['approved', 'script_in_progress', 'pending_script_review', 'script_approved'] },
   { key: 'shoot', label: 'RODAJE', detail: 'Se graba y se sube el crudo', statuses: ['in_production', 'raw_uploaded'] },
   { key: 'edit', label: 'EDICIÓN', detail: 'Se monta y se aprueba', statuses: ['editing', 'ready_to_publish'] },
-  { key: 'live', label: 'PUBLICACIÓN', detail: 'Se publica y se cierra', statuses: ['published', 'closed'] },
+  { key: 'live', label: 'PUBLICACIÓN', detail: 'Ya salió a la cuenta', statuses: ['published'] },
+  // `closed` ESTÁ FUERA DE `live` A PROPÓSITO (Santiago, 2026-09-30: "bloqueamos
+  // una idea que no nos gustó y meterse bloqueado se fue a otra categoría que se
+  // llama publicado"). Las dos cosas son opuestas: `published` es la que SÍ
+  // salió; `closed` es la que se descartó. Sharing grupo con `published` hacía que
+  // una idea archivada se contara y se leyera como publicada, y por eso el
+  // contador mentía y nadie encontraba lo que había descartado.
+  { key: 'closed', label: 'DESCARTADAS', detail: 'No salió y no va a salir', statuses: ['closed'] },
 ] as const;
 
 export function phaseIndex(status: WorkflowStatus): number {

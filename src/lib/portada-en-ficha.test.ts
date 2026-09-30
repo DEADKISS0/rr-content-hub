@@ -26,15 +26,29 @@ describe('la ficha de la idea muestra la portada', () => {
     expect(ficha).toMatch(/asset=\{idea\.cover_asset\}/);
   });
 
-  it('la muestra grande y arriba del texto, no al final de la página', () => {
-    // El orden importa: si la portada se queda al final, quien abre la idea
-    // lee tres párrafos antes de ver de qué va.
+  it('la muestra NO va arriba del texto, sino aparte y etiquetada', () => {
+    // ESTE TEST PEDIA LO CONTRARIO HASTA HACE UN MOMENTO, y por eso hay que
+    // contarlo. Pedía la portada "grande y arriba del texto, no al final", por
+    //的理由 de que quien abría la idea leía tres párrafos antes de ver de qué
+    // iba.
+    //
+    // Santiago lo revirtió el 2026-09-30: "cuando uno abre una idea aparece
+    // primero como la foto de la portada y luego ya el vídeo, eso confunde un
+    // poco". El problema era que una portada y una previsualización de Instagram
+    // se parecen: dos rectángulos con una imagen dentro. Arriba, la portada
+    // tapaba el vídeo, que es lo que hay que mirar.
+    //
+    // La portada sigue estando —no se quitó— pero en la barra lateral, con
+    // etiqueta. Ver `flujo-ficha.test.ts` para el orden completo.
     const h1 = ficha.indexOf('<h1');
     const portada = ficha.indexOf('<IdeaCoverFrame');
     const descripcion = ficha.indexOf('{idea.description}');
     expect(h1).toBeGreaterThan(-1);
     expect(portada).toBeGreaterThan(h1);
-    expect(portada).toBeLessThan(descripcion);
+    // Ya NO antes de la descripción: la descripción va arriba del todo.
+    expect(portada).toBeGreaterThan(descripcion);
+    // Y la etiqueta que dice que es apoyo, no la pieza.
+    expect(ficha).toMatch(/FOTO DE APOYO/);
   });
 
   it('la ficha importa el componente que usa', () => {

@@ -55,8 +55,17 @@ describe('ninguna pieza se pierde ni se duplica', () => {
     }
   });
 
-  it('las fases del flujo son 5 y todas los estados están dentro', () => {
-    expect(PHASES.length).toBe(5);
+  it('cada fase tiene al menos un estado y todos los estados están dentro', () => {
+    // El numero de fases NO va escrito a mano (Santiago, 2026-09-30): al sacar
+    // `closed` de `live` y darle grupo propio, pasaron a 6 y este `toBe(5)` dio
+    // FAIL con todo lo demas en verde. Un numero que hay que recordar
+    // actualizar es un numero que miente. Lo que importa es que ninguna fase
+    // este vacia: una fase vacia es una columna que no muestra nada.
+    expect(PHASES.length).toBeGreaterThan(0);
+    for (const fase of PHASES) {
+      expect(fase.statuses.length, `la fase ${fase.key} esta vacia`).toBeGreaterThan(0);
+      expect(fase.label).not.toBe('');
+    }
     for (const status of STATUS_ORDER) {
       const indice = phaseIndex(status);
       expect(indice).toBeGreaterThanOrEqual(0);

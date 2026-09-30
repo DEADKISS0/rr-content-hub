@@ -127,16 +127,6 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
           <p className="eyebrow">{idea.code ?? 'IDEA'} · {idea.content_type === 'organic' ? 'ORGÁNICO' : 'PAUTA'} · {idea.category}</p>
           <h1 className="display-title max-w-5xl">{idea.title}</h1>
 
-          {/* La portada es de la pieza, no un adorno del tablero. En la ficha
-              se ve la foto grande arriba del texto: quien abre la idea tiene
-              que ver de qué va sin hacer scroll. Antes solo se pintaba en las
-              tarjetas del mapa, y en la ficha no había ninguna imagen. */}
-          {idea.cover_asset && (
-            <div className="mt-6 max-w-md">
-              <IdeaCoverFrame code={idea.code} title={idea.title} asset={idea.cover_asset} size="lg" format={format.icon} />
-            </div>
-          )}
-
           <p className="mt-6 max-w-2xl text-base leading-7 text-blanco-60 sm:text-lg sm:leading-8">{idea.description}</p>
 
           <div className="mt-6 flex flex-wrap items-center gap-2">
@@ -177,9 +167,32 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
           el bloque medía 2493 px de alto. A ancho completo son dos columnas
           legibles. */}
       <section className="mb-8 anim-rise">
-        <div data-guia="brief">
-          <ReferenceWithBrief url={raw} title={idea.title} brief={{ intention: idea.objective, camera: idea.camera, talent: idea.talent, edit: idea.edit }} />
-        </div>
+        {raw ? (
+          <div data-guia="brief">
+            <ReferenceWithBrief url={raw} title={idea.title} brief={{ intention: idea.objective, camera: idea.camera, talent: idea.talent, edit: idea.edit }} />
+          </div>
+        ) : idea.cover_asset ? (
+          /* Sin referencia la ficha no puede quedar con un hueco vacío: la
+             portada sube aquí, pero con su etiqueta para que nadie la tome por
+             la previsualización de la pieza. Es el hueco que se confundía antes. */
+          <figure data-guia="brief" className="max-w-md border border-blanco-20 p-4">
+            <figcaption className="mono-label mb-3 text-mostaza">[SIN REFERENCIA] · FOTO DE APOYO</figcaption>
+            <IdeaCoverFrame code={idea.code} title={idea.title} asset={idea.cover_asset} size="lg" format={format.icon} />
+            <p className="mt-3 text-xs leading-5 text-blanco-60">
+              Esta pieza todavía no tiene un video de referencia. La foto es de
+              apoyo, no la pieza.
+            </p>
+          </figure>
+        ) : (
+          /* Sin ninguna de las dos: se dice, en vez de dejar un espacio mudo. */
+          <div data-guia="brief" className="border border-dashed border-blanco-20 px-5 py-6">
+            <p className="mono-label text-mostaza">[FALTA LA REFERENCIA]</p>
+            <p className="mt-2 text-sm leading-6 text-blanco-60">
+              Sin el video de referencia no se puede grabar ni editar. Es el dato
+              que mas bloquea esta ficha.
+            </p>
+          </div>
+        )}
       </section>
 
       {/* El editor va pegado a la referencia, no escondido en un menú. Si lo que
@@ -243,6 +256,40 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
               </li>)}
             </ul>}
           </div>
+
+          {/* LA PORTADA VA AQUÍ, EN LA COLUMNA DE AL LADO Y ABAJO DE TODO.
+              Santiago, 2026-09-30: "cuando uno abre una idea aparece primero como
+              la foto de la portada y luego ya el vídeo, eso confunde un poco".
+
+              El problema era de ORDEN. La portada estaba antes que la referencia, y
+              una portada y una previsualización de Instagram se parecen: dos
+              rectángulos con una imagen dentro. Quien abría la ficha veía una
+              foto y creía que eso era la pieza; el vídeo real estaba dos pantallas
+              más abajo, debajo del brief y del editor.
+
+              Ahora el orden al abrir es: QUÉ ES → ESTADO → REFERENCIA (el vídeo) →
+              BRIEF → CONVERSACIÓN. Y la portada queda en la barra lateral, con
+              etiqueta, para usarla de apoyo al presentar o exportar. Si la pieza no
+              tiene referencia, la portada sube al hueco de la referencia para que
+              la ficha nunca quede vacía. */}
+          {idea.cover_asset && (
+            <figure className="border border-blanco-20 p-4 anim-rise">
+              <figcaption className="mono-label mb-3 text-blanco-50">
+                [FOTO DE APOYO] · NO ES LA PIEZA
+              </figcaption>
+              <IdeaCoverFrame
+                code={idea.code}
+                title={idea.title}
+                asset={idea.cover_asset}
+                size="md"
+                format={format.icon}
+              />
+              <p className="mt-3 text-[11px] leading-5 text-blanco-50">
+                Sirve para presentar y exportar. La idea con su brief y su
+                referencia está arriba.
+              </p>
+            </figure>
+          )}
         </aside>
       </div>
 
