@@ -20,6 +20,7 @@ const cliente = leer('src/lib/workspace-client.ts');
 const mapa = leer('src/components/project-map.tsx');
 const ficha = leer('src/app/[projectSlug]/ideas/[ideaId]/page.tsx');
 const componente = leer('src/components/idea-origen.tsx');
+const tarjetas = leer('src/components/queue-section.tsx');
 const migracion = leer('supabase/migrations/20260929_hub_ideas_origen.sql');
 
 describe('columna origen en la base', () => {
@@ -62,6 +63,13 @@ describe('se ve en la interfaz', () => {
     // El aviso de revisarla es la parte que hace util la marca: una idea
     // montada por el asistente no entra igual a voting igual que una escrita.
     expect(componente).toMatch(/Revísala antes de aprobarla/);
+  });
+
+  it('la insignia se ve en la TARJETA del tablero, no solo en el listado', () => {
+    // Esta tarjeta es la que se ve de verdad: `project-map` solo aparece en la
+    // vista de mapa. Cuando la insignia se puso solo ahi, en produccion salia
+    // 0 de 48 tarjetas marcados y no habia ningun error visible.
+    expect(tarjetas).toMatch(/IdeaOrigenChip origen=\{idea\.origen\}/);
   });
 
   it('un origen desconocido se lee como del equipo, no como asistente', () => {

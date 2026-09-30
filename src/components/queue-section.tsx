@@ -1,5 +1,6 @@
 'use client';
 
+import { IdeaOrigenChip } from '@/components/idea-origen';
 import Link from 'next/link';
 import { useMemo } from 'react';
 import { StatusBadge } from './status-badge';
@@ -104,6 +105,7 @@ export function QueueSection({ title, eyebrow, description, guide, ideas, projec
                 {idea.priority === 'high' && <Chip icon="bolt" tone="neutro">ALTA</Chip>}
                 {age !== null && <Chip icon="clock" tone="neutro" title={`Última actividad hace ${age} días`}>{age}D</Chip>}
                 <Chip icon={format.icon} tone="neutro">{format.label}</Chip>
+                {idea.origen === 'asistente' && <IdeaOrigenChip origen={idea.origen} />}
               </div>
               <h2 className="font-display text-xl font-bold leading-tight text-blanco group-hover:text-blanco-90">{idea.title}</h2>
               {idea.description && <p className="line-clamp-2 text-xs leading-5 text-blanco-60">{idea.description}</p>}
