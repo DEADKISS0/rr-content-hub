@@ -10,6 +10,7 @@ import { IdeaVoting } from '@/components/idea-voting';
 import { PanelPresencia } from '@/components/presencia-equipo';
 import { ReferenceWithBrief } from '@/components/reference-with-brief';
 import { IdeaCoverFrame } from '@/components/ui/idea-cover-frame';
+import { IdeaOrigenChip } from '@/components/idea-origen';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { ProductionPipeline } from '@/components/production-pipeline';
 import { ScriptEditor } from '@/components/script-editor';
@@ -141,6 +142,7 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
           <div className="mt-6 flex flex-wrap items-center gap-2">
             <Chip icon={format.icon as IconName} tone="blanco">{format.label}</Chip>
             <Chip icon="pieces" tone="neutro">{idea.category ?? 'SIN CATEGORÍA'}</Chip>
+            <IdeaOrigenChip origen={idea.origen} />
             {days !== null && <Chip icon="clock" tone="neutro">{days === 0 ? 'HOY' : `${days} DÍAS SIN MOVERSE`}</Chip>}
             {missing.length
               ? <Chip icon="alert" tone="neutro">{missing.length} DATOS POR COMPLETAR</Chip>

@@ -64,6 +64,14 @@ function mapIdea(row: RawIdea) {
     objective: (row.objective as string) ?? '',
     content_type: row.content_type as 'organic' | 'paid',
     category: (row.category as string) ?? 'General',
+    /**
+     * Quien aporto la idea: `manual` la escribio una persona, `asistente` la
+     * genero Hermes. Viene de la columna, no de `created_by`: las ideas del
+     * generador llevan la identidad administrativa de la sesion y no se podrian
+     * distinguir de las manuales por ahi. Un valor raro cae a `manual`, que es la
+     * lectura conservadora: se presume intervencion humana.
+     */
+    origen: (row.origen as string) === 'asistente' ? ('asistente' as const) : ('manual' as const),
     status: row.status as string,
     priority: row.priority as 'high' | 'normal',
     creator: 'RR ALIADOS',
@@ -528,7 +536,7 @@ export async function getAuditIdeas(projectId: string) {
   if (!supabase) { requireSupabase(); return demoIdeas; }
   const { data } = await supabase
     .from('rr_hub_ideas')
-    .select('id, code, title, description, objective, content_type, category, status, priority, created_at, updated_at, reference_urls, camera_brief, talent_brief, edit_brief, script_content')
+    .select('id, code, title, description, objective, content_type, category, origen, status, priority, created_at, updated_at, reference_urls, camera_brief, talent_brief, edit_brief, script_content')
     .eq('project_id', projectId)
     .order('code', { ascending: true });
   return (data ?? []).map(mapIdea);

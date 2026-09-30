@@ -977,6 +977,11 @@ async function createIdea(body: Body, ctx: Ctx): Promise<NextResponse> {
   // /api/ideas: a max+1 read in two places at once hands out the same number
   // twice, and the browser is not the only writer.
   const prefix = contentType === 'organic' ? 'O' : 'P';
+  // El origen lo declara quien escribe y no se deduce de created_by: las ideas
+  // del generador llevan la identidad administrativa de la sesion, que no dice
+  // nada. Solo se admiten los dos valores de la constraint; cualquier otra cosa
+  // cae a 'manual' en vez de inventarse un tercer origen.
+  const origen = str(body.origen, 20) === 'asistente' ? 'asistente' : 'manual';
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const { data: codes } = await service
       .from('rr_hub_ideas').select('code')
@@ -990,6 +995,7 @@ async function createIdea(body: Body, ctx: Ctx): Promise<NextResponse> {
       objective: str(body.objective, 500),
       content_type: contentType,
       category: str(body.category, 80) || 'Sin categoría',
+      origen,
       status: 'draft', priority: 'normal',
       camera_brief: str(body.cameraBrief, 4000),
       talent_brief: str(body.talentBrief, 4000),

@@ -343,6 +343,13 @@ export async function createIdea(input: {
    * descarta un id que no pertenezca a este proyecto.
    */
   adId?: string | null;
+  /**
+   * Quien aporta la idea. El formulario de alta siempre manda `manual` porque
+   * es un formulario que rellena una persona; `asistente` lo mandan las
+   * herramientas de generación, que lo declaran ellas mismas. El servidor
+   * descarta cualquier otro valor.
+   */
+  origen?: 'manual' | 'asistente';
 }): Promise<{ error?: string; id?: string }> {
 
   // La identidad va en la cookie de la puerta, que el navegador manda solo.
@@ -352,7 +359,7 @@ export async function createIdea(input: {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(input),
+    body: JSON.stringify({ ...input, origen: input.origen === 'asistente' ? 'asistente' : 'manual' }),
   });
   const payload = (await response.json().catch(() => null)) as { error?: string; id?: string } | null;
   if (!response.ok) return { error: payload?.error ?? `No se pudo crear la idea (${response.status}).` };

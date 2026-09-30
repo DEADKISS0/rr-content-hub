@@ -8,6 +8,7 @@ import { BoardControls, type BoardFilters } from './board-controls';
 import { FlowGuide } from './flow-guide';
 import { StartHere } from './start-here';
 import { ContentTypeTabs } from './content-type-tabs';
+import { IdeaOrigenTag } from '@/components/idea-origen';
 import { StatusBadge } from './status-badge';
 import { ActorChip, Chip } from './ui/chips';
 import { EmptyState } from './ui/empty-state';
@@ -26,6 +27,8 @@ export type BoardIdea = {
   objective?: string | null;
   content_type?: string | null;
   category?: string | null;
+  /** `manual` la escribio una persona, `asistente` la genero Hermes. */
+  origen?: string | null;
   status: string;
   priority?: string | null;
   created_at?: string | null;
@@ -217,7 +220,10 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
                 </span>
                 <span className="min-w-0">
                   <b className="block truncate font-display text-base font-bold text-blanco">{idea.code ?? 'IDEA'} · {idea.title}</b>
-                  <small className="font-mono text-[10px] uppercase tracking-[0.06em] text-blanco-60">{format.label}{days !== null ? ` · ${days}D` : ''}{idea.priority === 'high' ? ' · ALTA' : ''}</small>
+                  <small className="flex flex-wrap items-center gap-x-2 font-mono text-[10px] uppercase tracking-[0.06em] text-blanco-60">
+                    <span>{format.label}{days !== null ? ` · ${days}D` : ''}{idea.priority === 'high' ? ' · ALTA' : ''}</span>
+                    {idea.origen === 'asistente' && <IdeaOrigenTag origen={idea.origen} />}
+                  </small>
                 </span>
                 <span className="flex items-center gap-1" title="Qué información clave tiene cargada">
                   {states.map((state) => (
