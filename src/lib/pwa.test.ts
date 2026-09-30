@@ -121,16 +121,32 @@ describe('El hub se puede instalar como app', () => {
     //   → 307 a /login  →  y el login no tenía NI UN ENLACE. La app quedaba
     //   atrapada en la puerta, sin forma de volver.
     //
-    // La portada `/` es pública a propósito: es donde se elige cliente. Arrancar
-    // ahí abre el hub de verdad y deja que la puerta decida.
-    expect(manifest).toMatch(/start_url: '\/\?fuente=app'/);
-    // Y no puede volver a `/wundeer`: ese era el 307.
+    // Y por qué NO es `/`: se midió y la portada tampoco sirve sin sesión.
+    // `src/app/page.tsx` hace `redirect('/login')` sin cookie, porque
+    // `rr_hub_projects` está detrás del RLS. Arrancar en `/` daba el MISMO 307.
+    // La portada no es la puerta: es el tablero, y el tablero necesita sesión.
+    expect(manifest).toMatch(/start_url: '\/login\?fuente=app'/);
+    // Ni `/` ni `/wundeer`: los dos dan 307 al login.
     expect(manifest).not.toMatch(/start_url: '\/wundeer'/);
+    expect(manifest).not.toMatch(/start_url: '\/'[,\s]/);
 
     // El otro extremo del ciclo: el login TIENE que tener salida.
     const login = leer('src/app/login/page.tsx');
     expect(login).toMatch(/VOLVER A LA PORTADA/);
     expect(login).toMatch(/<Link href="\/"/);
+
+    // Y `/login` TIENE que ser pública de verdad, comprobado EJECUTANDO la
+    // regla y no leyendo la lista: `start_url` apunta ahí, así que si
+    // `esPublica('/login')` fuera falso, la app seguiría abriendo en un 307.
+    // OJO: `request.nextUrl.pathname` en Next NO lleva la query, asi que
+    // `esPublica` nunca ve '/login?fuente=app'. Probarlo seria probar un caso
+    // que no existe. Lo que importa es el pathname limpio.
+    expect(esPublica('/login')).toBe(true);
+
+    // OJO, la trampa que me llevé: `/` NO es pública aunque lo parezca.
+    // `esPublica('/')` da false, y es lo correcto: `page.tsx` redirige al login
+    // sin cookie. Lo que la hace pública es la rama de la puerta, no esta lista.
+    expect(esPublica('/')).toBe(false);
   });
 
   it('la app instalada no ofrece volver a instalar, y en iOS explica el camino', () => {

@@ -49,16 +49,23 @@ export default function manifest(): MetadataRoute.Manifest {
      * pulsado, aparece "Añadir a pantalla de inicio", lo haces... y la app abre en
      * una pantalla de login de la que no se puede salir.
      *
-     * La portada `/` ES PÚBLICA a propósito — es donde se elige cliente — así que
-     * arrancar ahí abre el hub de verdad y deja que la puerta decida. Nadie ve
-     * un 307 al abrir su app.
+     * Y por qué NO es `/`: se comprobó y la portada tampoco sirve sin sesión.
+     * `src/app/page.tsx` hace `redirect('/login')` cuando no hay cookie (línea
+     * 39), porque `rr_hub_projects` está detrás del RLS. Así que arrancar en `/`
+     * daba el MISMO 307, solo que desde la página en vez de desde el proxy. La
+     * portada no es "la puerta": es el tablero, y el tablero necesita sesión.
+     *
+     * `/login` sí es pública, y es lo correcto: la app abre en la puerta, que
+     * es exactamente donde hay que estar sin sesión. Y ahora el login tiene
+     * salida (`VOLVER A LA PORTADA`), así que el ciclo está cerrado por los dos
+     * lados.
      *
      * `?fuente=app` no cambia el aspecto, solo dice de dónde se entró, y se
      * ignora en el resto de la app. Va aquí y no en el manifest `id`: `id` fija
      * la identidad de la app, y si cambia Android la trata como una app
      * DISTINTA y a quien ya la tenía instalada le aparece otra vez.
      */
-    start_url: '/?fuente=app',
+    start_url: '/login?fuente=app',
     scope: '/',
     display: 'standalone',
     // La app se abre sin barra del navegador: es lo que la hace parecer app y no
