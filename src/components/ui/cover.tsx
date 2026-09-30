@@ -16,13 +16,28 @@ export const FORMATS = [
 
 export type FormatKey = (typeof FORMATS)[number]['key'];
 
-/** Deduce el formato a partir de la categoría guardada, sin inventar datos. */
+/**
+ * Deduce el FORMATO de la pieza, no su categoría.
+ *
+ * Antes se deducía buscando 'reel', 'foto' o 'carrusel' dentro de la categoría
+ * guardada, y eso dejó de funcionar el 2026-09-30: las categorías se pasaron a
+ * describir para qué sirve la idea ("Ajuste y talla", "Confianza y oficio") y
+ * ninguna contiene esas palabras, así que todas las tarjetas se quedaron sin
+ * etiqueta de formato. Un filtro por categoría no puede decidir el formato: son
+ * dos ejes distintos.
+ *
+ * Regla: primero `content_type` (es el dato fiable), y la categoría solo cuando
+ * además nombra un formato de verdad — las categorías viejas sí lo hacían.
+ */
 export function formatOf(category?: string | null, contentType?: string | null): (typeof FORMATS)[number] {
-  const raw = `${category ?? ''} ${contentType ?? ''}`.toLowerCase();
-  const found = FORMATS.find((format) => raw.includes(format.key));
+  const cat = (category ?? '').toLowerCase();
+  const tipo = (contentType ?? '').toLowerCase();
+  // El canal manda primero: una idea de pauta es PAUTA diga lo que diga su
+  // categoria, porque en el tablero se leen como cosas distintas.
+  if (tipo.includes('paid') || tipo.includes('pauta')) return FORMATS[4];
+  const found = FORMATS.find((format) => cat.includes(format.key) && format.key !== 'pauta');
   if (found) return found;
-  if (raw.includes('paid') || raw.includes('pauta')) return FORMATS[4];
-  if (raw.includes('reel')) return FORMATS[0];
+  if (cat.includes('reel')) return FORMATS[0];
   return FORMATS[2];
 }
 
