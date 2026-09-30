@@ -110,6 +110,14 @@ describe('se ve en la interfaz', () => {
     expect(conteos).not.toContain('visible');
   });
 
+  it('la tarjeta MUESTRA la categoria: sin texto, el filtro no sirve de nada', () => {
+    // `category` ya alimentaba el icono del formato, pero no se imprimia. Las
+    // quince ideas quedaban visualmente identicas sin dejar ver por que estan
+    // agrupadas. Agrupar en la base no sirve si luego no se ve en la tarjeta.
+    const tarjetaLista = tarjetas.match(/<IdeaCoverFrame[\s\S]{0,3000}?<\/Link>/)?.[0] ?? '';
+    expect(tarjetaLista).toMatch(/\{idea\.category && \(/);
+  });
+
   it('un origen desconocido se lee como del equipo, no como asistente', () => {
     expect(componente).toMatch(/origen === 'asistente' \? 'asistente' : 'manual'/);
   });
