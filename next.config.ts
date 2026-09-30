@@ -52,7 +52,28 @@ const nextConfig: NextConfig = {
     ],
   },
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // El service worker vive en el ambito raiz para poder cachear el armazon
+      // de Next (`/_next/static/...`). Con el ambito por defecto (`/sw.js`)
+      // notendria acceso a esas rutas y la app no arrancaria sin conexion.
+      //
+      // `Service-Worker-Allowed: /` es lo que autoriza ese ambito. Y `no-store`
+      // en el propio archivo: si el navegador cachea el service worker, la
+      // version nueva no llega nunca y la app se queda pegada a la anterior.
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Service-Worker-Allowed", value: "/" },
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+        ],
+      },
+      // El manifest cambia con cada despliegue de iconos: que no se quede uno viejo.
+      {
+        source: "/manifest.webmanifest",
+        headers: [{ key: "Cache-Control", value: "no-cache" }],
+      },
+    ];
   },
 };
 
