@@ -401,9 +401,19 @@ function construirRegistro(f) {
     const na = normalizar(a); const nb = normalizar(b);
     if (!na || !nb) return false;
     if (na === nb) return true;
-    const partes = (n) => n.split(' ').filter((x) => x.length > 2);
-    const pa = partes(na); const pb = partes(nb);
-    return pa.length >= 2 && pb.length >= 2 && pa[pa.length - 1] === pb[pb.length - 1] && pa[0] === pb[0];
+    const palabras = (n) => n.split(' ').filter((x) => x.length > 2);
+    const pa = palabras(na); const pb = palabras(nb);
+    if (pa.length < 2 || pb.length < 2) return false;
+    // 1er nombre + primer apellido, en el orden en que estan. El papel trae
+    // "Sthefany Alejandra Diaz Rozo" y DashWeb trae "Sthefany Diaz": mismo
+    // nombre, con los apellidos invertidos y uno de sobra.
+    if (pa[0] === pb[0] && pa[2] === pb[1]) return true;
+    // Ultimo token contra ultimo token, para el orden inverso ("A B C" / "C B").
+    if (pa[0] === pb[0] && pa[pa.length - 1] === pb[pb.length - 1]) return true;
+    // Coincidencia fuerte por dos apellidos compartidos, para nombres compuestos
+    // escritos de forma distinta en las dos fuentes.
+    const comunes = pa.filter((x) => pb.includes(x));
+    return comunes.length >= 2 && pa[0] === pb[0];
   };
   const cobranPorPersona = (nombre) => {
     const todas = f.cuentasCobro?.personas ?? [];
@@ -564,12 +574,10 @@ function construirMarkdown(f, personas, corte) {
 
   // Personas que COBRAN y no estan en ninguna fuente: eso es un alta pendiente,
   // no un error de datos. Se listan para que Santiago decida.
+  // La cabecera va UNA vez: la escribe la plantilla del markdown, no esta
+  // funcion. La primera version la ponia aqui tambien y salia duplicada.
   const cobranSinRegistro = (f.cobranzaSinRegistro ?? []).length
-    ? [
-        '| Nombre en el papel | Cuentas | Sin firmar |',
-        '| --- | --- | --- |',
-        ...f.cobranzaSinRegistro.map((c) => `| ${c.nombre} | ${c.cuentas} | ${c.sinFirmar} |`),
-      ].join('\n')
+    ? f.cobranzaSinRegistro.map((c) => `| ${c.nombre} | ${c.cuentas} | ${c.sinFirmar} |`).join('\n')
     : '_(ninguna: todas las personas que cobran estan en DashWeb o en el Centro de Mando)_';
 
   const talento = f.talento.disponible
@@ -682,8 +690,6 @@ financiera va a \`04_Finanzas/_automatizacion/capture.json\` y a ningun otro lad
 No es un error de datos: es un alta pendiente. Sin registro no hay contratacion,
 ni acceso al Centro de Mando, ni expediente.
 
-| Nombre en el papel | Cuentas | Sin firmar |
-| --- | --- | --- |
 ${cobranSinRegistro}
 
 ## 3b. Canonico de Talento (cuarta fuente)
