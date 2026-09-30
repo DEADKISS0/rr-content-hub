@@ -39,14 +39,41 @@ if (!url.includes(PRODUCTION_HOST)) {
   process.exit(2);
 }
 
-// Tablas que el hub necesita publicas: Wundeer es legible sin sesion.
-const MUST_BE_PUBLIC = [
+// Tablas del HUB que deben seguir CERRADAS al anonimo.
+//
+// OJO, esto cambio el 2026-09-30 y el script decia lo contrario. Antes decia
+// "Deben ser PUBLICAS: Wundeer es legible sin sesion", y de verdad lo decia con
+// un AVISO por cada tabla que fallaba — y luego terminaba en `TODO OK`. Una
+// contradiccion asi no vigila nada: hay que saber que se quiere, no lo que hayo
+// por costumbre.
+//
+// MEDIDO: el hub esta CERRADO. Las policies `rr_hub_wundeer_public_*` existen en
+// `pg_policies` para el rol `anon`, pero al `anon` le falta el `GRANT SELECT`, asi
+// que la respuesta real es `permission denied`. Las policies existen como resto
+// de una configuracion anterior; lo que decide es el grant.
+const MUST_BE_PRIVATE_HUB = [
   'rr_hub_ideas', 'rr_hub_projects', 'rr_hub_comments', 'rr_hub_events', 'rr_hub_assets',
 ];
 
-// Tablas que NUNCA deben ser publicas. Son de un CRM compartido que quedo
-// huerfano en este proyecto de Supabase: correos, nombres y pipeline comercial.
-const MUST_BE_PRIVATE = ['profiles', 'projects'];
+// Tablas que NUNCA deben ser publicas.
+//
+// ESTA LISTA ESTABA MAL Y POR ESO NO DETECTABA NADA (medido el 2026-09-30).
+// Decia `['profiles', 'projects']`, que NO son las tablas del CRM huerfano: al
+// preguntar por nombres que no existen, el check pasaba sin haber medido nada.
+// Un verificador que mira las tablas equivocadas da una confianza falsa, que es
+// peor que no tener ninguno.
+//
+// Las reales, con `anon=arwdDxtm` en `relacl` y policies `cmd = ALL`:
+//   prospects            22 filas, 29 columnas: telefono, WhatsApp, correo
+//   outreach_sequences   63 filas, secuencias de contacto comercial
+//   knowledge            21 filas, incluye "Servicios y precios"
+//   demos                17 filas
+//   activities            2 filas
+// `verticals` tambien es anon y se deja: son nombres de sector, no datos de
+// contacto, y hay codigo que la lee. Si algun dia se cierra, se comprueba aqui.
+const MUST_BE_PRIVATE = [
+  'prospects', 'activities', 'knowledge', 'outreach_sequences', 'demos',
+];
 
 if (!anonKey) {
   console.error('Falta NEXT_PUBLIC_SUPABASE_ANON_KEY o SUPABASE_ANON_KEY. No se puede verificar.');
@@ -75,13 +102,30 @@ const readable = async (table) => {
 };
 
 console.log(`Probando como anonimo contra ${url}\n`);
-console.log('Deben ser PUBLICAS (Wundeer se lee sin sesion):');
+console.log('Deben estar CERRADAS al anonimo (el hub usa cookie, no anon):');
 let unknown = 0;
-for (const table of MUST_BE_PUBLIC) {
+for (const table of MUST_BE_PRIVATE_HUB) {
   const r = await readable(table);
-  if (r.ok) { console.log(`  ok   ${table}`); continue; }
-  if (r.unknown) { unknown += 1; console.log(`  ??   ${table} — no se pudo comprobar: ${r.status}`); continue; }
-  console.log(`  AVISO ${table} — ${r.status}. Wundeer tiene que ser legible sin sesion.`);
+  // OJO CON EL SENTIDO, que se dio la vuelta una vez: `readable()` devuelve
+  // `ok: true` cuando SI se lee. Aqui lo que se quiere es que NO se lea, asi que
+  // lo bueno es `ok: false`. La version anterior de este bloque decia lo
+  // contrario y reportaba FUGA donde no habia ninguna.
+  if (r.ok) {
+    // FUGA REAL: una tabla del hub legible sin sesion significa briefs,
+    // referencias, credenciales de cliente y votos expuestos a cualquiera.
+    leaks += 1;
+    console.log(`  FUGA ${table} — legible sin sesion (${r.status})`);
+    if (r.sample) console.log(`        campos expuestos: ${Object.keys(r.sample).join(', ')}`);
+    continue;
+  }
+  if (r.unknown) {
+    // No se pudo comprobar. Eso NO es una buena noticia: contarlo como cerrada
+    // seria un all-clear falso. Se avisa y la corrida falla.
+    unknown += 1;
+    console.log(`  ??   ${table} — no se pudo comprobar: ${r.status}`);
+    continue;
+  }
+  console.log(`  ok   ${table} — ${r.status}`);
 }
 
 console.log('\nDeben ser PRIVADAS (CRM huerfano, sin consumidores):');
@@ -105,7 +149,11 @@ if (unknown > 0) {
   process.exit(2);
 }
 if (leaks > 0) {
-  console.log(`\n${leaks} tabla(s) del CRM siguen publicas. Aplicar supabase/migrations/20260927_crm_public_read_lockdown.sql`);
+  console.log(`\n${leaks} tabla(s) del CRM siguen publicas.`);
+  console.log('Cerrar con supabase/migrations/20260930_crm_anon_lockdown.sql');
+  console.log('(la 20260927 solo cierra `profiles` y `projects`, que son de otro producto;');
+  console.log(' estas seis no estaban en su lista)');
   process.exit(1);
 }
+
 console.log('\nTODO OK — ninguna tabla del CRM es legible sin sesion');
