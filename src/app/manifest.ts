@@ -39,7 +39,26 @@ export default function manifest(): MetadataRoute.Manifest {
       'El banco de ideas de RR Aliados: piezas, voting, referencias y produccion, de Wundeer y Candilejas.',
     lang: 'es',
     dir: 'ltr',
-    start_url: '/wundeer',
+    /**
+     * POR QUE `start_url` ES `/` Y NO `/wundeer` (Santiago, 2026-09-30).
+     *
+     * `start_url` es lo que se abre al tocar el icono en la pantalla de inicio.
+     * Con `/wundeer` pasaba esto: la app arranca → el proxy ve que no hay sesión
+     * → 307 a `/login` → el login no tenía ni un enlace de vuelta. La app
+     * quedaba atrapada en la puerta. En un iPhone eso se ve como: mantienes el icono
+     * pulsado, aparece "Añadir a pantalla de inicio", lo haces... y la app abre en
+     * una pantalla de login de la que no se puede salir.
+     *
+     * La portada `/` ES PÚBLICA a propósito — es donde se elige cliente — así que
+     * arrancar ahí abre el hub de verdad y deja que la puerta decida. Nadie ve
+     * un 307 al abrir su app.
+     *
+     * `?fuente=app` no cambia el aspecto, solo dice de dónde se entró, y se
+     * ignora en el resto de la app. Va aquí y no en el manifest `id`: `id` fija
+     * la identidad de la app, y si cambia Android la trata como una app
+     * DISTINTA y a quien ya la tenía instalada le aparece otra vez.
+     */
+    start_url: '/?fuente=app',
     scope: '/',
     display: 'standalone',
     // La app se abre sin barra del navegador: es lo que la hace parecer app y no

@@ -112,6 +112,38 @@ describe('El hub se puede instalar como app', () => {
     expect(mw).toMatch(/if \(esPublica\(path\)\)/);
   });
 
+  it('la app se abre en la portada, no en un 307 al login', () => {
+    // EL CICLO ROTO (Santiago, 2026-09-30: "el link principal está dañado...
+    // cuando lo mantengo oprimido me salen las opciones de navegación y le doy
+    // inicio"). Medido, no supuesto:
+    //
+    //   `start_url` = /wundeer  →  al abrir la app el proxy ve que no hay sesión
+    //   → 307 a /login  →  y el login no tenía NI UN ENLACE. La app quedaba
+    //   atrapada en la puerta, sin forma de volver.
+    //
+    // La portada `/` es pública a propósito: es donde se elige cliente. Arrancar
+    // ahí abre el hub de verdad y deja que la puerta decida.
+    expect(manifest).toMatch(/start_url: '\/\?fuente=app'/);
+    // Y no puede volver a `/wundeer`: ese era el 307.
+    expect(manifest).not.toMatch(/start_url: '\/wundeer'/);
+
+    // El otro extremo del ciclo: el login TIENE que tener salida.
+    const login = leer('src/app/login/page.tsx');
+    expect(login).toMatch(/VOLVER A LA PORTADA/);
+    expect(login).toMatch(/<Link href="\/"/);
+  });
+
+  it('la app instalada no ofrece volver a instalar, y en iOS explica el camino', () => {
+    // Dos comportamientos distintos que no se pueden mezclar:
+    // - En Chromium el boton de instalar solo sale si hay `beforeinstallprompt`,
+    //   y no sale si la app ya esta instalada (display-mode: standalone).
+    // - En iOS no hay evento nunca: sale la guia de Compartir.
+    // Si se mostró el boton de instalar dentro de la app, era un bucle.
+    expect(instalar).toMatch(/yaInstalada && !actualizada/);
+    expect(instalar).toMatch(/matchMedia\('\(display-mode: standalone\)'\)/);
+    expect(instalar).toMatch(/Añadir a pantalla de inicio/);
+  });
+
   it('el boton de instalar guarda el evento y no lo gasta al entrar', () => {
     // `beforeinstallprompt` se dispara UNA vez. Si se pide en el efecto al
     // entrar, al cerrarlo no hay segunda oportunidad.

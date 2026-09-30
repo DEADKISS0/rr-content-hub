@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { entrarConCodigo, type ClienteConCodigo } from '@/lib/hub-client';
 import { Icon } from '@/components/ui/icons';
@@ -327,6 +328,25 @@ function Formulario() {
           </p>
         </div>
       )}
+
+      {/* LA SALIDA QUE FALTA (Santiago, 2026-09-30).
+          Este archivo era un CALLEJON SIN SALIDA: sin enlaces. Cuando la PWA se
+          abre desde la pantalla de inicio, `start_url` es `/wundeer`, el proxy la
+          manda a `/login`, y desde ahi no se podia volver a la portada ni abrir la
+          puerta de otra forma. La app se quedaba "atascada en el login" sin
+          motivo.
+
+          Con esto, quien llegue por la app puede volver a la portada y empezar de
+          cero. La portada es publica a proposito: es donde se elige cliente. */}
+      <div className="mt-10 border-t border-blanco-10 pt-7">
+        <p className="mono-label text-blanco-50">[¿NO ES TU CLIENTE?]</p>
+        <Link href="/" className="btn-brutal mt-4 w-full">
+          VOLVER A LA PORTADA
+        </Link>
+        <p className="mt-3 text-xs leading-5 text-blanco-50">
+          Ver los proyectos de RR y entrar por otro cliente.
+        </p>
+      </div>
 
     </main>
   );
