@@ -349,7 +349,14 @@ export async function createIdea(input: {
    * herramientas de generación, que lo declaran ellas mismas. El servidor
    * descarta cualquier otro valor.
    */
-  origen?: 'manual' | 'asistente';
+  /**
+   * NO SE USA. Antes se mandaba en el cuerpo y el servidor se lo creia, con lo
+   * que cualquier persona con sesion podia declarar sus ideas como montadas por
+   * Hermes. El valor lo decide el servidor leyendo la cabecera `x-rr-origen`, y
+   * el navegador no tiene forma de pedir 'asistente'. Este campo queda como
+   * marca para que el error no vuelva a cometerse al escribir aqui.
+   */
+  origen?: never;
 }): Promise<{ error?: string; id?: string }> {
 
   // La identidad va en la cookie de la puerta, que el navegador manda solo.
@@ -359,7 +366,9 @@ export async function createIdea(input: {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ ...input, origen: input.origen === 'asistente' ? 'asistente' : 'manual' }),
+    // OJO: `origen` NO va en el cuerpo. El servidor lo decide el (ver `CABEZA_ORIGEN`
+    // en la ruta). Mandarlo aqui era lo que permitia declararse 'asistente'.
+    body: JSON.stringify({ ...input, origen: undefined }),
   });
   const payload = (await response.json().catch(() => null)) as { error?: string; id?: string } | null;
   if (!response.ok) return { error: payload?.error ?? `No se pudo crear la idea (${response.status}).` };

@@ -117,7 +117,13 @@ async function context(request: NextRequest) {
   // Lectura y escritura van por el service client, siempre. El RLS ya no decide
   // nada aquí porque ya no hay identidad de Supabase que comparar; lo que
   // autoriza es el guard de cada mutación, que corre con estos mismos datos.
-  return { supabase: service, service, userId: perfil.id, email: sesion.email, abierto: false };
+  return {
+    supabase: service, service, userId: perfil.id, email: sesion.email, abierto: false,
+    // Lo que el servidor LEYO de la peticion, no lo que el navegador pidio. La
+    // cabecera se lee aqui, una vez, y de aqui sale el `origen`: ningun
+    // `body.origen` se consulta en ningun sitio.
+    cabeceras: request.headers,
+  };
 }
 
 /** The caller's real role in the project that owns this idea. Never from the body. */
@@ -154,7 +160,16 @@ type Ctx = {
   email: string | null;
   /** Modo abierto: no hay sesión que comprobar y el rol no se consulta. */
   abierto: boolean;
+  /** Las cabeceras REALES de la petición, leídas en el servidor. */
+  cabeceras: Headers;
 };
+
+/**
+ * La cabecera que declara el origen. Vive aquí y no en el cuerpo del POST para
+ * que el valor no viaje en el JSON que cualquiera puede replicar desde otro
+ * script: leerla obliga a estar en el servidor.
+ */
+export const CABEZA_ORIGEN = 'x-rr-origen';
 
 const str = (value: unknown, max = 4000) => (typeof value === 'string' ? value.trim().slice(0, max) : '');
 
@@ -977,11 +992,25 @@ async function createIdea(body: Body, ctx: Ctx): Promise<NextResponse> {
   // /api/ideas: a max+1 read in two places at once hands out the same number
   // twice, and the browser is not the only writer.
   const prefix = contentType === 'organic' ? 'O' : 'P';
-  // El origen lo declara quien escribe y no se deduce de created_by: las ideas
-  // del generador llevan la identidad administrativa de la sesion, que no dice
-  // nada. Solo se admiten los dos valores de la constraint; cualquier otra cosa
-  // cae a 'manual' en vez de inventarse un tercer origen.
-  const origen = str(body.origen, 20) === 'asistente' ? 'asistente' : 'manual';
+  // EL ORIGEN NO LO DECLARA EL NAVEGADOR (Santiago, 2026-09-30).
+  //
+  // Antes era `body.origen === 'asistente' ? 'asistente' : 'manual'`: el cliente
+  // mandaba el valor y el servidor se lo creia. Eso queria decir que cualquier
+  // persona con sesion podia declarar sus propias ideas como montadas por Hermes,
+  // que es justo la distincion que sirve para separar lo revisado de lo que
+  // nadie ha mirado. Una insignia que se puede poner a mano no es una insignia.
+  //
+  // Ahora el servidor decide, y solo por una via: una CABEZA de la API, que es
+  // lo que usa el generador. El formulario manual no manda ninguna, asi que
+  // sale 'manual' siempre. No es un parametro que se pueda falsear, es una
+  // ausencia: el navegador no tiene forma de pedir 'asistente'.
+  //
+  // Por que una cabecera y no un flag del cuerpo: porque el cuerpo lo controla
+  // quien llama, y la cabecera tambien, pero al menos la cabecera se ve en los
+  // logs del servidor y no viaja en el JSON que se puede replicar desde otro
+  // script. No es criptografia: es que para mentir haya que estar en el servidor.
+  const declarado = str(ctx.cabeceras.get(CABEZA_ORIGEN), 20);
+  const origen = declarado === 'asistente' ? 'asistente' : 'manual';
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const { data: codes } = await service
       .from('rr_hub_ideas').select('code')

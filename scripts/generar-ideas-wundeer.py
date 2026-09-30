@@ -74,7 +74,16 @@ def sql(consulta: str):
     peticion = urllib.request.Request(
         API,
         data=json.dumps({"query": consulta}).encode("utf-8"),
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        # La cabecera que declara el origen (Santiago, 2026-09-30). Va en la
+        # CABECERA y no en el cuerpo a proposito: el cuerpo lo controla quien
+        # llama, con lo que cualquier idea podia declararse 'asistente' desde el
+        # navegador. El servidor decide, y esta es la unica via que dice que
+        # esto lo monto el generador y no una persona.
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "x-rr-origen": "asistente",
+        },
         method="POST",
     )
     try:

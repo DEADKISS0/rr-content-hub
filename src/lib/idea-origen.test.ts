@@ -40,16 +40,25 @@ describe('columna origen en la base', () => {
 });
 
 describe('el servidor no se inventa el origen', () => {
-  it('solo admite los dos valores y cae a manual ante cualquier otro', () => {
-    expect(ruta).toMatch(/const origen = str\(body\.origen, 20\) === 'asistente' \? 'asistente' : 'manual'/);
+  it('el servidor decide el origen y todo lo demas cae a manual', () => {
+    // CAMBIADO el 2026-09-30. Antes leia `str(body.origen, 20)`, o sea que lo
+    // decidia el navegador. Ahora lo decide la cabecera que lee el servidor.
+    // La lectura y la decision estan en dos lineas distintas: primero se lee
+    // la cabecera, despues se decide. El test comprueba las dos por separado en
+    // vez de fingir que es una sola expresion.
+    expect(ruta).toMatch(/const declarado = str\(ctx\.cabeceras\.get\(CABEZA_ORIGEN\), 20\)/);
+    expect(ruta).toMatch(/const origen = declarado === 'asistente' \? 'asistente' : 'manual'/);
   });
 
   it('el insert guarda el origen', () => {
     expect(ruta).toMatch(/category: str\(body\.category, 80\) \|\| 'Sin categoría',\s*\n\s*origen,/);
   });
 
-  it('el cliente manda manual salvo que se pida asistente', () => {
-    expect(cliente).toMatch(/origen: input\.origen === 'asistente' \? 'asistente' : 'manual'/);
+  it('el cliente de la UI no manda origen en absoluto', () => {
+    // CAMBIADO el 2026-09-30, mismo motivo. El formulario manual no declara el
+    // origen: no manda el campo y el tipo lo hace imposible de escribir.
+    expect(cliente).not.toMatch(/origen: input\.origen/);
+    expect(cliente).toMatch(/origen\?: never/);
   });
 });
 
@@ -120,5 +129,50 @@ describe('se ve en la interfaz', () => {
 
   it('un origen desconocido se lee como del equipo, no como asistente', () => {
     expect(componente).toMatch(/origen === 'asistente' \? 'asistente' : 'manual'/);
+  });
+});
+
+describe('El origen no lo declara el navegador (2026-09-30)', () => {
+  // El bug: `origen` se leia del CUERPO del POST. Con eso, cualquier persona con
+  // sesion mandaba `{"origen":"asistente"}` y su idea salia con la insignia de
+  // montada por Hermes. La insignia existe justo para separar lo que nadie ha
+  // revisado, asi que si se puede poner a mano no vale para nada.
+
+  it('la API lee el origen de una cabecera, no del cuerpo', () => {
+    // Y ninguna referencia a `body.origen` sobrevive EN CODIGO. Solo puede
+    // aparecer en un comentario que explique el bug: los comentarios no se
+    // ejecutan, y este archivo documenta el cambio a proposito. Por eso se
+    // quitan los comentarios antes de comprobar, en vez de prohibir la palabra.
+    const codigo = ruta.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    expect(codigo).not.toMatch(/body\.origen/);
+    expect(ruta).toMatch(/CABEZA_ORIGEN/);
+    expect(ruta).toMatch(/ctx\.cabeceras\.get\(CABEZA_ORIGEN\)/);
+  });
+
+  it('el cliente de la UI no manda origen en el cuerpo', () => {
+    expect(cliente).not.toMatch(/origen: input\.origen/);
+    // Y el tipo lo vuelve imposible de escribir: `never` no admite 'asistente'.
+    expect(cliente).toMatch(/origen\?: never/);
+  });
+
+  it('el valor se decide en el servidor y solo con dos salidas', () => {
+    // La regla, escrita para que se lea sin bucear el codigo: el origen sale
+    // de una variable que el servidor leyo de la cabecera, y hay exactamente
+    // dos destinos. Cualquier otro caso cae a 'manual', que es el conservador.
+    expect(ruta).toMatch(/const origen = declarado === 'asistente' \? 'asistente' : 'manual';/);
+    // Y `declarado` no puede venir del cuerpo en ningun punto del archivo.
+    expect(ruta).not.toMatch(/declarado = .*body/);
+  });
+
+  it('el origen no se consulta al votar', () => {
+    // Blindar el origen NO puede volverse un filtro encubierto: las dos ideas
+    // se votan EXACTAMENTE igual. La insignia es informativa y nada mas.
+    // Se comprueba que en toda la ruta no haya ninguna comparacion de origen
+    // que no sea la del alta.
+    const usos = [...ruta.matchAll(/\borigen\b/g)].length;
+    const comparaciones = [...ruta.matchAll(/origen\s*[!=]==?/g)].length;
+    // Solo dos: la lectura del cuerpo al guardar y la comparacion del alta.
+    expect(comparaciones).toBe(1);
+    expect(usos).toBeLessThan(12);
   });
 });

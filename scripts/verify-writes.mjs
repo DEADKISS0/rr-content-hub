@@ -134,6 +134,17 @@ for (const action of ['transition', 'script', 'comment', 'resolve-comment']) {
 }
 check('el cliente llama a create-idea', /create-idea/.test(storage));
 
+// El origen lo decide el SERVIDOR leyendo la cabecera `x-rr-origen` (2026-09-30).
+// El cuerpo del POST no puede declararlo: con eso, cualquier persona con sesion
+// marcaba sus ideas como montadas por Hermes, y la insignia no servia para nada.
+const generador = fs.readFileSync(path.join(repoRoot, 'scripts/generar-ideas-wundeer.py'), 'utf8');
+check('el generador declara el origen por cabecera',
+  /["']x-rr-origen["']\s*:\s*["']asistente["']/.test(generador),
+  'scripts/generar-ideas-wundeer.py');
+check('el cliente de la UI no manda origen en el cuerpo',
+  !/origen\s*:\s*input\.origen/.test(storage),
+  'src/lib/workspace-client.ts');
+
 // 5. La asignacion del `code` ocurre en un solo sitio por ruta, con reintento.
 //    Dos max+1 simultaneos entregaban el mismo numero dos veces.
 for (const [name, file] of [
