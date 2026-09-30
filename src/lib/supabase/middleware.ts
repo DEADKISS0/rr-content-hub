@@ -26,8 +26,34 @@ import { leerSesion, NOMBRE_COOKIE } from '@/lib/hub-session';
  *   distintas.
  */
 
-/** Rutas que se sirven sin entrar. La puerta, y la API que la abre. */
-const PUBLICAS = ['/login', '/api/entrar'];
+/**
+ * Rutas que se sirven sin entrar. La puerta, y la API que la abre.
+ *
+ * `PUBLICAS` es lo que el navegador necesita SIN sesión para poder instalar la app.
+ * Antes de esto, `/manifest.webmanifest` caía en la rama de "sin cookie" y
+ * devolvía un 307 a `/login`: el navegador recibía HTML donde esperaba un JSON,
+ * no encontraba icono ni nombre, y la PWA no existía. Nadie se enteraba porque
+ * tampoco había ningún error visible — simplemente no aparecía el botón de
+ * instalar, ni en Android ni en iPhone.
+ *
+ * OJO CON EL SERVICE WORKER. `/sw.js` NO puede ir en la lista de las públicas:
+ * se sirve de `/public` sin pasar por Next, así que nunca llega a este proxy —
+ * pero si algún día se moviera, dejar entrar el service worker a quien no tiene
+ * sesión sería justo el agujero que el resto del archivo cierra. Está igual, y
+ * aun así del lado del servidor, porque si el SW sirviera HTML a una petición
+ * it'd estropear el arranque en modo offline.
+ */
+const PUBLICAS = [
+  '/login',
+  '/api/entrar',
+  '/offline',
+  '/manifest.webmanifest',
+  // Los iconos: el instalador los pide antes de que exista la sesion. Con
+  // `startsWith` basta el prefijo comun, `/app/`, y asi no hay que enumerar los
+  // doce nombres uno por uno.
+  '/app/',
+  '/sw.js',
+];
 
 export async function updateSession(request: NextRequest) {
   const path = request.nextUrl.pathname;

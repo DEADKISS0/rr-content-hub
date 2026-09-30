@@ -73,6 +73,23 @@ describe('El hub se puede instalar como app', () => {
     expect(config).toMatch(/source:\s*"\/sw\.js"[\s\S]{0,600}no-store/);
   });
 
+  it('el manifest y los iconos se sirven SIN sesion', () => {
+    // ESTE ERA EL BUG QUE HACIA INEXISTENTE TODA LA PWA (medido en produccion
+    // el 2026-09-30, antes de arreglarlo): el proxy de sesion exigia cookie en
+    // toda ruta, asi que `/manifest.webmanifest` devolvia un 307 a `/login`.
+    // El navegador recibia HTML donde esperaba JSON, no encontraba nombre ni
+    // icono, y no aparecia el boton de instalar en ningun movil. Sin ningun
+    // error visible: simplemente no habia app.
+    //
+    // La PWA se instala ANTES de tener sesion. Por eso estas rutas son publicas.
+    const mw = leer('src/lib/supabase/middleware.ts');
+    expect(mw).toMatch(/'\/manifest\.webmanifest'/);
+    // Y los iconos tambien: el instalador los pide sin haber entrado.
+    expect(mw).toMatch(/'\/app\/'/);
+    expect(mw).toMatch(/'\/sw\.js'/);
+    expect(mw).toMatch(/'\/offline'/);
+  });
+
   it('el boton de instalar guarda el evento y no lo gasta al entrar', () => {
     // `beforeinstallprompt` se dispara UNA vez. Si se pide en el efecto al
     // entrar, al cerrarlo no hay segunda oportunidad.
