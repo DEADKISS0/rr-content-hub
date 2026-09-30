@@ -1,0 +1,25 @@
+import { chromium } from 'playwright';
+const nav = await chromium.launch();
+const ctx = await nav.newContext({ viewport: { width: 1300, height: 1600 }, locale: 'es-ES' });
+const pg = await ctx.newPage();
+await pg.goto('https://rr-content-hub.vercel.app/login', { waitUntil: 'domcontentloaded' });
+await pg.waitForTimeout(1800);
+await pg.getByRole('button', { name: /WUNDEER/i }).first().click().catch(() => {});
+await pg.waitForTimeout(500);
+await pg.getByRole('button', { name: /CONTINUAR/i }).click().catch(() => {});
+await pg.waitForTimeout(2500);
+await pg.locator('select').first().selectOption({ index: 0 }).catch(() => {});
+await pg.getByRole('button', { name: /ENTRAR/i }).click().catch(() => {});
+await pg.waitForTimeout(4000);
+const s = pg.getByRole('button', { name: /^SALTAR$/i });
+if (await s.count()) { await s.first().click().catch(()=>{}); await pg.waitForTimeout(700); }
+await pg.goto('https://rr-content-hub.vercel.app/wundeer/ideas', { waitUntil: 'domcontentloaded' });
+await pg.waitForTimeout(8000);
+const txt = await pg.locator('body').innerText();
+console.log('tarjetas:', await pg.locator('.idea-card').count());
+console.log('con insignia HERMES:', await pg.locator('.idea-card:has-text("MONTADA POR HERMES")').count());
+console.log('en votacion:', txt.match(/(\d+) EN VOTACI[ÓO]N/)?.[0] || 'no aparece el conteo');
+await pg.evaluate(() => window.scrollTo(0, 900));
+await pg.waitForTimeout(1500);
+await pg.screenshot({ path: '/tmp/tablero-votando.png' });
+await nav.close();

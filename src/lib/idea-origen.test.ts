@@ -21,6 +21,7 @@ const mapa = leer('src/components/project-map.tsx');
 const ficha = leer('src/app/[projectSlug]/ideas/[ideaId]/page.tsx');
 const componente = leer('src/components/idea-origen.tsx');
 const tarjetas = leer('src/components/queue-section.tsx');
+const datos = leer('src/lib/data.ts');
 const migracion = leer('supabase/migrations/20260929_hub_ideas_origen.sql');
 
 describe('columna origen en la base', () => {
@@ -63,6 +64,14 @@ describe('se ve en la interfaz', () => {
     // El aviso de revisarla es la parte que hace util la marca: una idea
     // montada por el asistente no entra igual a voting igual que una escrita.
     expect(componente).toMatch(/Revísala antes de aprobarla/);
+  });
+
+  it('el listado TRAE la columna origen: sin ella la insignia nunca se pinta', () => {
+    // Fallo real de 2026-09-29: la insignia estaba en el componente correcto y la
+    // tarjeta se pintaba bien, pero `getIdeas` enumera las columnas a mano y no
+    // incluia `origen`. En produccion salian 0 de 41 marcadas sin un solo error.
+    const select = datos.match(/export async function getIdeas[\s\S]*?\.select\('([^']+)'/);
+    expect(select?.[1]).toContain('origen');
   });
 
   it('la insignia se ve en la TARJETA del tablero, no solo en el listado', () => {
