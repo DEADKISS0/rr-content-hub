@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { esPublica } from '@/lib/public-rutas';
 
 /**
  * El hub tiene que poder instalarse como app.
@@ -31,11 +32,13 @@ describe('El hub se puede instalar como app', () => {
     // `apple-touch-icon` es el icono de la pantalla de inicio en iOS. Sin él,
     // iOS saca una captura de la pagina.
     expect(layout).toMatch(/apple:\s*\[\{\s*url:\s*'\/app\/apple-touch-icon\.png'/);
-    // Esta clave NO la emite Next 16 por ninguna vía de su tipo (medido en
-    // node_modules/next/dist). Sin ella iOS no ofrece "añadir a pantalla de
-    // inicio" como app, y sale con barra de Safari.
-    expect(layout).toMatch(/appleWebApp/);
-    expect(layout).toMatch(/capable:\s*true/);
+    // CUIDADO CON LA DIFERENCIA, que se mide en produccion (2026-09-30):
+    // Next emite `mobile-web-app-capable` desde `appleWebApp`, pero Safari SÍ
+    // lee `apple-mobile-web-app-capable`, CON prefijo. Con la de Next sola, el
+    // iPhone abre con barra de Safari y no aparece instalar como app. Por eso la
+    // de Apple va a mano en `other`, y el test vigila el prefijo exacto.
+    expect(layout).toMatch(/'apple-mobile-web-app-capable':\s*'yes'/);
+    expect(layout).toMatch(/title:\s*'RR Hub'/);
   });
 
   it('el manifest lleva los iconos que exigen las plataformas', () => {
@@ -75,19 +78,38 @@ describe('El hub se puede instalar como app', () => {
 
   it('el manifest y los iconos se sirven SIN sesion', () => {
     // ESTE ERA EL BUG QUE HACIA INEXISTENTE TODA LA PWA (medido en produccion
-    // el 2026-09-30, antes de arreglarlo): el proxy de sesion exigia cookie en
-    // toda ruta, asi que `/manifest.webmanifest` devolvia un 307 a `/login`.
-    // El navegador recibia HTML donde esperaba JSON, no encontraba nombre ni
-    // icono, y no aparecia el boton de instalar en ningun movil. Sin ningun
-    // error visible: simplemente no habia app.
+    // el 2026-09-30, dos veces): el proxy de sesion exigia cookie en toda ruta,
+    // asi que `/manifest.webmanifest` devolvia un 307 a `/login`. El navegador
+    // recibia HTML donde esperaba JSON, no encontraba nombre ni icono, y no
+    // aparecia el boton de instalar en ningun movil. Sin ningun error visible:
+    // sencillamente no habia app.
     //
-    // La PWA se instala ANTES de tener sesion. Por eso estas rutas son publicas.
+    // Y LA SEGUNDA VEZ, MAS SUTIL: `/app/` estaba en la lista de publicas, el
+    // archivo contenia la palabra, un test que mirase texto pasaria en verde...
+    // y los doce iconos seguian devolviendo 307, porque la comparacion busca
+    // `${p}/` y eso es `/app//`. Por eso aqui NO se mira texto: se importa la
+    // funcion y se EJERTA.
+    for (const ruta of [
+      '/manifest.webmanifest',
+      '/sw.js',
+      '/offline',
+      '/login',
+      '/app/icono-192.png',
+      '/app/maskable-512.png',
+      '/app/apple-touch-icon.png',
+    ]) {
+      expect(esPublica(ruta), `${ruta} deberia servirse sin sesion`).toBe(true);
+    }
+    // Y la puerta sigue cerrada. Abrir de mas seria peor que el bug original:
+    // dejaria el hub entero sin sesion.
+    for (const ruta of ['/wundeer', '/candlejas', '/api/votar', '/wundeer/ideas/x1']) {
+      expect(esPublica(ruta), `${ruta} NO deberia servirse sin sesion`).toBe(false);
+    }
+    // El proxy tiene que usar ESA funcion, no su propia copia: dos reglas
+    // distintas en dos sitios divergen sin que nada se entere.
     const mw = leer('src/lib/supabase/middleware.ts');
-    expect(mw).toMatch(/'\/manifest\.webmanifest'/);
-    // Y los iconos tambien: el instalador los pide sin haber entrado.
-    expect(mw).toMatch(/'\/app\/'/);
-    expect(mw).toMatch(/'\/sw\.js'/);
-    expect(mw).toMatch(/'\/offline'/);
+    expect(mw).toMatch(/import \{ esPublica \} from '@\/lib\/public-rutas'/);
+    expect(mw).toMatch(/if \(esPublica\(path\)\)/);
   });
 
   it('el boton de instalar guarda el evento y no lo gasta al entrar', () => {

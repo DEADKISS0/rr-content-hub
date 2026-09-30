@@ -13,11 +13,12 @@ import './globals.css';
  *
  * - `manifest` apunta a `src/app/manifest.ts`. Sin esto el navegador no ofrece
  *   instalar nada, por muy bonitos que sean los iconos.
- * - `appleWebApp` produce `apple-mobile-web-app-capable`, que es lo que hace que
- *   iPhone ofrezca "Añadir a pantalla de inicio" COMO APP. Next 16 no emite esa
- *   clave por ninguna vía de su tipo: medido, la cadena no aparece en
- *   `node_modules/next/dist`. Si falta, sale con barra de Safari y nadie la
- *   instala.
+ * - `appleWebApp` produce `mobile-web-app-capable`, pero a Safari NO le vale:
+ *   lo que reconoce es `apple-mobile-web-app-capable`, con el prefijo. Medido en
+ *   `node_modules/next/dist/lib/metadata/metadata.js:606`, que es donde sale la
+ *   clave sin prefijo, y medido en produccion: sin la de Apple el iPhone abre el
+ *   sitio con barra de Safari y no aparece "Añadir a pantalla de inicio" como app.
+ *   Por eso la clave de Apple se pone a mano en `other`.
  * - `apple-touch-icon` es el icono de la pantalla de inicio en iOS. Sin él iOS
  *   saca una captura de la página, que con este hub es un rectángulo negro.
  * - `icons` cubre el favicon de escritorio.
@@ -37,6 +38,9 @@ export const metadata: Metadata = {
     statusBarStyle: 'black-translucent',
   },
   formatDetection: { telephone: false },
+  // La clave que Safari SÍ lee. Next emite la moderna en `appleWebApp`, pero la
+  // de Apple es la que decide si el iPhone ofrece instalarla como app.
+  other: { 'apple-mobile-web-app-capable': 'yes' },
   icons: {
     icon: [
       { url: '/app/icono-32.png', sizes: '32x32', type: 'image/png' },
