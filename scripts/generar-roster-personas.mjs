@@ -576,6 +576,10 @@ function construirMarkdown(f, personas, corte) {
   // no un error de datos. Se listan para que Santiago decida.
   // La cabecera va UNA vez: la escribe la plantilla del markdown, no esta
   // funcion. La primera version la ponia aqui tambien y salia duplicada.
+  // MEDIDO 2026-09-30: Santiago dijo que las tres SI trabajan en el equipo, y que
+  // todavia no les ha creado la parte de tareas, asi que se deja como esta. La
+  // tabla no es una lista de altas pendientes: son tres personas que cobran y que
+  // no tienen ficha. El texto lo dice para que no se lea como un olvido.
   const cobranSinRegistro = (f.cobranzaSinRegistro ?? []).length
     ? f.cobranzaSinRegistro.map((c) => `| ${c.nombre} | ${c.cuentas} | ${c.sinFirmar} |`).join('\n')
     : '_(ninguna: todas las personas que cobran estan en DashWeb o en el Centro de Mando)_';
@@ -685,10 +689,15 @@ Aqui solo se cuenta **cuantas cuentas tiene cada persona y cuantas le faltan por
 firmar**. Los importes no se copian a un registro de personas: cada cifra
 financiera va a \`04_Finanzas/_automatizacion/capture.json\` y a ningun otro lado.
 
-### Personas que cobran y no estan registradas
+### Personas que cobran y no tienen ficha
 
-No es un error de datos: es un alta pendiente. Sin registro no hay contratacion,
-ni acceso al Centro de Mando, ni expediente.
+Santiago lo confirmo el 2026-09-30: **las tres trabajan en el equipo**, y todavia
+no les ha creado la parte de tareas y accesos. Se deja como esta a proposito.
+
+Lo que falta no es el nombre (ya se sabe, esta en el papel) sino el registro:
+sin ficha en DashWeb no hay tareas asignables, y sin alta en el Centro de Mando no
+hay acceso. Cuando Santiago las de de alta, esta tabla se vacia sola: el
+generador las cruza por nombre.
 
 ${cobranSinRegistro}
 
@@ -726,6 +735,20 @@ ${ideas}
 
 Los clientes no son personas del equipo y no entran en el registro. Se miden
 para que quede constancia de por que no se mezclan.
+
+## 4b. Decisiones de Santiago (2026-09-30)
+
+Quedan escritas aqui para que no haya que volver a preguntarlas, y para que el
+generador no las tire al regenerar.
+
+- **Las tres personas que cobran sin ficha (arriba) SON del equipo.** Santiago lo
+  confirmo. Todavia no les ha creado la parte de tareas y accesos, y se deja
+  asi. No es un olvido: es una decision.
+- **Nicolas David Rios Vargas (la fila que entro sola por el alta en DashWeb) es
+  del equipo.** No hay que darle de baja ni hacer nada con el.
+- **Las dos contrasenas en claro del canonico de Talento NO se rotan todavia.**
+  Santiago lo dejo pendiente. Siguen ahi: el hallazgo queda visible en la seccion
+  3b, y el generador sigue sin copiarlas.
 
 ## 5. Que NO se puede verificar desde aqui
 
