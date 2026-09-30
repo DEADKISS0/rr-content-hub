@@ -177,6 +177,17 @@ function Formulario() {
 
   return (
     <main className="mx-auto max-w-md px-6 py-20">
+      {/*
+        La familia visual (Santiago, 2026-09-30). Esta puerta y la del Centro de
+        Mando se tienen que reconocer: mismo logo, misma marca de RR, mismo
+        negro. Lo que cambia es el cómo se entra — aquí un código de cuatro
+        cifras y un nombre, allí Google — y eso no debe romper la familia.
+      */}
+      <p className="mb-8 flex items-center gap-2.5" aria-label="RR Aliados">
+        <span aria-hidden="true" className="block h-6 w-6 bg-fucsia" />
+        <span className="font-display text-sm font-bold tracking-[0.28em] text-blanco">RR ALIADOS</span>
+      </p>
+
       <h1 className="font-display text-3xl font-bold text-blanco">Acceder al hub</h1>
       <p className="mt-3 text-sm leading-6 text-blanco-60">
         El código del cliente y tu nombre. Sin correos ni contraseñas.
