@@ -15,14 +15,15 @@
     "verify:api": "node scripts/verify-api.mjs",
     "verify:admin": "node scripts/verify-admin.mjs",
     "verify:writes": "node scripts/verify-writes.mjs",
-    "verify:leak": "node scripts/verify-leak.mjs",
+    "roster:personas": "node scripts/generar-roster-personas.mjs",
     "verify:flow": "node --experimental-strip-types --import ./scripts/alias-loader.mts scripts/verify-flow.mts",
     "verify:migration": "node scripts/verify-migration.mjs",
     "verify:roadmap": "node --experimental-strip-types --import ./scripts/alias-loader.mts scripts/verify-roadmap.mts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "verify:all": "npm run verify && npm test && npm run typecheck && npm run lint"
+    "verify:all": "npm run verify && npm test && npm run typecheck && npm run lint",
+    "verify:roster": "node scripts/verify-roster.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
