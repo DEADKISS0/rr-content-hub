@@ -20,7 +20,7 @@ const cliente = leer('src/lib/workspace-client.ts');
 const mapa = leer('src/components/project-map.tsx');
 const ficha = leer('src/app/[projectSlug]/ideas/[ideaId]/page.tsx');
 const componente = leer('src/components/idea-origen.tsx');
-const tarjetas = leer('src/components/queue-section.tsx');
+const tarjetas = leer('src/components/project-map.tsx');
 const datos = leer('src/lib/data.ts');
 const migracion = leer('supabase/migrations/20260929_hub_ideas_origen.sql');
 
@@ -74,11 +74,18 @@ describe('se ve en la interfaz', () => {
     expect(select?.[1]).toContain('origen');
   });
 
-  it('la insignia se ve en la TARJETA del tablero, no solo en el listado', () => {
-    // Esta tarjeta es la que se ve de verdad: `project-map` solo aparece en la
-    // vista de mapa. Cuando la insignia se puso solo ahi, en produccion salia
-    // 0 de 48 tarjetas marcados y no habia ningun error visible.
-    expect(tarjetas).toMatch(/IdeaOrigenChip origen=\{idea\.origen\}/);
+  it('la insignia se ve en la TARJETA que se pinta, no en otra que no se usa', () => {
+    // Dos fallos seguidos en el mismo sitio, ambos con 0 de 41 tarjetas y sin
+    // ningun error: 1) la marca se puso solo en la ficha, y la tarjeta del
+    // tablero es `project-map`; 2) dentro de project-map se puso en la tarjeta
+    // de "espera respuesta" y no en la de la lista, que es la que se ve.
+    // Por eso se comprueba que este dentro del bloque de la tarjeta principal,
+    // y no que aparezca en cualquier parte del archivo.
+    const chip = tarjetas.match(/\{idea\.origen === 'asistente' && <IdeaOrigen(Tag|Chip)/);
+    expect(chip?.[0]).toBeTruthy();
+    // la tarjeta de la lista: la que lleva portada, estado y titulo
+    const tarjetaLista = tarjetas.match(/<IdeaCoverFrame[\s\S]{0,3000}?<\/Link>/);
+    expect(tarjetaLista?.[0]).toMatch(/IdeaOrigen(Tag|Chip)/);
   });
 
   it('un origen desconocido se lee como del equipo, no como asistente', () => {

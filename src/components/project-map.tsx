@@ -175,6 +175,7 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
                             {idea.priority === 'high' && <Chip icon="bolt" tone="blanco">ALTA</Chip>}
                             {days !== null && <Chip icon="clock" tone="neutro" title={`Última actividad hace ${days} días`}>{days}D</Chip>}
                             <Chip icon={format.icon} tone="neutro">{format.label}</Chip>
+                            {idea.origen === 'asistente' && <IdeaOrigenTag origen={idea.origen} />}
                           </div>
                           <h4 className="font-display text-base font-bold leading-tight text-blanco group-hover:text-blanco-90">{idea.title}</h4>
                           <BriefRail states={briefState(idea)} />
