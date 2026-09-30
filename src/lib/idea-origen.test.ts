@@ -22,6 +22,7 @@ const ficha = leer('src/app/[projectSlug]/ideas/[ideaId]/page.tsx');
 const componente = leer('src/components/idea-origen.tsx');
 const tarjetas = leer('src/components/project-map.tsx');
 const datos = leer('src/lib/data.ts');
+const tabs = leer('src/components/origen-tabs.tsx');
 const migracion = leer('supabase/migrations/20260929_hub_ideas_origen.sql');
 
 describe('columna origen en la base', () => {
@@ -86,6 +87,27 @@ describe('se ve en la interfaz', () => {
     // la tarjeta de la lista: la que lleva portada, estado y titulo
     const tarjetaLista = tarjetas.match(/<IdeaCoverFrame[\s\S]{0,3000}?<\/Link>/);
     expect(tarjetaLista?.[0]).toMatch(/IdeaOrigen(Tag|Chip)/);
+  });
+
+  it('el tablero FILTRA por origen, y undefined cuenta como del equipo', () => {
+    // El filtro tiene que ser la MISMA regla que la insignia: si una idea llega
+    // sin `origen` se cuenta como del equipo. Si el filtro usara otra regla, la
+    // insignia y el conteo contarian historias distintas sobre las mismas ideas.
+    expect(tabs).toMatch(/asistente/);
+    expect(tarjetas).toMatch(/\(idea\.origen \?\? 'manual'\) !== origen/);
+    expect(tarjetas).toMatch(/origen !== 'all'/);
+  });
+
+  it('los conteos del filtro de origen salen de TODAS las ideas, no de las filtradas', () => {
+    // Si salieran de `visible`, al elegir "del equipo" el boton de Hermes diria 0
+    // y el filtro pareceria roto en vez de vacio.
+    const conteos = tarjetas.match(/const origenCounts = \{[\s\S]*?\n  \};/)?.[0] ?? '';
+    // Ninguna de las tres cifras puede venir de `visible`: si el "todas" saliera
+    // de `visible` y las otras dos de `ideas`, el filtro dira 0 sin motivo.
+    expect(conteos).toMatch(/all: ideas\.length/);
+    expect(conteos).toMatch(/manual: ideas\.filter/);
+    expect(conteos).toMatch(/asistente: ideas\.filter/);
+    expect(conteos).not.toContain('visible');
   });
 
   it('un origen desconocido se lee como del equipo, no como asistente', () => {

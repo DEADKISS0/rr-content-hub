@@ -8,6 +8,7 @@ import { BoardControls, type BoardFilters } from './board-controls';
 import { FlowGuide } from './flow-guide';
 import { StartHere } from './start-here';
 import { ContentTypeTabs } from './content-type-tabs';
+import { OrigenTabs, type OrigenTab } from './origen-tabs';
 import { IdeaOrigenTag } from '@/components/idea-origen';
 import { StatusBadge } from './status-badge';
 import { ActorChip, Chip } from './ui/chips';
@@ -48,8 +49,7 @@ export type BoardIdea = {
 };
 
 type ContentTypeFilter = 'all' | 'organic' | 'paid';
-
-function matches(idea: BoardIdea, filters: BoardFilters, contentType: ContentTypeFilter): boolean {
+function matches(idea: BoardIdea, filters: BoardFilters, contentType: ContentTypeFilter, origen: OrigenTab): boolean {
   const query = filters.query.trim().toLowerCase();
   if (query) {
     const haystack = [idea.code, idea.title, idea.category, idea.description, idea.objective]
@@ -64,6 +64,10 @@ function matches(idea: BoardIdea, filters: BoardFilters, contentType: ContentTyp
   }
   if (filters.act !== 'all' && actGroup(idea.status as WorkflowStatus) !== filters.act) return false;
   if (contentType !== 'all' && idea.content_type !== contentType) return false;
+  // Santiago, 2026-09-30: separar de un vistazo lo que monta el equipo de lo que
+  // monta Hermes. `undefined` se cuenta como manual: lo que no declara origen es
+  // de una persona, que es como lo trata la base.
+  if (origen !== 'all' && (idea.origen ?? 'manual') !== origen) return false;
   return true;
 }
 
@@ -78,18 +82,29 @@ function matches(idea: BoardIdea, filters: BoardFilters, contentType: ContentTyp
 export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; projectSlug: string }) {
   const [filters, setFilters] = useState<BoardFilters>({ query: '', phase: 'all', act: 'all', view: 'map' });
   const [contentType, setContentType] = useState<ContentTypeFilter>('all');
+  const [origen, setOrigen] = useState<OrigenTab>('all');
   const onChange = (next: Partial<BoardFilters>) => setFilters((current) => ({ ...current, ...next }));
 
-  const visible = useMemo(() => ideas.filter((idea) => matches(idea, filters, contentType)), [ideas, filters, contentType]);
+  const visible = useMemo(() => ideas.filter((idea) => matches(idea, filters, contentType, origen)), [ideas, filters, contentType, origen]);
   const maxColumn = Math.max(1, ...BOARD_COLUMNS.map((column) => visible.filter((idea) => (column.statuses as readonly string[]).includes(idea.status)).length));
 
   const waitingClient = ideas.filter((idea) => actGroup(idea.status as WorkflowStatus) === 'cliente').length;
-  const dirty = filters.query !== '' || filters.phase !== 'all' || filters.act !== 'all' || contentType !== 'all';
+  const dirty = filters.query !== '' || filters.phase !== 'all' || filters.act !== 'all' || contentType !== 'all' || origen !== 'all';
 
   const counts = {
     all: ideas.length,
     organic: ideas.filter((i) => i.content_type === 'organic').length,
     paid: ideas.filter((i) => i.content_type === 'paid').length,
+  };
+
+  // Los conteos de origen salen de `ideas`, no de `visible`: si salieran de
+  // `visible`, al elegir "del equipo" el botón de Hermes mostraría 0 y el filtro
+  // parecería roto en vez de vacío.Lo que importa es que los dos
+  // numeros esten siempre a la vista, se este filtrando o no.
+  const origenCounts = {
+    all: ideas.length,
+    manual: ideas.filter((i) => (i.origen ?? 'manual') === 'manual').length,
+    asistente: ideas.filter((i) => i.origen === 'asistente').length,
   };
 
   return (
@@ -109,6 +124,9 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
       {/* División orgánico / pauta: tabs limpias con conteo real. */}
       <div className="mb-6">
         <ContentTypeTabs value={contentType} onChange={setContentType} counts={counts} />
+        <div className="mt-2">
+          <OrigenTabs value={origen} onChange={setOrigen} counts={origenCounts} />
+        </div>
       </div>
 
       <FlowGuide ideas={ideas} phase={filters.phase} onPhase={(phase) => onChange({ phase, act: 'all' })} />
