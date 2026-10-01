@@ -17,13 +17,14 @@ const raiz = join(process.cwd(), 'src');
 const leer = (ruta: string) => readFileSync(join(raiz, ruta), 'utf8');
 
 describe('la puerta, con un clic', () => {
-  const pagina = leer('app/login/page.tsx');
+  const pagina = leer('app/login/formulario.tsx');
 
   it('hay un botón por cliente y rellena el código', () => {
     // Un botón por cliente, y su acción es `rellenar`: escribir el número, no
     // entrar. Si el botón entrara, bastaría con que alguien solte el móvil en la
     // mesa para que otro entre con el nombre de otro.
-    expect(pagina).toMatch(/PUERTAS/);
+    // La lista se llama `clientes` y llega por prop desde el servidor.
+    expect(pagina).toMatch(/clientes\.map/);
     expect(pagina).toMatch(/onClick=\{\(\) => rellenar\(item\.codigo\)\}/);
     expect(pagina).toMatch(/function rellenar/);
   });
@@ -47,12 +48,12 @@ describe('la puerta, con un clic', () => {
   });
 
   it('el texto del botón no incluye el código', () => {
-    // El `codigo` vive en la constante `PUERTAS`, que el navegador necesita
+    // El `codigo` viaja en la prop `clientes`, que el navegador necesita
     // para rellenar. Lo que no puede es pintarse.
     // El botón no puede pintar el número. La forma de decirlo sin depender de un
     // regex con barra final: el código solo aparece en `onClick`, nunca entre
     // las etiquetas del botón.
-    const bloque = pagina.slice(pagina.indexOf('PUERTAS.map'));
+    const bloque = pagina.slice(pagina.indexOf('clientes.map'));
     const dentroDelBoton = bloque.slice(0, bloque.indexOf('</button>'));
     const fueraDelOnClick = dentroDelBoton.split('onClick')[0] ?? dentroDelBoton;
     expect(fueraDelOnClick).not.toMatch(/codigo/);

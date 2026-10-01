@@ -23,7 +23,7 @@ import { readFileSync } from 'node:fs';
  * 2. Se descarta si apunta al propio login, para no hacer un bucle de
  *    redirección.
  */
-const login = readFileSync(new URL('../app/login/page.tsx', import.meta.url), 'utf8');
+const login = readFileSync(new URL('../app/login/formulario.tsx', import.meta.url), 'utf8');
 const regla = readFileSync(new URL('./destino-login.ts', import.meta.url), 'utf8');
 
 /** Extrae el cuerpo de la función `entrar` para no matchear el archivo entero. */
