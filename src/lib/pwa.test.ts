@@ -131,7 +131,7 @@ describe('El hub se puede instalar como app', () => {
     expect(manifest).not.toMatch(/start_url: '\/'[,\s]/);
 
     // El otro extremo del ciclo: el login TIENE que tener salida.
-    const login = leer('src/app/login/page.tsx');
+    const login = leer('src/app/login/formulario.tsx');
     expect(login).toMatch(/VOLVER A LA PORTADA/);
     expect(login).toMatch(/<Link href="\/"/);
 
