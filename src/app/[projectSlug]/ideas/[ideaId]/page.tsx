@@ -9,6 +9,7 @@ import { IdeaEditor } from '@/components/idea-editor';
 import { IdeaVoting } from '@/components/idea-voting';
 import { PanelPresencia } from '@/components/presencia-equipo';
 import { ReferenceWithBrief } from '@/components/reference-with-brief';
+import { fechaEs, cuantoPara } from '@/lib/fecha-salida';
 import { IdeaCoverFrame } from '@/components/ui/idea-cover-frame';
 import { IdeaOrigenChip } from '@/components/idea-origen';
 import { Breadcrumbs } from '@/components/breadcrumbs';
@@ -76,6 +77,11 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
   });
   const missing = states.filter((state) => !state.done);
   const days = daysSince(idea.updated_at ?? idea.created_at);
+  // MEDIDO 2026-10-01: `due_at` se guardaba y no se veía en ninguna parte. Con
+  // 14 ideas ya programadas, la ficha es donde se mira si una pieza tiene día
+  // o si sigue colgando.
+  const salida = fechaEs(idea.due_at);
+  const faltan = cuantoPara(idea.due_at);
 
   return <main className="min-h-screen bg-negro">
     <header className="border-b border-blanco-20 px-5 py-4 md:px-10">
@@ -134,6 +140,10 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
             <Chip icon="pieces" tone="neutro">{idea.category ?? 'SIN CATEGORÍA'}</Chip>
             <IdeaOrigenChip origen={idea.origen} />
             {days !== null && <Chip icon="clock" tone="neutro">{days === 0 ? 'HOY' : `${days} DÍAS SIN MOVERSE`}</Chip>}
+            {/* La fecha de salida sale con nombre y distancia, no como dato crudo. */}
+            {salida && <Chip icon="calendar" tone={faltan?.vencido ? 'mostaza' : (faltan?.texto === 'hoy' ? 'fucsia' : 'neutro')}>
+              SALIDA · {salida}{faltan ? ` · ${faltan.texto}` : ''}
+            </Chip>}
             {missing.length
               ? <Chip icon="alert" tone="neutro">{missing.length} DATOS POR COMPLETAR</Chip>
               : <Chip icon="check" tone="neutro">FICHA COMPLETA</Chip>}

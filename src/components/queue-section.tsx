@@ -3,6 +3,7 @@
 import { IdeaOrigenChip } from '@/components/idea-origen';
 import Link from 'next/link';
 import { useMemo } from 'react';
+import { fechaEs, cuantoPara } from '@/lib/fecha-salida';
 import { StatusBadge } from './status-badge';
 import { ProductionPipeline } from './production-pipeline';
 import { ActorChip, Chip } from './ui/chips';
@@ -92,6 +93,9 @@ export function QueueSection({ title, eyebrow, description, guide, ideas, projec
           const format = formatOf(idea.category, idea.content_type);
           const meta = statusMeta(idea.status);
           const age = ageOf(idea);
+          const fecha = fechaEs(idea.due_at);
+          const faltan = cuantoPara(idea.due_at);
+          const vencido = faltan?.vencido ?? false;
           return <Link key={idea.id} href={`/${projectSlug}/ideas/${idea.id}`} className="idea-card cascade sheen group block border border-blanco-20 bg-negro transition-all duration-200 hover:border-blanco-40">
             {/* Portada real si la idea tiene brief; si no, la referencia de
                 siempre. Las dos producen el mismo marco y la misma altura, así
@@ -111,6 +115,14 @@ export function QueueSection({ title, eyebrow, description, guide, ideas, projec
               {idea.description && <p className="line-clamp-2 text-xs leading-5 text-blanco-60">{idea.description}</p>}
               {showPipeline && <ProductionPipeline status={idea.status} compact />}
               <BriefRail states={briefState(idea)} />
+              {/* MEDIDO 2026-10-01: la fecha de salida se guardaba y no se veía
+                  en ninguna parte. Una fecha invisible no es un plan. Se pinta
+                  junto al responsable, que es donde se mira "qué sale y quién lo
+                  tiene". */}
+              {fecha && <p className="mono-label text-blanco-50">
+                SALIDA · <span className={vencido ? 'text-mostaza' : 'text-blanco-80'}>{fecha}</span>
+                {faltan && <span className={vencido ? 'text-mostaza' : 'text-blanco-40'}> · {faltan.texto}</span>}
+              </p>}
               <div className="flex items-center justify-between gap-3 border-t border-blanco-10 pt-3">
                 {meta.who === '—'
                   ? <Chip icon="check" tone="neutro">CERRADA · NADIE ESPERA</Chip>
