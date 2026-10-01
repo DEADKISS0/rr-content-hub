@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { ProjectMap, type BoardIdea } from '@/components/project-map';
 import { Chip, Initials } from '@/components/ui/chips';
 import { Icon } from '@/components/ui/icons';
-import { ROLE_LABEL, statusMeta, esEsperaDelCliente, esTerminal, type RoleKey } from '@/lib/flow';
+import { ROLE_LABEL, statusMeta, esTerminal, type RoleKey } from '@/lib/flow';
+import { contarEsperas } from '@/lib/esperas';
 import { QUEUES } from '@/lib/queues';
 
 type Project = { name: string; client_name: string; description?: string | null };
@@ -39,15 +40,27 @@ export function ProjectDashboard({ project, projectSlug, ideas, role }: { projec
    * eso aquí se filtra aparte y va a la cuenta de abajo: son 3 piezas que el
    * tablero atributos al cliente y no lo son.
    */
-  const esperandoCliente = ideas.filter((idea) => esEsperaDelCliente(idea.status));
-  const esperandoEquipo = ideas.filter((idea) => !esEsperaDelCliente(idea.status) && !esTerminal(idea.status));
-  const byActor = esperandoCliente.reduce<Record<string, BoardIdea[]>>((groups, idea) => {
+  /*
+   * MEDIDO 2026-10-01: estas dos líneas eran la causa de que el tablero se
+   * contradijera en la misma pantalla. `esperandoEquipo` contaba
+   * `!esTerminal(status)` —44 de 45— mientras `start-here.tsx` contaba solo
+   * `QUEUES.aprobaciones.statuses` —6—. Las dos reglas eran correctas según su
+   * propia definición, y por eso no se podían cruzar: nadie sabía cuál mandaba.
+   *
+   * Ahora las dos pantallas usan `contarEsperas` de `@/lib/esperas`. El número
+   * grande de arriba (piezas abiertas) se llama `abiertas` a propósito: son
+   * cosas distintas y no vuelven a aparecer como si fueran el mismo número.
+   */
+  const conteo = contarEsperas(ideas, esTerminal);
+  const esperandoCliente = conteo.esperandoCliente;
+  const esperandoEquipo = conteo.esperandoEquipo;
+  const byActor = esperandoCliente.reduce<Record<string, BoardIdea[]>>((groups: Record<string, BoardIdea[]>, idea: BoardIdea) => {
     const who = statusMeta(idea.status).who;
     groups[who] = [...(groups[who] ?? []), idea];
     return groups;
   }, {});
   /** Lo mismo, para la espera interna: agrupado por rol, no por "quién". */
-  const porRolEquipo = esperandoEquipo.reduce<Record<string, BoardIdea[]>>((groups, idea) => {
+  const porRolEquipo = esperandoEquipo.reduce<Record<string, BoardIdea[]>>((groups: Record<string, BoardIdea[]>, idea: BoardIdea) => {
     const rol = statusMeta(idea.status).who;
     groups[rol] = [...(groups[rol] ?? []), idea];
     return groups;
@@ -67,6 +80,9 @@ export function ProjectDashboard({ project, projectSlug, ideas, role }: { projec
             <div className="mt-6 flex flex-wrap items-center gap-2">
               <Chip icon="user" tone="blanco">TU ROL: {roleLabel}</Chip>
               <Chip icon="pieces" tone="neutro">{ideas.length} PIEZAS EN EL HUB</Chip>
+              {/* El número grande es "piezas", no "piezas esperando". Antes los
+                  dos chips de abajo se leían como el mismo total y no lo eran:
+                  44 contra 6. Ahora cada uno tiene su regla y su nombre. */}
               {/* El número que antes decía "PARADAS" era solo la espera externa.
                   Las dos cuentas van separadas porque son dos trabajos: una la
                   saca el cliente, la otra el equipo. */}
