@@ -33,15 +33,22 @@ describe('la fecha de salida es visible, no un dato huérfano', () => {
     expect(cola).toMatch(/due_at/);
   });
 
-  it('el servidor trae la fecha sin pedirla de más', () => {
-    // `getIdeas`/`getIdea` usan `select('*')`, que YA devuelve `due_at`. La
-    // primera versión de esta prueba exigía `due_at` en `data.ts` y fallaba sin
-    // motivo: el `*` ya lo trae. Lo que sí importa es que no se pida una
-    // columna que no existe, que es lo que rompía la portada.
-    expect(data).toMatch(/select\('\*'/);
-    // Si algún día alguien lista columnas una por una, `due_at` tiene que estar
-    // en la lista; por eso queda anotado aquí como contrato.
-    expect(data).not.toMatch(/due_at,\s*published_url/);
+  it('el servidor trae la fecha, y la copia al mapa', () => {
+    /*
+     * MEDIDO 2026-10-01: esta prueba estaba mal y daba verde mientras la fecha
+     * NO llegaba a la pantalla. Dos motivos encadenados:
+     *
+     * 1. `getIdeas` nombra columna por columna y `due_at` no estaba en la lista.
+     * 2. `getIdea` usa `select('*')` y la traía, pero `mapIdea()` reconstruye
+     *    el objeto campo por campo y `due_at` no estaba entre los que copia.
+     *
+     * Yo miraba el `*` y daba por hecho que con eso llegaba. No llega: se
+     * pierde en el `.map()`. Esta versión exige las dos cosas, la consulta Y el
+     * mapeo, y la otra prueba (fecha-llega-al-componente) las separa para que
+     * se vea cuál de las dos se rompió.
+     */
+    expect(data).toMatch(/created_at,\s*due_at/);
+    expect(data).toMatch(/due_at:\s*\(row\.due_at/);
   });
 });
 
