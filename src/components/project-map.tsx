@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { actGroup, daysSince, statusMeta, TONE_CLASS, type WorkflowStatus } from '@/lib/flow';
 import { fechaEs, cuantoPara } from '@/lib/fecha-salida';
+import { VoteQuick } from './vote-quick';
 import { BOARD_COLUMNS } from '@/lib/queues';
 import { BoardControls, type BoardFilters } from './board-controls';
 import { FlowGuide } from './flow-guide';
@@ -25,6 +26,14 @@ export type BoardIdea = {
   /** MEDIDO 2026-10-01: la fecha de salida llega del servidor desde el PR #18;
    *  sin declararla aquí, este componente no podía leerla. */
   due_at?: string | null;
+  /**
+   * Conteo de la votación, MEDIDO lo mismo: el botón de la tarjeta tiene que
+   * mostrar "faltan 2 de 3", y para eso necesita el número al pintar. Si no
+   * viene, el botón saldría en cero y la tarjeta mentiría más de lo que ya
+   * mentía.
+   */
+  aFavor?: number;
+  enContra?: number;
   id: string;
   code?: string | null;
   title: string;
@@ -179,9 +188,19 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
                     const vencido = cuantoPara(idea.due_at)?.vencido ?? false;
                     const tono = TONE_CLASS[meta.tone];
                     return (
-                      <Link
+                      /*
+                       * MEDIDO 2026-10-01: esto era un `<Link>` que envolvía toda
+                       * la tarjeta. Meterle un botón de voto dentro sería HTML
+                       * inválido —no se puede anidar un `<button>` en un `<a>`— y
+                       * el navegador lo sube de nivel y rompe la tarjeta entera.
+                       *
+                       * Por eso ahora la tarjeta es un `<article>`: el enlace se
+                       * queda en el código y en el título, que es donde se espera
+                       * pinchar para abrir la ficha, y el voto vive abajo como lo
+                       * que es: un botón.
+                       */
+                      <article
                         key={idea.id}
-                        href={`/${projectSlug}/ideas/${idea.id}`}
                         style={{ ['--delay' as string]: `${cardIndex * 45}ms` }}
                         className={`idea-card cascade sheen group block border border-l-[3px] bg-negro transition-all duration-200 hover:border-blanco-40 ${tono.borderLeft}`}
                       >
@@ -212,13 +231,32 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
                               </span>
                             )}
                           </div>
-                          <h4 className="font-display text-base font-bold leading-tight text-blanco group-hover:text-blanco-90">{idea.title}</h4>
+                          <h4 className="font-display text-base font-bold leading-tight text-blanco group-hover:text-blanco-90">
+                            <Link
+                              href={`/${projectSlug}/ideas/${idea.id}`}
+                              className="outline-none after:absolute after:inset-0 after:content-[''] hover:underline"
+                            >
+                              {idea.title}
+                            </Link>
+                          </h4>
                           <BriefRail states={briefState(idea)} />
                           <div className="flex items-center gap-3 border-t border-blanco-10 pt-3">
                             <ActorChip who={meta.who} />
                           </div>
+
+                          {/* MEDIDO 2026-10-01: 19 ideas carrying `voting` con
+                              CERO votos, y el botón de votar solo existía dentro
+                              de la ficha. Cero menciones de "votar" en el tablero,
+                              en el banco y en aprobaciones. El sistema funcionaba
+                              y nadie lo tocaba. */}
+                          {idea.status === 'voting' && (
+                            <VoteQuick
+                              ideaId={idea.id}
+                              inicial={{ aFavor: idea.aFavor ?? 0, enContra: idea.enContra ?? 0 }}
+                            />
+                          )}
                         </div>
-                      </Link>
+                      </article>
                     );
                   })}
                   {!items.length && (
