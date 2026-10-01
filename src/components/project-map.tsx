@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { actGroup, daysSince, statusMeta, TONE_CLASS, type WorkflowStatus } from '@/lib/flow';
+import { fechaEs, cuantoPara } from '@/lib/fecha-salida';
 import { BOARD_COLUMNS } from '@/lib/queues';
 import { BoardControls, type BoardFilters } from './board-controls';
 import { FlowGuide } from './flow-guide';
@@ -21,6 +22,9 @@ import { IdeaCoverFrame } from './ui/idea-cover-frame';
 import type { IdeaCover as IdeaCoverAsset } from '@/lib/idea-cover';
 
 export type BoardIdea = {
+  /** MEDIDO 2026-10-01: la fecha de salida llega del servidor desde el PR #18;
+   *  sin declararla aquí, este componente no podía leerla. */
+  due_at?: string | null;
   id: string;
   code?: string | null;
   title: string;
@@ -171,6 +175,8 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
                     const meta = statusMeta(idea.status);
                     const format = formatOf(idea.category, idea.content_type);
                     const days = daysSince(idea.updated_at ?? idea.created_at);
+                    const fecha = fechaEs(idea.due_at);
+                    const vencido = cuantoPara(idea.due_at)?.vencido ?? false;
                     const tono = TONE_CLASS[meta.tone];
                     return (
                       <Link
@@ -192,6 +198,12 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
                             <StatusBadge status={idea.status} compact />
                             {idea.priority === 'high' && <Chip icon="bolt" tone="blanco">ALTA</Chip>}
                             {days !== null && <Chip icon="clock" tone="neutro" title={`Última actividad hace ${days} días`}>{days}D</Chip>}
+                            {/* MEDIDO 2026-10-01: la fecha de salida ya llegaba
+                                aquí (getIdeas la pide, mapIdea la copia) pero la
+                                tarjeta no la pintaba. Este chip es de "hace
+                                cuánto NO se mueve", que es otra cosa: por eso va
+                                al lado y no encima, para que no se confundan. */}
+                            {fecha && <Chip icon="calendar" tone={vencido ? 'mostaza' : 'neutro'} title={`Salida ${fecha}`}>SALIDA {fecha}</Chip>}
                             <Chip icon={format.icon} tone="neutro">{format.label}</Chip>
                             {idea.origen === 'asistente' && <IdeaOrigenTag origen={idea.origen} />}
                             {idea.category && (
