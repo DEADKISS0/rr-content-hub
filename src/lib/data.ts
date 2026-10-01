@@ -92,6 +92,18 @@ function mapIdea(row: RawIdea) {
      */
     due_at: (row.due_at as string | null) ?? null,
     published_url: (row.published_url as string | null) ?? null,
+    /**
+     * MEDIDO 2026-10-01: 19 ideas en `voting` con CERO votos, y el botón de
+     * votar solo existía dentro de la ficha. Para poder votar desde la tarjeta
+     * hace falta que el tablero sepa el conteo ANTES de pintar, o el botón
+     * saldría en cero y mostraría "faltan 3" aunque ya hubiera dos.
+     *
+     * Esto no es un campo de la tabla de ideas: son tres filas de `rr_hub_votes`
+     * por idea. Se cuenta aparte, en `conVotos()`, y se adjunta después. Por
+     * eso aquí va en cero: `mapIdea` mira una fila, no una agregación.
+     */
+    aFavor: 0,
+    enContra: 0,
     reference_url: urls[0] ?? (row.reference_url as string) ?? '',
     reference_urls: urls,
     /**
@@ -450,6 +462,46 @@ export async function getVotos(ideaId: string): Promise<ConteoVotos> {
   const aFavor = votos.filter((v) => v.decision === 'yes').length;
   const enContra = votos.filter((v) => v.decision === 'no').length;
   return { aFavor, enContra, total: votos.length, detalle: votos.map((v) => v.decision as DecisionVoto) };
+}
+
+/**
+ * El conteo de votos de TODAS las ideas de golpe.
+ *
+ * MEDIDO 2026-10-01: con el botón de voto en la tarjeta del tablero (PR de
+ * votación), pedir el conteo idea por idea serían 19 consultas en cada carga de
+ * la página. Eso no es "un poco más lento": es la diferencia entre una pantalla
+ * que carga y una que se arrastra, y en móvil se nota.
+ *
+ * Por eso es UNA consulta agrupada por `idea_id`, no N. La vista `rr_hub_board`
+ * ya calcula `days_in_stage` y `last_event_at` y la app no la mira, así que
+ * esta se hace aquí a propósito y en una sola pasada.
+ *
+ * Devuelve un mapa vacío si algo falla, nolanza: que el tablero pinte los
+ * botones en cero es mejor que no pintar el tablero. El servidor es la
+ * autoridad cuando puede; cuando no, la pantalla no se cae.
+ */
+export async function getVotosDeVarias(
+  ideaIds: readonly string[],
+): Promise<Record<string, { aFavor: number; enContra: number }>> {
+  const conteo: Record<string, { aFavor: number; enContra: number }> = {};
+  if (!ideaIds.length) return conteo;
+
+  const supabase = await createServiceClient() ?? await createClient();
+  if (!supabase) return conteo;
+
+  const { data } = await supabase
+    .from('rr_hub_votes')
+    .select('idea_id, decision')
+    .in('idea_id', [...ideaIds]);
+
+  for (const id of ideaIds) conteo[id] = { aFavor: 0, enContra: 0 };
+  for (const voto of data ?? []) {
+    const fila = conteo[voto.idea_id as string];
+    if (!fila) continue;
+    if (voto.decision === 'yes') fila.aFavor += 1;
+    else if (voto.decision === 'no') fila.enContra += 1;
+  }
+  return conteo;
 }
 
 /**
