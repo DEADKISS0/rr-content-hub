@@ -4,18 +4,23 @@ import { useState } from 'react';
 import { BigCount, Chip } from './ui/chips';
 import { Icon, type IconName } from './ui/icons';
 import {
-  GO_LIVE_ISO, designMeta, designRoadmap, designWindows, devMeta, devRoadmap, devWindows,
-  contentMeta, contentProgress, contentRoadmap, currentSession, daysUntil, sessionState,
+  GO_LIVE_ISO, designWindows, devWindows,
+  contentProgress, currentSession, daysUntil, sessionState,
   PILLAR_LABEL, progressPct, windowGap, windowState, type WindowState,
+  type ClienteRoadmap,
 } from '@/lib/roadmap';
 
 type Track = 'dev' | 'design' | 'content';
 
-const TRACKS: Array<{ key: Track; label: string; kicker: string; icon: IconName; units: number }> = [
-  { key: 'dev', label: 'DESARROLLO', kicker: 'Sistema y tienda', icon: 'bolt', units: devWindows.length },
-  { key: 'design', label: 'DISEÑO', kicker: 'Branding y creativos', icon: 'scissors', units: designWindows.length },
-  { key: 'content', label: 'CONTENIDO', kicker: 'Una sesión al mes', icon: 'camera', units: contentRoadmap.length },
-];
+function tracksDe(plan: ClienteRoadmap): Array<{ key: Track; label: string; kicker: string; icon: IconName; units: number }> {
+  return [
+    { key: 'dev', label: 'DESARROLLO', kicker: 'Sistema y tienda', icon: 'bolt', units: devWindows.length },
+    { key: 'design', label: 'DISEÑO', kicker: 'Branding y creativos', icon: 'scissors', units: designWindows.length },
+    // El conteo de sesiones venía del módulo, o sea del plan de Wundeer. Ahora
+    // sale del plan del cliente: un cliente con 2 sesiones no puede ver "5".
+    { key: 'content', label: 'CONTENIDO', kicker: 'Una sesión al mes', icon: 'camera', units: plan.contentRoadmap.length },
+  ];
+}
 
 const TONE: Record<WindowState, 'fucsia' | 'mostaza' | 'neutro'> = {
   'en-curso': 'fucsia',
@@ -65,7 +70,8 @@ type Celda = {
  * el número del día y qué hay encima. El detalle vive debajo, en corto. Un
  * calendario lleno de frases no se lee como calendario.
  */
-function Calendario({ today }: { today: string }) {
+function Calendario({ today, plan }: { today: string; plan: ClienteRoadmap }) {
+  const { contentRoadmap } = plan;
   const fin = contentRoadmap[contentRoadmap.length - 1];
   const anioFin = Number(fin.closeIso.slice(0, 4));
   const mesFin = Number(fin.closeIso.slice(5, 7));
@@ -75,7 +81,7 @@ function Calendario({ today }: { today: string }) {
   const tramos: Array<{ track: Track; startIso: string; endIso: string; title: string }> = [
     ...devWindows.map((w) => ({ track: 'dev' as Track, startIso: w.startIso, endIso: w.endIso, title: w.title })),
     ...designWindows.map((w) => ({ track: 'design' as Track, startIso: w.startIso, endIso: w.endIso, title: w.title })),
-    ...contentRoadmap.map((s) => ({ track: 'content' as Track, startIso: s.sessionIso, endIso: s.closeIso, title: s.theme })),
+    ...plan.contentRoadmap.map((s) => ({ track: 'content' as Track, startIso: s.sessionIso, endIso: s.closeIso, title: s.theme })),
   ];
 
   // Primer lunes de la semana que contiene el arranque.
@@ -151,7 +157,14 @@ function Calendario({ today }: { today: string }) {
   </div>;
 }
 
-export function RoadmapView({ today }: { today: string }) {
+/**
+ * MEDIDO 2026-10-01: este componente importaba `designMeta`, `devMeta`,
+ * `contentMeta` y los tres roadmaps directamente del módulo, así que TODOS los
+ * clientes veían el plan de Wundeer. Ahora el plan baja por props desde la
+ * página, que es la que sabe de qué cliente se trata.
+ */
+export function RoadmapView({ today, plan }: { today: string; plan: ClienteRoadmap }) {
+  const { designMeta, designRoadmap, devMeta, devRoadmap, contentMeta, contentRoadmap } = plan;
   const [track, setTrack] = useState<Track>('dev');
   const toGoLive = daysUntil(GO_LIVE_ISO, today);
   const content = contentProgress(today);
@@ -198,7 +211,7 @@ export function RoadmapView({ today }: { today: string }) {
       </section>
 
       <nav className="anim-rise mb-8 grid gap-px border border-blanco-20 bg-blanco-10 sm:grid-cols-3" aria-label="Pistas del roadmap">
-        {TRACKS.map((item) => {
+        {tracksDe(plan).map((item) => {
           const active = track === item.key;
           return <button key={item.key} onClick={() => setTrack(item.key)} aria-pressed={active}
             className={`group bg-negro p-4 text-left transition-colors ${active ? 'text-blanco' : 'text-blanco-50 hover:bg-blanco-05 hover:text-blanco'}`}>
@@ -215,22 +228,23 @@ export function RoadmapView({ today }: { today: string }) {
       <section className="anim-rise mb-8" aria-label="Calendario del roadmap">
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="font-display text-xl font-bold text-blanco">CALENDARIO</h2>
-          <span className="font-mono text-[10px] text-blanco-50">OCT 2026 → {MESES_CORTOS[Number(fin2().slice(5, 7)) - 1]} {fin2().slice(0, 4)}</span>
+          <span className="font-mono text-[10px] text-blanco-50">OCT 2026 → {MESES_CORTOS[Number(finDe(plan).slice(5, 7)) - 1]} {finDe(plan).slice(0, 4)}</span>
         </div>
-        <Calendario today={today} />
+        <Calendario today={today} plan={plan} />
       </section>
 
       <div key={track} className="view-in">
-        {track === 'dev' && <DevTrack today={today} />}
-        {track === 'design' && <DesignTrack today={today} />}
-        {track === 'content' && <ContentTrack today={today} />}
+        {track === 'dev' && <DevTrack today={today} plan={plan} />}
+        {track === 'design' && <DesignTrack today={today} plan={plan} />}
+        {track === 'content' && <ContentTrack today={today} plan={plan} />}
       </div>
     </div>
   </main>;
 }
 
-function fin2(): string {
-  return contentRoadmap[contentRoadmap.length - 1].closeIso;
+/** El último día del plan del cliente. Antes leía el módulo, o sea Wundeer. */
+function finDe(plan: ClienteRoadmap): string {
+  return plan.contentRoadmap[plan.contentRoadmap.length - 1].closeIso;
 }
 
 function NowCell({ icon, label, children }: { icon: IconName; label: string; children: React.ReactNode }) {
@@ -269,7 +283,8 @@ function SprintShell({ index, sprint, state, gap, pct, children }: {
   </li>;
 }
 
-function DevTrack({ today }: { today: string }) {
+function DevTrack({ today, plan }: { today: string; plan: ClienteRoadmap }) {
+  const { devMeta, devRoadmap, designMeta, designRoadmap, contentMeta, contentRoadmap } = plan;
   return <div className="space-y-6 anim-rise">
     <MetaGrid items={[['INICIO', devMeta.start], ['GO-LIVE', devMeta.goLive], ['SPRINTS', devMeta.sprints], ['ARQUITECTURA', devMeta.architecture]]} />
     <div className="border-l-4 border-blanco-20 bg-blanco-05 p-5">
@@ -298,7 +313,8 @@ function DevTrack({ today }: { today: string }) {
   </div>;
 }
 
-function DesignTrack({ today }: { today: string }) {
+function DesignTrack({ today, plan }: { today: string; plan: ClienteRoadmap }) {
+  const { devMeta, devRoadmap, designMeta, designRoadmap, contentMeta, contentRoadmap } = plan;
   return <div className="space-y-6 anim-rise">
     <MetaGrid items={[['CLIENTE', designMeta.client], ['DIR. CREATIVO', designMeta.director], ['LANZAMIENTO', designMeta.launch], ['FOCO', 'UI/UX · Arte · Branding']]} />
     <div className="border-l-4 border-blanco-20 bg-blanco-05 p-5">
@@ -326,7 +342,8 @@ function DesignTrack({ today }: { today: string }) {
   </div>;
 }
 
-function ContentTrack({ today }: { today: string }) {
+function ContentTrack({ today, plan }: { today: string; plan: ClienteRoadmap }) {
+  const { devMeta, devRoadmap, designMeta, designRoadmap, contentMeta, contentRoadmap } = plan;
   const mes = currentSession(today);
   return <div className="space-y-6 anim-rise">
     <MetaGrid items={[

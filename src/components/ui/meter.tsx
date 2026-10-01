@@ -33,12 +33,33 @@ export function SegMeter({ filled, total, tone = 'fucsia', label, compact = fals
 export function PhaseRail({ status, compact = false }: { status: string; compact?: boolean }) {
   const active = phaseIndex(status as WorkflowStatus);
   return (
-    <div className="flex items-stretch gap-[3px]">
+    /*
+     * MEDIDO 2026-10-01: los `<span>` eran `flex-1` sin `min-w-0` y sin wrap, y
+     * el riel medía 414px en una ficha de 390: la sexta pastilla (DESCARTADAS)
+     * acababa en x=454, 64px fuera de pantalla. En un iPhone era imposible
+     * saber que existía una sexta fase.
+     *
+     * Ahora `min-w-0` permite que encojan y `flex-wrap` las pasa a la línea de
+     * abajo si aun así no caben. Nada queda fuera de la pantalla, que es lo
+     * único que importa: que se vean estrechas es aceptable, que no se vean no.
+     */
+    <div className="flex flex-wrap items-stretch gap-[3px]">
       {PHASES.map((phase, index) => {
         const state = index < active ? 'done' : index === active ? 'live' : 'todo';
         const skin = state === 'live' ? 'border-blanco-40 bg-blanco-10 text-blanco' : state === 'done' ? 'border-blanco-30 bg-blanco-10 text-blanco-60' : 'border-blanco-30 bg-negro text-blanco-50';
         return (
-          <span key={phase.key} className={`flex-1 border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.06em] ${skin}`} title={`${phase.label} · ${phase.detail}`}>
+          /*
+           * El `title=` no se quita: es la explicación en el escritorio. Pero
+           * el texto visible dice lo mismo, porque en táctil no hay hover y
+           * esa información era inalcanzable en el móvil. `aria-label` para el
+           * lector de pantalla.
+           */
+          <span
+            key={phase.key}
+            className={`min-w-0 flex-1 basis-16 border px-2 py-1 text-center font-mono text-[10px] uppercase leading-4 tracking-[0.06em] ${skin}`}
+            title={`${phase.label} · ${phase.detail}`}
+            aria-label={`${phase.label}: ${phase.detail}`}
+          >
             {compact ? index + 1 : phase.label}
           </span>
         );

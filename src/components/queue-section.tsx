@@ -54,7 +54,13 @@ export function QueueSection({ title, eyebrow, description, guide, ideas, projec
   return <main className="min-h-screen bg-negro">
     <div className="mx-auto max-w-7xl px-5 py-10 md:px-10">
       <div className="anim-rise mb-8 flex flex-wrap items-end justify-between gap-6 border-b border-blanco-10 pb-8">
-        <div>
+        {/*
+         * MEDIDO 2026-10-01: este `<div>` no llevaba `min-w-0`. En un flex, un
+         * hijo sin `min-w-0` no baja de su ancho de contenido: el titular se
+         * medía 476px en una ventana de 390 y la N de PUBLICACIONES se cortaba.
+         * `overflow-x:hidden` en el body lo escondía, no lo arreglaba.
+         */}
+        <div className="min-w-0 flex-1">
           <p className="eyebrow">{eyebrow}</p>
           <h1 className="display-title">{title} en control.</h1>
           <p className="mt-5 max-w-xl text-sm leading-7 text-blanco-70">{description}</p>
