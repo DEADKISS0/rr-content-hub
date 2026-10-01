@@ -62,6 +62,15 @@ function embedSource(url: string) {
   return null;
 }
 
+function aPintar0(lista: string[]): string {
+  return lista[0] ?? '';
+}
+
+/** Un anuncio de la biblioteca de Facebook se anuncia como anuncio, no como post. */
+function esAnuncioDeFacebook(url: string): boolean {
+  return /facebook\.com\/ads\/library/i.test(url);
+}
+
 /**
  * Encuadre del embed, según lo que la plataforma publica de verdad.
  *
@@ -130,7 +139,47 @@ function encuadre(url: string): Encuadre {
  * `refs[0]`: el dato ya guarda las dos, el render las estaba desperdiciando.
  */
 function esEmbebible(url: string): boolean {
-  return embedSource(url) !== null && !/facebook\.com\/ads\/library/i.test(url);
+  return motivoDeNoEmbebir(url) === null;
+}
+
+/**
+ * Por qué una referencia NO se puede mostrar aquí, o `null` si sí se puede.
+ *
+ * MEDIDO 2026-10-01, abriendo la URL real en el navegador:
+ *
+ *   https://www.facebook.com/plugins/post.php?href=<Ads Library>
+ *   → title "Facebook", contenido: `- feed` + link "Servicio de ayuda"
+ *
+ * Eso es un marco VACÍO. No es un video que tarda: es el documento que Meta
+ * devuelve cuando no reconoce lo que le pidieron. Y como `onLoad` se dispara
+ * igual —una respuesta de error también es una respuesta—, la pantalla dice
+ * "viendo la referencia" sobre un rectángulo en gris. El fallo se lee como
+ * "Facebook no deja ver el anuncio", y no es eso: ese endpoint es para POSTS de
+ * Facebook, no para anuncios de la biblioteca, y no hay endpoint público que
+ * los sirva embebidos.
+ *
+ * MEDIDO también en la base, y son dos fichas que caen en negro:
+ *
+ *   P19  1 referencia, solo Facebook Ads Library
+ *   P25  1 referencia, solo Facebook Ads Library
+ *
+ * (P28 y P29 tienen Ads Y un post de Instagram: esas se ven porque el filtro
+ * las separa y queda la buena.)
+ *
+ * Antes esta función devolvía `boolean` y el "no" se comía el motivo. Quien
+ * tenía que explicar por qué la ficha estaba vacía no tenía con qué: el filtro
+ * devolvía `false`, el render veía `source` no nulo —porque `embedSource` SÍ
+ * devuelve una URL para Facebook— y pintaba el iframe vacío sin decir nada.
+ * Por eso la razón se devuelve aquí, y quien pinta la decide.
+ */
+function motivoDeNoEmbebir(url: string): string | null {
+  if (/facebook\.com\/ads\/library/i.test(url)) {
+    return 'La biblioteca de anuncios de Facebook no se puede embeber: Meta no tiene un endpoint publico que la sirva. El anuncio se ve abriendo el link.';
+  }
+  if (/facebook\.com/i.test(url)) {
+    return 'Facebook no siempre sirve este contenido embebido. Si el marco queda vacio, abre el link.';
+  }
+  return embedSource(url) === null ? 'Este origen no se puede embeber.' : null;
 }
 
 /**
@@ -154,6 +203,38 @@ export function ReferenceWithBrief({ url, refs, title, brief }: { url?: string; 
   // Las que se pueden ver van primero; el resto se conserva detrás.
   const embebibles = todas.filter(esEmbebible);
   const elResto = todas.filter((u) => !embebibles.includes(u));
+
+  // MEDIDO 2026-10-01: P19 y P25 tienen UNA sola referencia y es una Ads
+  // Library. Sin esta rama, `embebibles` llegaba vacío, `aPintar` tenía solo la
+  // no embebible y la ficha pintaba el iframe vacío sin decir nada — negro con
+  // un "ABRIR ORIGINAL" que al menos funcionaba pero enterrado en el header.
+  //
+  // Con esta rama, la ficha dice la verdad: esto no se puede mostrar aquí, y
+  // el anuncio se ve con un toque. Un marco vacío no informa; un aviso con un
+  // enlace es una salida.
+  if (!embebibles.length) {
+    return <section className="overflow-hidden border border-blanco-20 anim-fade">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-blanco-10 bg-blanco-05 px-5 py-3">
+        <p className="eyebrow text-blanco-50">[REFERENCIA VISUAL · {platform(aPintar0(todas))}]</p>
+      </header>
+      <div className="bg-negro p-8 text-center">
+        <p className="font-mono text-xs text-mostaza">[PREVIEW NO DISPONIBLE PARA ESTE ORIGEN]</p>
+        <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-blanco-60">{motivoDeNoEmbebir(todas[0])}</p>
+        <div className="mt-6 flex flex-col items-center gap-3">
+          {todas.map((u, indice) => <Link
+            key={`${indice}-${u}`}
+            href={u}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-block border border-blanco-25 px-5 py-3 font-mono text-xs text-blanco underline decoration-dotted underline-offset-4"
+          >
+            {esAnuncioDeFacebook(u) ? 'VER ANUNCIO EN FACEBOOK' : 'VER REFERENCIA ORIGINAL'} ↗
+          </Link>)}
+        </div>
+      </div>
+    </section>;
+  }
+
   const aPintar = [...embebibles, ...elResto];
 
   const sourcePrincipal = aPintar.map((u) => ({ url: u, source: embedSource(u) })).find((r) => r.source);
@@ -169,7 +250,23 @@ export function ReferenceWithBrief({ url, refs, title, brief }: { url?: string; 
   return <section className="overflow-hidden border border-blanco-20 anim-fade">
     <header className="flex flex-wrap items-center justify-between gap-2 border-b border-blanco-10 bg-blanco-05 px-5 py-3">
       <p className="eyebrow text-blanco-50">[REFERENCIA VISUAL · {platform(sourcePrincipal?.url ?? aPintar[0])}]</p>
-      <Link href={aPintar[0]} target="_blank" rel="noreferrer" className="font-mono text-[10px] text-blanco-50 underline">ABRIR ORIGINAL ↗</Link>
+      {/* MEDIDO 2026-10-01: esto era la PRIMERA de la lista,
+          Con una idea que tiene Ads de Facebook + un post de Instagram, la
+          primera es el anuncio y el flash es el post: el rótulo decía "abrir
+          original" sobre un link que no era lo que se estaba viendo. Dos
+          fuentes distintas bajo un mismo nombre.
+
+          Ahora apunta a la misma referencia que se está embebiendo. Si no hay
+          ninguna embebible, cae a la primera disponible, que al menos es una
+          referencia real de la idea y no un link que no se ve. */}
+      <Link
+        href={sourcePrincipal?.url ?? aPintar[0]}
+        target="_blank"
+        rel="noreferrer"
+        className="font-mono text-[10px] text-blanco-50 underline"
+      >
+        ABRIR ORIGINAL ↗
+      </Link>
     </header>
     <div className="grid gap-px bg-blanco-10 lg:grid-cols-2">
       <div className="flex flex-col items-center gap-4 bg-negro p-3 sm:p-5">

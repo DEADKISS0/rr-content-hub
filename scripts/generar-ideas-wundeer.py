@@ -57,8 +57,15 @@ RESPONSABLE_NOMBRE = "Andrés Santiago Rosas Rios"
 
 # Cuántas de cada tipo por corrida. Dos y dos es lo que pidió Santiago: dos
 # ideas de pauta y dos de orgánico por cliente y por corrida.
-CUANTAS_PAUTA = 2
-CUANTAS_ORGANICO = 2
+# Una de pauta y una de organica por corrida. MEDIDO 2026-10-01: eran 2 y 2,
+# y los dos jobs (08:00 y 17:00) corren sin argumentos, asi que eran 8 ideas al
+# dia. La cola de Wundeer llega a 24 sin revisar con un tope de 20, y las 19
+# atascadas son casi todas del 28 de septiembre. El cuello de botella es humano:
+# revisar y descartar ideas es mas lento que generarlas. Bajar el ritmo a 1+1
+# hace que la cola crezca a la velocidad a la que se puede vaciar, no a la
+# velocidad a la que se puede escribir.
+CUANTAS_PAUTA = 1
+CUANTAS_ORGANICO = 1
 
 ESTADO_NACIMIENTO = "internal_review"  # nacen en revisión interna, no en borrador
 
@@ -480,7 +487,17 @@ def main() -> int:
     analizador.add_argument("--cliente", default="wundeer",
                             help="slug del cliente (wundeer, candilejas). Por defecto: wundeer")
     analizador.add_argument("--solo-organico", action="store_true")
-    analizador.add_argument("--seco", action="store_true", help="genera pero no imprime el pack de WhatsApp")
+    analizador.add_argument(
+        "--seco",
+        action="store_true",
+        help=(
+            "ATENCION: escribe en la base igual. Solo no imprime el pack de "
+            "WhatsApp. El nombre parece un simulacro y no lo es: usarlo para "
+            "probar genera ideas de verdad. Para mirar sin escribir, el tope de "
+            "cola hace lo mismo (--tope-cola 0) y tambien crea, asi que la via "
+            "que no crea de verdad es no correrlo."
+        ),
+    )
     analizador.add_argument(
         "--referencia",
         action="append",
@@ -548,9 +565,19 @@ def main() -> int:
             "van a grabarse, o bajar el ritmo. Cuando baje de "
             f"{opciones.tope_cola}, vuelve solo."
         )
+        # MEDIDO 2026-10-01: esto imprimia el aviso por stdout, que es el mismo
+        # canal que el cron entrega a WhatsApp, y devolvia 0, que es el mismo
+        # codigo que una corrida con 4 ideas. Quien leia los dos Pack no tenia
+        # forma de distinguirlos salvo por leer la frase entera, y el cron lo
+        # reportaba como "ok" igual que si hubiera trailed.
+        #
+        # Ahora la pausa lleva su propia marca al principio de la linea y su
+        # propio codigo de salida. No es un fallo: el sistema esta sano y no hay
+        # nada que arreglar. Es una decision. Pero una decision que hay que poder
+        # distinguir de un dia que si salio.
         if not opciones.seco:
-            print(mensaje)
-        return 0
+            print("[PAUSA] " + mensaje.replace("⏸️ ", "").replace("⏸️", "").strip())
+        return 3
 
     # Sin este archivo, `--oneshot` se cuelga preguntando por la sesion. Se crea
     # aqui y no se asume que exista: el generador tiene que funcionar solo, que
