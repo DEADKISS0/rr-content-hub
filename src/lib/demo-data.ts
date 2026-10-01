@@ -12,6 +12,15 @@ export type Idea = {
   priority: 'high' | 'normal';
   creator: string;
   created_at: string;
+  /**
+   * MEDIDO 2026-10-01: la fecha de salida se guardaba, llegaba al servidor y se
+   * perdía antes de la pantalla. Este campo no existía en el tipo, así que
+   * `mapIdea` no podía devolverlo aunque lo leyera, y los componentes no
+   * podían leerlo. `null` y no cadena vacía: "no hay fecha" es un hecho, y
+   * `''` no lo distingue de una fecha que vino rota.
+   */
+  due_at?: string | null;
+  published_url?: string | null;
   reference_url?: string;
   camera: string;
   talent: string;
