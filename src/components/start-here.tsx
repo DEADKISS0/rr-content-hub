@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { actGroup, daysSince, statusMeta, TONE_HEX, type WorkflowStatus } from '@/lib/flow';
-import { QUEUES } from '@/lib/queues';
+import { actGroup, daysSince, esTerminal, statusMeta, TONE_HEX, type WorkflowStatus } from '@/lib/flow';
+import { contarEsperas } from '@/lib/esperas';
 import { Icon } from './ui/icons';
 
 type Pieza = {
@@ -26,13 +26,18 @@ type Pieza = {
  * El resto del tablero sigue ahí, una línea más abajo y plegado: no se esconde
  * nada, solo deja de ser lo primero.
  */
-const ESPERAN: readonly string[] = QUEUES.aprobaciones.statuses;
+/*
+ * MEDIDO 2026-10-01: esta lista y la de `project-dashboard.tsx` eran reglas
+ * DISTINTAS, y por eso el tablero se contradecía en la misma pantalla. Arriba
+ * pide `QUEUES`, que ya no se usa aquí. Ahora las dos usan `contarEsperas`.
+ */
 
 export function StartHere({ ideas, projectSlug }: { ideas: Pieza[]; projectSlug: string }) {
-  const esperando = ideas
-    .filter((idea) => ESPERAN.includes(idea.status))
+  const conteo = contarEsperas(ideas, esTerminal);
+  const conDias = [...conteo.esperandoCliente, ...conteo.esperandoEquipo]
     .map((idea) => ({ idea, dias: daysSince(idea.updated_at ?? idea.created_at) ?? 0 }))
     .sort((a, b) => b.dias - a.dias);
+  const esperando = conDias;
 
   const urgentes = esperando.slice(0, 5);
   const cliente = esperando.filter(({ idea }) => actGroup(idea.status as WorkflowStatus) === 'cliente').length;

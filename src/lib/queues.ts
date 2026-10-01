@@ -97,6 +97,26 @@ export const READY_FOR_SHOOTING: readonly WorkflowStatus[] = QUEUES.produccion.s
  * descartó. Se cuentan por separado, que es lo que hace falta para no volver a
  * mirar una idea archivada creyendo que se publicó.
  */
+/**
+ * MEDIDO 2026-10-01 (auditoría de experiencia de uso): el tablero se contradecía
+ * en la misma pantalla. Arriba contaba `!esTerminal` (44 de 45) y abajo contaba
+ * `QUEUES.aprobaciones.statuses` (6). Dos reglas, dos números, ninguna razón
+ * para preferir uno.
+ *
+ * Esta cola es la que usaba la pantalla de abajo, pero hace lo que dice: la bola
+ * está en la mesa de alguien y sin esa persona no avanza. `needs_changes` entra
+ * porque el cliente ya respondió y ahora le toca al equipo; `voting` entra
+ * porque sin votos no avanza. `draft` y `approved` NO entran: ahí está trabajando
+ * el equipo, no esperando.
+ *
+ * `pending_approval` y `pending_script_review` NO están aquí: las cuenta el
+ * cliente, y eso lo decide `esEsperaDelCliente` leyendo `CLIENT_GATED`.
+ */
+export const ESPERA_EQUIPO: readonly WorkflowStatus[] = [
+  'voting',
+  'needs_changes',
+] as const;
+
 export const BOARD_COLUMNS = [
   { key: 'ideas', label: 'IDEAS', plain: 'Propuesta y decisión del cliente', statuses: byPhase('idea') },
   { key: 'scripts', label: 'GUIONES', plain: 'Escritura y aprobación', statuses: byPhase('script') },
