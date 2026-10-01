@@ -145,7 +145,11 @@ describe('la ficha siempre da una salida al post', () => {
   });
 
   it('le pasa la plataforma para que el aviso la nombre', () => {
-    expect(bloque).toMatch(/plataforma=\{platform\(url\)\}/);
+    // 2026-10-01: el nombre de la plataforma sale de CADA URL, no de una sola.
+    // Antes era `platform(url)` porque solo se pintaba una referencia; con la
+    // lista, un embed de Instagram y otro de Facebook pueden convivir y cada
+    // aviso tiene que nombrar la plataforma de SU referencia.
+    expect(bloque).toMatch(/plataforma=\{platform\(cadaUrl\)\}/);
   });
 
   it('mantiene el enlace de la cabecera', () => {
