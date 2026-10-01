@@ -76,6 +76,22 @@ function mapIdea(row: RawIdea) {
     priority: row.priority as 'high' | 'normal',
     creator: 'RR ALIADOS',
     created_at: row.created_at as string,
+    /**
+     * MEDIDO 2026-10-01: la fecha de salida se guardaba y no llegaba a la
+     * pantalla. Dos motivos encadenados, y los dos había que arreglarlos:
+     *
+     * 1. `getIdeas` pedía las columnas una por una y `due_at` no estaba en la
+     *    lista, así que el tablero no la recibía.
+     * 2. `getIdea` sí usa `select('*')` y la traía... pero `mapIdea()`
+     *    RECONSTRUYE el objeto campo por campo, y `due_at` no estaba entre
+     *    ellos. Aunque la fila viniera con la fecha, se perdía al mapear.
+     *
+     * El segundo es el que moria: mi primera prueba miraba el `select('*')` de
+     * `getIdea` y daba verde, porque la columna sí venía. La fecha se perdía
+     * tres líneas más abajo. Por eso ahora la prueba mira el MAPEO.
+     */
+    due_at: (row.due_at as string | null) ?? null,
+    published_url: (row.published_url as string | null) ?? null,
     reference_url: urls[0] ?? (row.reference_url as string) ?? '',
     reference_urls: urls,
     /**
@@ -266,7 +282,7 @@ export async function getIdeas(projectId: string) {
 
   const { data } = await supabase
     .from('rr_hub_ideas')
-    .select('id, code, title, description, objective, content_type, category, origen, status, priority, created_at, reference_urls, camera_brief, talent_brief, edit_brief, script_content')
+    .select('id, code, title, description, objective, content_type, category, origen, status, priority, created_at, due_at, published_url, reference_urls, camera_brief, talent_brief, edit_brief, script_content')
     .eq('project_id', projectId)
     // Las ideas archivadas desaparecen del tablero, pero NO se borran. Siguen en
     // la tabla con sus votos y sus comentarios, y se pueden volver a desarchivar.
