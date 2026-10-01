@@ -149,6 +149,14 @@ export type EditableIdea = {
   talentBrief?: string;
   editBrief?: string;
   referenceUrls?: string[];
+  /**
+   * MEDIDO 2026-10-01: la fecha de salida y el enlace de publicación son
+   * columnas que existen en `rr_hub_ideas` y funcionan, pero no había forma de
+   * escribirlas desde el Hub. La pantalla de publicaciones lo atribuía a una
+   * migración que ya estaba aplicada. `null` es legítimo: es cómo se borra.
+   */
+  dueAt?: string | null;
+  publishedUrl?: string | null;
 };
 
 /**
@@ -175,6 +183,9 @@ export async function updateIdea(
   if (cambios.editBrief !== undefined) cuerpo.edit_brief = cambios.editBrief;
   // Array vacío es legítimo: es como se quita una referencia que ya no sirve.
   if (cambios.referenceUrls !== undefined) cuerpo.referenceUrls = cambios.referenceUrls;
+  // `undefined` = no tocar. `null` = borrar. Se distinguen a propósito.
+  if (cambios.dueAt !== undefined) cuerpo.dueAt = cambios.dueAt;
+  if (cambios.publishedUrl !== undefined) cuerpo.publishedUrl = cambios.publishedUrl;
 
   const response = await postWorkspaceAction('update', cuerpo);
   if (!response) return { error: 'No se pudo contactar al servidor.' };

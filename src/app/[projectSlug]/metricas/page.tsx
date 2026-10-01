@@ -29,7 +29,7 @@ export default async function Metrics({ params }: { params: Promise<{ projectSlu
       eyebrow={`${project.name} · PERFORMANCE_LOOP`}
       description="Cuenta lo que sí se puede contar hoy: cuántas piezas salieron, de qué tipo y de qué categoría. El rendimiento (alcance, interacción, conversión) no se mide todavía porque ninguna tabla lo registra."
       owner="MEDIA BUYER · OWNER DEL PROYECTO"
-      guide="Esta pantalla mide lo que existe en la base: piezas publicadas y su reparto. La hipótesis, la URL de salida y el resultado llegarán cuando se aplique la migración v3 (columnas metrics, published_url y due_at), que hoy NO está aplicada."
+      guide="Esta pantalla mide lo que existe en la base: piezas publicadas y su reparto. La URL de salida, la fecha y los resultados se registran en cada ficha (columnas published_url, due_at y metrics, MEDIDAS el 2026-10-01: existen y funcionan). Lo que no hay todavía es quién los carga: eso es trabajo del equipo, no una limitación de la base."
       ideas={ideas}
       projectSlug={projectSlug}
       empty="No hay publicaciones registradas todavía. Cuando la primera pieza salga, aquí se cuenta."

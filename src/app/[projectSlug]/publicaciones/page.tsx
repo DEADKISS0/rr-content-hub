@@ -12,10 +12,10 @@ export default async function Publications({ params }: { params: Promise<{ proje
     eyebrow={`${project.name} · RELEASE_QUEUE`}
     description="Qué sale, cuándo sale, en qué plataforma y con qué copy. Orgánico y pauta en un mismo calendario operativo."
     owner="PUBLISHER · MEDIA BUYER · OWNER"
-    guide="Aquí se programan únicamente piezas con revisión final. Registra plataforma, copy, fecha y enlace de salida."
+    guide="Aquí se programan únicamente piezas con revisión final. Registra plataforma, copy, fecha y enlace de salida desde la ficha."
     notice={{
-      title: '[FALTA LA BASE PARA PROGRAMAR]',
-      body: 'La cola de salida es real: aquí entran las piezas en revisión final y las ya publicadas. Lo que todavía no se puede registrar es la fecha de salida y el enlace de publicación (columnas due_at y published_url): están escritas en la migración v3 y esa migración NO está aplicada en la base. Hasta que se pegue, esta pantalla lista las piezas pero no promete fechas.',
+      title: '[CÓMO SE PROGRAMA UNA SALIDA]',
+      body: 'Cada ficha tiene dos campos que se editan desde "EDITAR DATOS": la fecha de salida y el enlace donde quedó publicada. MEDIDO 2026-10-01: las columnas due_at y published_url existen en la base y funcionan — lo que antes esta pantalla decía que faltaba, ya está. Ninguna idea de este proyecto tiene fecha puesta todavía: eso no es una limitación del Hub, es trabajo del equipo.',
     }}
     ideas={ideas}
     projectSlug={projectSlug}

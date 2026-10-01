@@ -276,7 +276,9 @@ export async function POST(request: NextRequest) {
       return error('Tu rol no edita la pieza. Puedes comentar para pedir el cambio.', 403);
     }
 
-    const cambios: Record<string, string | string[]> = {};
+    // `null` vale: es como se BORRA un campo (quitar una fecha, quitar un
+    // enlace). Sin él en el tipo, no se puede limpiar nada.
+    const cambios: Record<string, string | string[] | null> = {};
 
     const titulo = str(body.title, 200);
     if (titulo) cambios.title = titulo;
@@ -316,6 +318,58 @@ export async function POST(request: NextRequest) {
       }
       // Guardar la lista vacía SÍ vale: es como se quita una referencia mala.
       cambios.reference_urls = validas;
+    }
+
+    /**
+     * MEDIDO 2026-10-01: la fecha de salida y el enlace de publicación son
+     * columnas que existen y funcionan (`due_at`, `published_url`), pero el
+     * endpoint no las aceptaba. La pantalla de publicaciones lo decía así:
+     *
+     *   "…lo que todavía no se puede registrar es la fecha de salida y el
+     *    enlace de publicación… esa migración NO está aplicada en la base."
+     *
+     * La columna no era el problema: nadie había conectado el campo. Con esto,
+     * 58 ideas vivas pueden pasar de una cola sin fecha a un plan.
+     *
+     * La fecha se VALIDA antes de guardarse. Una fecha inválida en `due_at`
+     * revienta la consulta entera, y con ella todos los demás campos del mismo
+     * formulario: alguien que escribe mal la fecha pierde el título, el
+     * objetivo y los briefs. Se devuelve 400 nombrando el campo.
+     */
+    if ('dueAt' in body) {
+      const crudo = str(body.dueAt, 40);
+      if (!crudo) {
+        // Vacío explícito vale: es cómo se quita la fecha.
+        cambios.due_at = null;
+      } else {
+        const fecha = new Date(crudo);
+        if (Number.isNaN(fecha.getTime())) {
+          return error(`"${crudo}" no es una fecha válida.`, 400);
+        }
+        cambios.due_at = fecha.toISOString();
+      }
+    }
+
+    if ('publishedUrl' in body) {
+      const crudo = str(body.publishedUrl, 500);
+      if (!crudo) {
+        // Vacío vale: la pieza sale pero todavía no se ha publicado.
+        cambios.published_url = null;
+      } else {
+        let parseada: URL;
+        try {
+          parseada = new URL(crudo.trim());
+        } catch {
+          return error(`"${crudo}" no es una dirección válida.`, 400);
+        }
+        // Solo http(s), por lo mismo que las referencias: un `javascript:` en
+        // el enlace de salida se ejecuta al pincharlo.
+        if (parseada.protocol !== 'http:' && parseada.protocol !== 'https:') {
+          return error(`Solo se aceptan direcciones http o https. "${crudo}" es ${parseada.protocol}`, 400);
+        }
+        if (!parseada.host) return error(`"${crudo}" no tiene dominio.`, 400);
+        cambios.published_url = parseada.toString();
+      }
     }
 
     if (!Object.keys(cambios).length) {
