@@ -1,5 +1,15 @@
-import { describe, expect, it } from 'vitest';
-import { crearSesion, leerSesion, codigoCorrecto } from './hub-session';
+import { describe, expect, it, beforeAll } from 'vitest';
+
+// MEDIDO 2026-10-01: desde el arreglo de la firma, la app NO arranca sin
+// HUB_SECRET. Estos tests fijaban la puerta sin declarar el secreto, así que
+// pasaban con una clave por defecto publicada. Se declara una clave de prueba
+// antes de nada: el punto es que la puerta se pruebe con una clave real, no
+// que la app se caiga por falta de configuración.
+beforeAll(() => {
+  process.env.HUB_SECRET = 'clave-de-prueba-suficientemente-larga-para-el-test-1234';
+});
+
+import { crearSesion, leerSesion } from './hub-session';
 
 /**
  * La puerta: un código de cuatro dígitos y un nombre (Santiago, 2026-09-28).
@@ -12,8 +22,13 @@ import { crearSesion, leerSesion, codigoCorrecto } from './hub-session';
  *    un segundo. Con firma, un byte cambiado y la cookie queda muerta.
  * 2. Que el nombre de la persona no se puede escribir a mano. Si la cookie
  *    aceptara un nombre sin comprobar la firma, cualquiera se haría owner.
- * 3. Que un código mal escrito no abre nada, y que la comparación no filtra
- *    por cuánto tarda.
+ * 3. Que la comparación de la firma no filtra por cuánto tarda.
+ *
+ * MEDIDO 2026-10-01: también había aquí pruebas de `codigoCorrecto()`, una
+ * función que comparaba el código de 4 dígitos en tiempo constante y que
+ * NINGUNA ruta importaba — /api/entrar delega en un RPC de Postgres que
+ * compara con `=` normal. Eran tests sobre código muerto, y se borraron con la
+ * función: ver el comentario en hub-session.ts.
  */
 describe('la puerta del hub', () => {
   const sesion = { nombre: 'Tefa Webb', email: 'tefaweb000@gmail.com', proyecto: 'wundeer' };
@@ -50,16 +65,5 @@ describe('la puerta del hub', () => {
     expect(leerSesion('')).toBeNull();
     expect(leerSesion('sin-punto')).toBeNull();
     expect(leerSesion('a.b.c')).toBeNull();
-  });
-
-  it('el código solo pasa si es el de ese cliente', () => {
-    expect(codigoCorrecto('1111', '1111')).toBe(true);
-    expect(codigoCorrecto('2222', '2222')).toBe(true);
-    expect(codigoCorrecto('1111', '2222')).toBe(false);
-    expect(codigoCorrecto('1111', '111')).toBe(false);
-    expect(codigoCorrecto('1111', '11111')).toBe(false);
-    // Sin código en la base no hay puerta, ni siquiera con el código vacío.
-    expect(codigoCorrecto(null, '')).toBe(false);
-    expect(codigoCorrecto(null, '1111')).toBe(false);
   });
 });

@@ -64,7 +64,46 @@ export type SesionHub = {
 };
 
 const COOKIE = 'hub_sesion';
-const FIRMA = process.env.HUB_SECRET ?? 'hub-candilejas-wundeer-2026';
+
+/**
+ * La clave con la que se firma la cookie de sesión.
+ *
+ * MEDIDO 2026-10-01 (auditoría de seguridad): esta línea era un `??` con un
+ * LITERAL de 26 caracteres escrito justo aquí, y `HUB_SECRET` no existía en las
+ * variables de Vercel. El `??` ganaba siempre, así que la app firmaba las
+ * sesiones con una clave publicada en el repo, el README y este archivo.
+ *
+ * Eso abría la puerta entera sin código: cualquiera que copiara el literal
+ * podía fabricar una cookie válida para cualquier correo y cualquier cliente.
+ * Y como la autoridad sale de la cookie, elegir un correo de
+ * `SUPER_ADMIN_EMAILS` daba `owner`: lectura de todos los guiones, escritura y
+ * `borrar`.
+ *
+ * El `??` con un valor por defecto es exactamente la forma de este fallo: la
+ * app levanta, todo funciona, y el cerrojo está publicado. Por eso ahora no
+ * hay valor por defecto que se pueda volver a publicar: si falta el secreto, la
+ * app no arranca y se nota en el primer deploy, no cuando alguien entra.
+ */
+function claveFirma(): string {
+  const s = process.env.HUB_SECRET;
+  if (!s || s.length < 32) {
+    throw new Error(
+      'HUB_SECRET no está configurado o es demasiado corto. Sin esta clave no se ' +
+        'puede firmar la sesión: la app NO debe arrancar con una clave por defecto ' +
+        'porque esa clave terminaría publicada.',
+    );
+  }
+  return s;
+}
+
+/** Cacheada: la clave no cambia dentro de un mismo proceso de Vercel. */
+let FIRMA: string | undefined;
+
+function firma(): string {
+  if (FIRMA === undefined) FIRMA = claveFirma();
+  return FIRMA;
+}
+
 const DIAS = 30;
 
 /**
@@ -73,7 +112,7 @@ const DIAS = 30;
  * segundo. Con la firma, cambiar un byte la invalida.
  */
 function firmar(carga: string): string {
-  return createHmac('sha256', FIRMA).update(carga).digest('base64url');
+  return createHmac('sha256', firma()).update(carga).digest('base64url');
 }
 
 export function crearSesion(datos: Omit<SesionHub, 'desde'>): { valor: string; maxAge: number } {
@@ -113,18 +152,15 @@ export function leerSesion(valor: string | undefined | null): SesionHub | null {
 }
 
 /**
- * El código de un cliente, comparado sin filtrar por tiempos.
+ * MEDIDO 2026-10-01 (auditoría de seguridad): esta función comparaba el código
+ * con `timingSafeEqual` y estaba testeada, y NINGUNA ruta la importaba.
+ * `/api/entrar` delega en el RPC de Postgres, que compara con `=` normal.
  *
- * `timingSafeEqual` exige la misma longitud, y un código de cuatro dígitos
- * siempre la tiene, así que primero se comprueba la longitud y luego se
- * compara. El padding es solo por seguridad del helper, no hace falta.
+ * O sea: era la intención de seguridad escrita con su test, sin efecto
+ * ninguno. Un test que cubre código que nadie ejecuta da confianza falsa, y
+ * por eso se borra en vez de dejarse. Si algún día hace falta comparar en
+ * tiempo constante, se escribe con la ruta que la use.
  */
-export function codigoCorrecto(esperado: string | null, recibido: string): boolean {
-  if (!esperado) return false;
-  const a = Buffer.from(esperado.padEnd(8, '\0').slice(0, 8));
-  const b = Buffer.from(recibido.padEnd(8, '\0').slice(0, 8));
-  return timingSafeEqual(a, b);
-}
 
 /** El nombre de la cookie, para el middleware y para borrarla al salir. */
 export const NOMBRE_COOKIE = COOKIE;
