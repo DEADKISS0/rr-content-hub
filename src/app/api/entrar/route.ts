@@ -1,6 +1,14 @@
 import { NextResponse } from 'next/server';
 import { crearSesion, NOMBRE_COOKIE } from '@/lib/hub-session';
 import { createServiceClient } from '@/lib/supabase/service';
+import {
+  puedeIntentar,
+  registrarFallo,
+  registrarAcierto,
+  segundosParaReintentar,
+  podar,
+  RESPUESTA_LIMITE,
+} from '@/lib/rate-limit';
 
 /**
  * La puerta. Dos preguntas, una sola ruta.
@@ -29,12 +37,64 @@ import { createServiceClient } from '@/lib/supabase/service';
  * persona elegida esté en ella.
  */
 
+/**
+ * MEDIDO 2026-10-01 (auditoría de seguridad): no había control de tasa. Cuatro
+ * dígitos son diez mil y se prueban en un segundo.
+ *
+ * En memoria y no en la base, a propósito: una tabla obligaría a escribir en
+ * cada fallo, o sea darle al atacante una vía de escritura para protegerse de
+ * él. Y un reinicio del proceso reinicia la cuenta, que no es un ataque nuevo.
+ *
+ * `globalThis` porque en desarrollo el módulo se recarga en caliente y un
+ * `Map` de módulo se perdería entre recargas, haciendo la prueba inútil.
+ */
+const intentos = new Map<string, { fallos: number; desde: number; hasta: number }>();
+
+/**
+ * Quién se atribuye el intento.
+ *
+ * `x-forwarded-for` lo pone Vercel y es lo único que hay: no hay usuario
+ * detrás todavía, porque entrar es justo lo que se está intentando. Se toma la
+ * primera IP de la cadena, que es el cliente original y no los proxies que
+ * Vercel añade.
+ */
+function origenDe(peticion: Request): string {
+  const cadena = peticion.headers.get('x-forwarded-for') ?? '';
+  const primera = cadena.split(',')[0]?.trim();
+  return primera || 'desconocido';
+}
+
+/** Poda las cuentas vencidas, para que el mapa no crezca sin parar. */
+function podarAhora(ahora: number) {
+  for (const [clave, registro] of intentos) {
+    if (podar(registro, ahora)) intentos.delete(clave);
+  }
+}
+
 function sinCookie() {
   const respuesta = NextResponse.json({ error: 'Ese código no abre ningún cliente.' }, { status: 401 });
   return respuesta;
 }
 
 export async function POST(request: Request) {
+  // El límite se comprueba ANTES de tocar la base. Si se comprobara después, un
+  // intento ya habría costado una llamada a Postgres, y el atacante estaría
+  // pagando con nuestro cuello de botella.
+  const ahora = Date.now();
+  const origen = origenDe(request);
+  podarAhora(ahora);
+
+  const registro = intentos.get(origen);
+  if (!puedeIntentar(registro, ahora)) {
+    const espera = segundosParaReintentar(registro, ahora);
+    const respuesta = NextResponse.json(RESPUESTA_LIMITE.cuerpo, { status: RESPUESTA_LIMITE.status });
+    // La espera va en la cabecera: el cuerpo tiene que ser indistinguible del
+    // de un código equivocado, o el 429 le confirma al atacante que hay límite.
+    respuesta.headers.set('Retry-After', String(espera));
+    console.warn(`[entrar] ${origen} lleva ${registro?.fallos} intentos sin entrar`);
+    return respuesta;
+  }
+
   let cuerpo: { codigo?: string; correo?: string; nombre?: string };
   try {
     cuerpo = await request.json();
@@ -43,7 +103,10 @@ export async function POST(request: Request) {
   }
 
   const codigo = String(cuerpo.codigo ?? '').replace(/\D/g, '').slice(0, 4);
-  if (codigo.length !== 4) return sinCookie();
+  if (codigo.length !== 4) {
+    intentos.set(origen, registrarFallo(registro, ahora));
+    return sinCookie();
+  }
 
   const service = await createServiceClient();
   if (!service) {
@@ -59,7 +122,10 @@ export async function POST(request: Request) {
     console.error('[entrar] no se pudo leer el cliente:', errorCliente.message);
     return NextResponse.json({ error: 'No pudimos comprobar el código.' }, { status: 500 });
   }
-  if (!slug) return sinCookie();
+  if (!slug) {
+    intentos.set(origen, registrarFallo(registro, ahora));
+    return sinCookie();
+  }
 
   const { data: proyecto, error: errorProyecto } = await service
     .from('rr_hub_projects')
@@ -68,6 +134,7 @@ export async function POST(request: Request) {
     .maybeSingle();
   if (errorProyecto || !proyecto) {
     console.error('[entrar] el cliente del codigo no existe:', errorProyecto?.message);
+    intentos.set(origen, registrarFallo(registro, ahora));
     return sinCookie();
   }
 
@@ -104,6 +171,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No pudimos comprobar el código.' }, { status: 500 });
   }
   if (!puede) {
+    intentos.set(origen, registrarFallo(registro, ahora));
     return NextResponse.json(
       { error: 'Ese código no abre ningún cliente, o no tienes acceso a él.' },
       { status: 401 },
@@ -119,6 +187,10 @@ export async function POST(request: Request) {
     .ilike('email', correo)
     .maybeSingle();
   const nombre = real?.full_name ?? String(cuerpo.nombre ?? '');
+
+  // Entrar borra la cuenta: el que entra es alguien de verdad, y dejarlo
+  // counting le cerraria la puerta a si mismo por intentos antiguos.
+  intentos.delete(origen);
 
   const { valor, maxAge } = crearSesion({ nombre, email: correo, proyecto: proyecto.slug });
   const respuesta = NextResponse.json({
