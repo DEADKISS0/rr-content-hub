@@ -1,10 +1,11 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { Suspense, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { entrarConCodigo, type ClienteConCodigo } from '@/lib/hub-client';
 import { Icon } from '@/components/ui/icons';
+import { destinoTrasEntrar } from '@/lib/destino-login';
 
 /**
  * La puerta del hub: cuatro dígitos y tu nombre.
@@ -55,12 +56,43 @@ const PUERTAS = [
   { slug: 'candilejas', nombre: 'CANDILEJAS', color: '#ded116', codigo: '2222' },
 ] as const;
 
+/**
+ * MEDIDO 2026-10-01: con `useSearchParams` dentro del formulario, el build de
+ * producción falla al prerenderizar `/login` con "useSearchParams should be
+ * wrapped in a suspense boundary". Es la regla de Next, no un capricho: la
+ * página lee los search params y no se puede estática sin saberlos.
+ *
+ * El Suspense cae alrededor del FORMULARIO, no alrededor de la página entera:
+ * el shell (logo, título, textos) se prerenderiza igual, y solo el formulario
+ * —que necesita el `next`— se resuelve en el cliente. Es lo mismo que ya hace
+ * el resto del Hub.
+ */
 export default function LoginPage() {
-  return <Formulario />;
+  return (
+    <Suspense fallback={<PuertaEsqueleto />}>
+      <Formulario />
+    </Suspense>
+  );
+}
+
+/** Lo que se ve mientras el formulario resuelve. Sin salto de layout. */
+function PuertaEsqueleto() {
+  return (
+    <main className="mx-auto max-w-md px-6 py-20">
+      <p className="mb-8 flex items-center gap-2.5" aria-label="RR Aliados">
+        <span aria-hidden="true" className="block h-6 w-6 bg-fucsia" />
+        <span className="font-display text-sm font-bold tracking-[0.28em] text-blanco">RR ALIADOS</span>
+      </p>
+      <h1 className="font-display text-3xl font-bold text-blanco">Acceder al hub</h1>
+      <p className="mt-3 text-sm leading-6 text-blanco-60">Preparando la puerta…</p>
+    </main>
+  );
 }
 
 function Formulario() {
   const router = useRouter();
+  const params = useSearchParams();
+  const next = params.get('next');
   const [digitos, setDigitos] = useState(['', '', '', '']);
   const [cliente, setCliente] = useState<ClienteConCodigo | null>(null);
   const [personas, setPersonas] = useState<{ nombre: string; correo: string }[]>([]);
@@ -172,7 +204,10 @@ function Formulario() {
       setError(resultado.error ?? 'No pudimos entrar.');
       return;
     }
-    router.push(`/${cliente.slug}`);
+    // MEDIDO 2026-10-01: el `next` es lo que hace que un link de idea sea
+    // utilizable. Antes esta línea era siempre `/${cliente.slug}` y la persona
+    // terminaba en el tablero, con la impresión de que el link estaba roto.
+    router.push(destinoTrasEntrar(next, cliente.slug));
     router.refresh();
   }
 
