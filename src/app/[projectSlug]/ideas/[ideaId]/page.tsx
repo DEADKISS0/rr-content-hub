@@ -169,7 +169,7 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
       <section className="mb-8 anim-rise">
         {raw ? (
           <div data-guia="brief">
-            <ReferenceWithBrief url={raw} title={idea.title} brief={{ intention: idea.objective, camera: idea.camera, talent: idea.talent, edit: idea.edit }} />
+            <ReferenceWithBrief refs={referencias} url={raw} title={idea.title} brief={{ intention: idea.objective, camera: idea.camera, talent: idea.talent, edit: idea.edit }} />
           </div>
         ) : idea.cover_asset ? (
           /* Sin referencia la ficha no puede quedar con un hueco vacío: la

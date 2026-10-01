@@ -118,22 +118,49 @@ function encuadre(url: string): Encuadre {
 }
 
 /**
+ * Si una URL se puede embeber de verdad.
+ *
+ * MEDIDO 2026-10-01: una referencia de Facebook Ads Library con `?id=` NO es
+ * embebible. `embedSource` devuelve el `plugins/post.php` y Meta responde con un
+ * marco vacío, porque ese endpoint es para POSTS de Facebook, no para anuncios
+ * de la biblioteca de anuncios. Con la referencia principal así, la ficha queda
+ * en negro aunque tenga una segunda referencia buena guardada al lado.
+ *
+ * Es la razón de que `ReferenceWithBrief` recorra la lista y no se quede en
+ * `refs[0]`: el dato ya guarda las dos, el render las estaba desperdiciando.
+ */
+function esEmbebible(url: string): boolean {
+  return embedSource(url) !== null && !/facebook\.com\/ads\/library/i.test(url);
+}
+
+/**
  * Reference + brief side by side. The iframe alone says "what"; the brief says
  * "why". Keeping them together is what turns a link into an approved direction.
+ *
+ * `refs` es la LISTA de referencias de la idea, no una sola: una idea de pauta
+ * suele traer el anuncio de Facebook y el post de Instagram que lo inspiring, y
+ * con una sola no se ve la otra. Las embebibles van primero, para que si la
+ * referencia principal no se puede mostrar la ficha no quede en negro.
  */
-export function ReferenceWithBrief({ url, title, brief }: { url?: string; title: string; brief: VisualBrief }) {
-  if (!url) {
+export function ReferenceWithBrief({ url, refs, title, brief }: { url?: string; refs?: string[]; title: string; brief: VisualBrief }) {
+  const todas = (refs?.length ? refs : url ? [url] : []).filter(Boolean);
+  if (!todas.length) {
     return <section className="border border-dashed border-blanco-20 p-8 text-center">
       <p className="mono-label text-blanco-50">[REFERENCIA PENDIENTE]</p>
       <p className="mt-3 text-sm leading-6 text-blanco-60">Esta idea no tiene un referente visual todavía. El owner debe agregarlo antes de enviarla al cliente.</p>
     </section>;
   }
 
-  const source = embedSource(url);
-  const marco = encuadre(url);
+  // Las que se pueden ver van primero; el resto se conserva detrás.
+  const embebibles = todas.filter(esEmbebible);
+  const elResto = todas.filter((u) => !embebibles.includes(u));
+  const aPintar = [...embebibles, ...elResto];
+
+  const sourcePrincipal = aPintar.map((u) => ({ url: u, source: embedSource(u) })).find((r) => r.source);
+  const marcoPrincipal = encuadre(sourcePrincipal?.url ?? aPintar[0]);
   const rows: Array<{ label: string; value?: string; tone?: string }> = [
     { label: 'INTENCIÓN', value: brief.intention },
-    { label: 'CÁMARA', value: brief.camera },
+    { label: 'CÁMERA', value: brief.camera },
     { label: 'TALENTO', value: brief.talent },
     { label: 'EDICIÓN', value: brief.edit },
     { label: 'QUÉ NO HACER', value: brief.avoid, tone: 'text-blanco-60' },
@@ -141,28 +168,40 @@ export function ReferenceWithBrief({ url, title, brief }: { url?: string; title:
 
   return <section className="overflow-hidden border border-blanco-20 anim-fade">
     <header className="flex flex-wrap items-center justify-between gap-2 border-b border-blanco-10 bg-blanco-05 px-5 py-3">
-      <p className="eyebrow text-blanco-50">[REFERENCIA VISUAL · {platform(url)}]</p>
-      <Link href={url} target="_blank" rel="noreferrer" className="font-mono text-[10px] text-blanco-50 underline">ABRIR ORIGINAL ↗</Link>
+      <p className="eyebrow text-blanco-50">[REFERENCIA VISUAL · {platform(sourcePrincipal?.url ?? aPintar[0])}]</p>
+      <Link href={aPintar[0]} target="_blank" rel="noreferrer" className="font-mono text-[10px] text-blanco-50 underline">ABRIR ORIGINAL ↗</Link>
     </header>
     <div className="grid gap-px bg-blanco-10 lg:grid-cols-2">
-      <div className="flex flex-col items-center gap-2 bg-negro p-3 sm:p-5">
-        {source ? <ReferenceEmbed
-          key={source}
-          src={source}
-          title={`Referencia visual de ${title}`}
-          plataforma={platform(url)}
-          className={`bg-white ${marco.ratio} ${marco.ancho} ${marco.alto}`}
-        /> : <div className="grid w-full place-items-center p-8 text-center"><div><p className="font-mono text-xs text-blanco-60">PREVIEW NO DISPONIBLE PARA ESTE ORIGEN.</p><Link href={url} target="_blank" rel="noreferrer" className="mt-4 inline-block font-mono text-xs text-blanco-50 underline">VER REFERENCIA ORIGINAL ↗</Link></div></div>}
-        {/* Con el embed cargando o sin señal, el enlace es la salida. Sin él,
-            quien ve "no pintó" se queda sin manera de llegar al post. */}
-        {source && <Link
-          href={url}
-          target="_blank"
-          rel="noreferrer"
-          className="shrink-0 font-mono text-[10px] text-blanco-50 underline decoration-dotted underline-offset-4"
-        >
-          ABRIR EL POST EN {platform(url)} ↗
-        </Link>}
+      <div className="flex flex-col items-center gap-4 bg-negro p-3 sm:p-5">
+        {/* Todas las referencias, no solo la primera: si la principal no se
+            puede embeber, la que sí se ve queda en su lugar. */}
+        {aPintar.map((cadaUrl, indice) => {
+          const source = embedSource(cadaUrl);
+          const marco = encuadre(cadaUrl);
+          const clave = `${indice}-${cadaUrl}`;
+          return <div key={clave} className="flex w-full flex-col items-center gap-2">
+            {todas.length > 1 && <p className="font-mono text-[10px] tracking-[0.15em] text-blanco-40">
+              REFERENCIA {indice + 1} DE {todas.length} · {platform(cadaUrl)}
+            </p>}
+            {source ? <ReferenceEmbed
+              key={source}
+              src={source}
+              title={`Referencia visual ${indice + 1} de ${title}`}
+              plataforma={platform(cadaUrl)}
+              className={`bg-white ${marco.ratio} ${marco.ancho} ${marco.alto}`}
+            /> : <div className="grid w-full place-items-center p-8 text-center"><div><p className="font-mono text-xs text-blanco-60">PREVIEW NO DISPONIBLE PARA ESTE ORIGEN.</p><Link href={cadaUrl} target="_blank" rel="noreferrer" className="mt-4 inline-block font-mono text-xs text-blanco-50 underline">VER REFERENCIA ORIGINAL ↗</Link></div></div>}
+            {/* Con el embed cargando o sin señal, el enlace es la salida. Sin él,
+                quien ve "no pintó" se queda sin manera de llegar al post. */}
+            {source && <Link
+              href={cadaUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="shrink-0 font-mono text-[10px] text-blanco-50 underline decoration-dotted underline-offset-4"
+            >
+              ABRIR EL POST EN {platform(cadaUrl)} ↗
+            </Link>}
+          </div>;
+        })}
       </div>
       <div className="bg-negro p-6">
         <h3 className="font-display text-2xl font-bold text-blanco">¿Por qué<br /><em className="text-blanco-80">esta referencia?</em></h3>
