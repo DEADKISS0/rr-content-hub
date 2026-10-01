@@ -263,10 +263,25 @@ export function GuidedTour() {
           <div
             ref={tarjeta}
             tabIndex={-1}
-            className="anim-pop fixed bottom-4 left-1/2 w-[min(34rem,calc(100vw-2rem))] -translate-x-1/2 border border-blanco-30 bg-negro p-5 outline-none sm:bottom-8"
+            className="anim-pop fixed left-1/2 flex max-h-[calc(100dvh-2rem)] w-[min(34rem,calc(100vw-2rem))] -translate-x-1/2 flex-col overflow-y-auto border border-blanco-30 bg-negro p-5 outline-none"
+            /*
+             * MEDIDO 2026-10-01: esto estaba anclado con
+             *   top: Math.min(caja.top + caja.height + 24, window.innerHeight - 220)
+             * y el 220 era una suposición sobre lo que mide la tarjeta. Mide más:
+             * título, texto y tres botones. Con el `top` ya calculado, los botones
+             * caían por debajo del borde inferior (SALTAR en y=678 con una
+             * ventana de 664) y el overlay, que no lleva `pointer-events-none`,
+             * se comía el toque. La app entera quedaba bloqueada sin salida.
+             *
+             * Ahora: se da `top` Y `bottom`, y el navegador resuelve la
+             * diferencia. La tarjeta nunca puede salirse de la ventana por abajo
+             * porque su borde inferior está anclado a la ventana, no a un cálculo.
+             * `max-h` + `overflow-y-auto` por si el texto es largo de verdad.
+             * `dvh` y no `vh`: en iPhone la barra del navegador encoge el `vh`.
+             */
             style={caja && caja.top < window.innerHeight / 2
-              ? { top: Math.min(caja.top + caja.height + 24, window.innerHeight - 220), bottom: 'auto' }
-              : undefined}
+              ? { top: Math.max(16, caja.top + caja.height + 24), bottom: 16 }
+              : { top: 16, bottom: 16 }}
           >
             <p className="font-mono text-xs tracking-[0.1em] text-blanco-50">
               PASO {paso! + 1} DE {pasos.length}
@@ -293,10 +308,13 @@ export function GuidedTour() {
               >
                 {ultimo ? 'YA ENTENDÍ' : 'SIGUIENTE'} <Icon name="arrow" size={14} />
               </button>
+              {/* MEDIDO: este botón medía 16px de alto. En un dedo no se
+                  pincha, y era la única salida del tour en un iPhone. Mínimo
+                  táctil de 44px, como el resto de la app. */}
               <button
                 type="button"
                 onClick={cerrar}
-                className="font-mono text-xs text-blanco-50 underline transition-colors hover:text-blanco"
+                className="inline-flex min-h-[44px] items-center px-3 font-mono text-xs text-blanco-60 underline transition-colors hover:text-blanco"
               >
                 {ultimo ? 'CERRAR' : 'SALTAR'}
               </button>

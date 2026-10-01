@@ -415,3 +415,62 @@ export function contentProgress(today: string): { done: number; active: number; 
 export function pautaCount(session: ContentSession): number {
   return session.pieces.filter((piece) => piece.pillar === 'PAUTA').length;
 }
+
+/* ───────────────── EL PLAN ES DE UN CLIENTE, NO DE TODOS ─────────────────
+ *
+ * MEDIDO 2026-10-01 (auditoría de experiencia de uso): `/candilejas/roadmap`
+ * servía el plan de WUNDEER. La página recibía `params.projectSlug` y no lo
+ * usaba, y todo el plan estaba clavado con `designMeta.client = 'WUNDEER'`. El
+ * menú muestra la entrada a los dos clientes, así que el equipo de Candilejas
+ * veía el plan del otro como si fuera suyo: otras fechas, otra marca, otros
+ * entregables.
+ *
+ * Es la misma clase de fallo que las otras dos: una verdad escrita a mano al
+ * lado de la autoridad. Ya pasó con BOARD_COLUMNS, WAITING_STATUSES y la lista
+ * PUEDE del perfil.
+ *
+ * DECISIÓN QUE IMPONE ESTE ARCHIVO: el plan de Candilejas NO se inventa. No hay
+ * un plan real suyo en la base, y duplicar el de Wundeer con otro nombre sería
+ * fabricar fechas y entregables de alguien. `planDe()` devuelve `null` y la
+ * pantalla lo dice. Cuando exista el plan de Candilejas, se agrega aquí y ya.
+ */
+
+export type ClienteRoadmap = {
+  slug: string;
+  nombre: string;
+  designMeta: typeof designMeta;
+  designRoadmap: Sprint[];
+  devMeta: typeof devMeta;
+  devRoadmap: Sprint[];
+  contentMeta: typeof contentMeta;
+  contentRoadmap: ContentSession[];
+};
+
+/**
+ * El plan de un cliente, o `null` si no tiene.
+ *
+ * Se busca por slug y el nombre se toma del propio plan, no de la URL: el
+ * nombre del cliente lo pone quien escribió el plan.
+ */
+const PLANES_POR_CLIENTE: Record<string, ClienteRoadmap> = {
+  wundeer: {
+    slug: 'wundeer',
+    nombre: 'WUNDEER',
+    designMeta,
+    designRoadmap,
+    devMeta,
+    devRoadmap,
+    contentMeta,
+    contentRoadmap,
+  },
+};
+
+export function planDe(slug: string | undefined | null): ClienteRoadmap | null {
+  if (!slug) return null;
+  return PLANES_POR_CLIENTE[slug] ?? null;
+}
+
+/** Los clientes que sí tienen plan escrito. */
+export function clientesConPlan(): string[] {
+  return Object.keys(PLANES_POR_CLIENTE);
+}
