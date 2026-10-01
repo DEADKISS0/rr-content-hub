@@ -1,0 +1,12 @@
+import { chromium, devices } from 'playwright';
+const b = await chromium.launch();
+const c = await b.newContext({ ...devices['iPhone 13'] });
+const p = await c.newPage();
+p.on('console', m => console.log('CONSOLE', m.type(), m.text().slice(0,150)));
+p.on('pageerror', e => console.log('PAGEERROR', String(e.message).slice(0,200)));
+const r = await p.goto('https://rr-content-hub.vercel.app/login', { waitUntil: 'networkidle' });
+console.log('status', r.status(), 'url', p.url());
+await p.waitForTimeout(3000);
+console.log('BUTTONS:', await p.evaluate(() => [...document.querySelectorAll('button')].map(b => (b.getAttribute('aria-label')||b.textContent||'').trim().slice(0,50))));
+console.log('BODY:', (await p.evaluate(() => document.body.innerText)).slice(0,400));
+await b.close();
