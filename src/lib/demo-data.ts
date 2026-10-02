@@ -28,8 +28,6 @@ export type Idea = {
    * traerle su miniatura.
    */
   ad_id?: string | null;
-  /** Nombre del anuncio de origen, por relación. */
-  ad?: string | null;
   published_url?: string | null;
   reference_url?: string;
   camera: string;

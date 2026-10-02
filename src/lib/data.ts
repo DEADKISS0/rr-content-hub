@@ -294,7 +294,7 @@ export async function getIdeas(projectId: string) {
 
   const { data } = await supabase
     .from('rr_hub_ideas')
-    .select('id, code, title, description, objective, content_type, category, origen, status, priority, created_at, due_at, published_url, reference_urls, camera_brief, talent_brief, edit_brief, script_content, ad_id, ad:name(ad_id)')
+    .select('id, code, title, description, objective, content_type, category, origen, status, priority, created_at, due_at, published_url, reference_urls, camera_brief, talent_brief, edit_brief, script_content, ad_id')
     .eq('project_id', projectId)
     // Las ideas archivadas desaparecen del tablero, pero NO se borran. Siguen en
     // la tabla con sus votos y sus comentarios, y se pueden volver a desarchivar.
