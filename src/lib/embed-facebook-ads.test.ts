@@ -116,3 +116,44 @@ describe('una idea con una sola referencia no embebible no se rompe', () => {
     expect(ref).toContain('esAnuncioDeFacebook');
   });
 });
+
+describe('la plataforma se escribe SIEMPRE, no solo cuando hay varias', () => {
+  it('el rótulo de plataforma no depende de cuántas referencias haya', () => {
+    // MEDIDO 2026-10-01, Santiago: "que tengan la label de Instagram porque hay
+    // muchas que no tienen". La causa está medida en el HTML de producción:
+    // `INSTAGRAM` aparecía 5 veces y `FACEBOOK` 0, y el rótulo por referencia
+    // (`REFERENCIA 1 DE 2 · INSTAGRAM`) aparecía 0 veces en el tablero.
+    //
+    // El motivo: la línea estaba detrás de `todas.length > 1 &&`. Con una sola
+    // referencia —que es el caso de P19, P25, P30 y O13— la etiqueta no se
+    // pintaba. O sea: exactamente las ideas con una referencia, que son las que
+    // más necesitan decir de dónde viene el link, eran las que no lo decían.
+    // Se mira el CODIGO, sin comentarios: el comentario de arriba explica el
+    // bug y menciona la condición, y un test que reprocha al autor por escribir
+    // por qué cambió la cosa no está midiendo nada.
+    const codigo = ref.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    expect(codigo).not.toContain('todas.length > 1 &&');
+  });
+
+  it('siempre dice qué plataforma es y si es un anuncio', () => {
+    // El rótulo por referencia tiene que decir las dos cosas: de dónde viene
+    // y qué es. Un anuncio de Facebook y un post de Instagram son cosas
+    // distintas y se ven distinto en pantalla.
+    expect(ref).toContain('platform(cadaUrl)');
+    expect(ref).toContain('esAnuncioDeFacebook(cadaUrl)');
+  });
+});
+
+describe('una referencia de Facebook sin preview muestra una imagen, no un texto', () => {
+  it('hay una imagen de respaldo cuando no hay embed', () => {
+    // MEDIDO: Facebook no sirve la biblioteca de anuncios embebida (marco vacío,
+    // comprobado en el navegador) y además exige sesión para ver el anuncio, así
+    // que no se puede capturar la imagen al vuelo desde la app. Lo que sí se
+    // puede es GUARDAR la miniatura cuando el anuncio entra a la biblioteca, y
+    // pintar esa mientras el anuncio no se puede ver embebido.
+    //
+    // La columna ya existe (`rr_hub_ad_library.cover_url`) y el servidor ya la
+    // lee: lo que falta es que alguien la llene y que la ficha la use.
+    expect(ref).toContain('coverUrl');
+  });
+});

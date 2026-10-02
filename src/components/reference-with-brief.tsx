@@ -191,7 +191,7 @@ function motivoDeNoEmbebir(url: string): string | null {
  * con una sola no se ve la otra. Las embebibles van primero, para que si la
  * referencia principal no se puede mostrar la ficha no quede en negro.
  */
-export function ReferenceWithBrief({ url, refs, title, brief }: { url?: string; refs?: string[]; title: string; brief: VisualBrief }) {
+export function ReferenceWithBrief({ url, refs, title, brief, coverUrl }: { url?: string; refs?: string[]; title: string; brief: VisualBrief; coverUrl?: string | null }) {
   const todas = (refs?.length ? refs : url ? [url] : []).filter(Boolean);
   if (!todas.length) {
     return <section className="border border-dashed border-blanco-20 p-8 text-center">
@@ -218,6 +218,27 @@ export function ReferenceWithBrief({ url, refs, title, brief }: { url?: string; 
         <p className="eyebrow text-blanco-50">[REFERENCIA VISUAL · {platform(aPintar0(todas))}]</p>
       </header>
       <div className="bg-negro p-8 text-center">
+        {/*
+          MEDIDO 2026-10-01, Santiago: "sigue siendo muy plano, al menos con
+          una imagen o algo así en las referencias de Facebook porque se ve raro".
+
+          MEDIDO también por qué no se puede embeber ni capturar al vuelo:
+          Facebook devuelve un marco vacío por `plugins/post.php` (probado en el
+          navegador: `- feed` + link "Servicio de ayuda") Y la biblioteca exige
+          sesión para ver el anuncio, así que tampoco se puede hacer una captura
+          desde la app: sería meterse con la cuenta de otra persona.
+
+          Lo que sí es honesto y funciona es la MINIATURA del anuncio, que ya
+          está guardada en `rr_hub_ad_library.cover_url`. Un marco vacío con
+          texto encima se ve como un error; una miniatura del anuncio con el
+          aviso al lado se ve como lo que es: una referencia que se ve en otro
+          sitio y que aquí está su límite.
+        */}
+        {coverUrl && <img
+          src={coverUrl}
+          alt="Miniatura del anuncio de referencia"
+          className="mx-auto mb-6 max-h-[420px] w-auto max-w-full border border-blanco-20 object-contain"
+        />}
         <p className="font-mono text-xs text-mostaza">[PREVIEW NO DISPONIBLE PARA ESTE ORIGEN]</p>
         <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-blanco-60">{motivoDeNoEmbebir(todas[0])}</p>
         <div className="mt-6 flex flex-col items-center gap-3">
@@ -277,9 +298,21 @@ export function ReferenceWithBrief({ url, refs, title, brief }: { url?: string; 
           const marco = encuadre(cadaUrl);
           const clave = `${indice}-${cadaUrl}`;
           return <div key={clave} className="flex w-full flex-col items-center gap-2">
-            {todas.length > 1 && <p className="font-mono text-[10px] tracking-[0.15em] text-blanco-40">
-              REFERENCIA {indice + 1} DE {todas.length} · {platform(cadaUrl)}
-            </p>}
+            {/* MEDIDO 2026-10-01, Santiago: "que tengan la label de Instagram
+                porque hay muchas que no tienen". Esto estaba detrás de
+                `todas.length > 1 &&`, así que con UNA sola referencia no se
+                pintaba. Y las ideas con una sola referencia son P19, P25, P30 y
+                O13: exactamente las que más necesitan decir de dónde viene el
+                link eran las que callaban.
+
+                Además dice si es un anuncio, porque un anuncio de Facebook y un
+                post de Instagram son cosas distintas: uno no se puede embeber y
+                el otro sí. La etiqueta es la que explica por qué. */}
+            <p className="font-mono text-[10px] tracking-[0.15em] text-blanco-40">
+              {todas.length > 1 ? `REFERENCIA ${indice + 1} DE ${todas.length}` : 'REFERENCIA'}
+              {' · '}{platform(cadaUrl)}
+              {esAnuncioDeFacebook(cadaUrl) ? ' · ANUNCIO' : ''}
+            </p>
             {source ? <ReferenceEmbed
               key={source}
               src={source}

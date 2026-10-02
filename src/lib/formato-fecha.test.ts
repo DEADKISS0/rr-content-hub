@@ -55,25 +55,46 @@ describe('la fecha para el calendario es el día corto', () => {
 });
 
 describe('la cuenta regresiva es honesta', () => {
+  /**
+   * MEDIDO 2026-10-01: este bloque usaba `new Date().toISOString()`, que es UTC.
+   * `cuantoPara()` cuenta en `America/Bogota`. Entre las 19:00 y las 24:00 de
+   * Bogotá, UTC ya va un día por delante: "hoy" en el test era "mañana" para la
+   * función, y el test fallaba solo después de las siete de la tarde.
+   *
+   * No lo detectó nadie porque el gate se corre de día, y porque en el momento
+   * de escribirlo había coincidido. Un test que depende de la hora del reloj no
+   * mide la función: mide cuándo se escribió.
+   *
+   * Aquí las fechas se fabrican en hora de Bogotá, con la misma zona que usa la
+   * función. Si algún día hay que cambiar la cuenta, este test lo dice.
+   */
+  const enBogota = (dias: number) => {
+    const base = new Date();
+    // Se construye desde las partes locales de Bogotá, no sumando milisegundos.
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Bogota', year: 'numeric', month: '2-digit', day: '2-digit',
+    });
+    const [anio, mes, dia] = fmt.format(base).split('-').map(Number);
+    const fecha = new Date(Date.UTC(anio, mes - 1, dia + dias, 12, 0, 0));
+    return fecha.toISOString();
+  };
+
   it('hoy y mañana tienen palabras, no números', () => {
     // Calcular "en 0 días" y "en 1 días" es leer un reloj, no un plan.
-    const hoy = new Date().toISOString();
-    const manana = new Date(Date.now() + 86_400_000).toISOString();
-    expect(cuantoPara(hoy)?.texto).toBe('hoy');
-    expect(cuantoPara(manana)?.texto).toBe('mañana');
+    expect(cuantoPara(enBogota(0))?.texto).toBe('hoy');
+    expect(cuantoPara(enBogota(1))?.texto).toBe('mañana');
   });
 
   it('una fecha pasada dice que está vencida, no que es urgente', () => {
     // El signo cambia el mensaje entero: una pieza vencida es un problema, no
     // una urgencia.
-    const ayer = new Date(Date.now() - 86_400_000).toISOString();
-    const r = cuantoPara(ayer);
+    const r = cuantoPara(enBogota(-1));
     expect(r?.vencido).toBe(true);
     expect(r?.texto).toContain('hace');
   });
 
   it('una fecha futura no está vencida', () => {
-    const enDiez = new Date(Date.now() + 10 * 86_400_000).toISOString();
+    const enDiez = enBogota(10);
     expect(cuantoPara(enDiez)?.vencido).toBe(false);
     expect(cuantoPara(enDiez)?.texto).toBe('en 10 días');
   });

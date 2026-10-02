@@ -294,7 +294,7 @@ export async function getIdeas(projectId: string) {
 
   const { data } = await supabase
     .from('rr_hub_ideas')
-    .select('id, code, title, description, objective, content_type, category, origen, status, priority, created_at, due_at, published_url, reference_urls, camera_brief, talent_brief, edit_brief, script_content')
+    .select('id, code, title, description, objective, content_type, category, origen, status, priority, created_at, due_at, published_url, reference_urls, camera_brief, talent_brief, edit_brief, script_content, ad_id, ad:name(ad_id)')
     .eq('project_id', projectId)
     // Las ideas archivadas desaparecen del tablero, pero NO se borran. Siguen en
     // la tabla con sus votos y sus comentarios, y se pueden volver a desarchivar.
@@ -462,6 +462,35 @@ export async function getVotos(ideaId: string): Promise<ConteoVotos> {
   const aFavor = votos.filter((v) => v.decision === 'yes').length;
   const enContra = votos.filter((v) => v.decision === 'no').length;
   return { aFavor, enContra, total: votos.length, detalle: votos.map((v) => v.decision as DecisionVoto) };
+}
+
+/**
+ * La miniatura del anuncio de una idea, si la tiene.
+ *
+ * MEDIDO 2026-10-01: Facebook no sirve la biblioteca de anuncios embebida
+ * (marco vacío, comprobado en el navegador) y exige sesión para abrir el
+ * anuncio, así que la app no puede capturar la imagen al vuelo. Lo único
+ * honesto es la miniatura GUARDADA en `rr_hub_ad_library.cover_url`.
+ *
+ * Se busca por `ad_id` —la relación real— y no por la URL: dos ideas pueden
+ * apuntar al mismo anuncio, y la URL se puede haber pegado a mano sin quedar
+ * ligada. Con la relación, la ficha sabe de qué anuncio es.
+ *
+ * Devuelve `null` cuando no hay anuncio o no tiene miniatura. No inventa un
+ * placeholder con el logo de RR: una imagen que no es el anuncio es peor que
+ * un aviso honesto.
+ */
+export async function getCoverDelAnuncio(adId: string | null | undefined): Promise<string | null> {
+  if (!adId) return null;
+  const supabase = await createServiceClient() ?? await createClient();
+  if (!supabase) return null;
+  const { data } = await supabase
+    .from('rr_hub_ad_library')
+    .select('cover_url')
+    .eq('id', adId)
+    .maybeSingle();
+  const url = (data?.cover_url as string | null) ?? null;
+  return url && url.trim() ? url.trim() : null;
 }
 
 /**
