@@ -191,10 +191,19 @@ export async function getProject(slug: string) {
     return { project: proyecto ?? null, access: null, supabase: sinSesion };
   }
 
-  // Con sesion, el cliente tiene que ser uno de los que la persona puede ver.
-  if (!clienteEsVisible(slug, sesion.proyecto)) {
-    return { project: null, access: null, supabase: null };
-  }
+  // MEDIDO 2026-10-03: con sesión, este guard devolvía 404 para CUALQUIER cliente
+  // que no fuera el del código con el que se entró. Reproducido en producción:
+  //   sesión de WUNDEER → /candilejas 404 · /boga 404 · /satiro 404
+  //
+  // Y el selector de clientes los ofrece los cuatro: prometerse una puerta que
+  // da 404 es la misma clase de fallo que un botón que no lleva a ningún sitio.
+  //
+  // Lo que SÍ debe seguir cerrado: la ESCRITURA. `access` sigue viniendo de la
+  // fila de `rr_hub_access` de esta persona en ESTE proyecto, y si no la tiene
+  // queda en null. El guard de cada mutación (`roleForIdea` en
+  // `api/workspace/[action]`, `/api/subir`) consulta `access` y rechaza sin ella,
+  // así que ver sin acceso y escribir sin acceso siguen siendo dos cosas
+  // separadas, como dice el comentario de arriba.
   const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) {
     // Was `admin` — the role that bypasses every transition rule in flow.ts.
