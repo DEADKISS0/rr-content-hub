@@ -48,11 +48,13 @@ export default async function PerfilPage({ params }: { params: Promise<{ project
       {!v.email ? (
         <div className="mt-8 border-l-4 border-l-mostaza bg-blanco-05 px-4 py-4">
           <p className="text-sm leading-6 text-blanco-80">
-            Estás mirando el hub sin iniciar sesión. Puedes leer todo, pero crear y mover piezas necesita una cuenta.
+            Estás mirando el hub sin sesión. Puedes leer todo; crear y mover piezas necesita
+            una fila de acceso en este cliente, y eso te lo da Dirección.
           </p>
-          <Link href={`/login?next=${encodeURIComponent(`/${projectSlug}/perfil`)}`} className="btn-brutal mt-4 inline-flex">
-            <Icon name="user" size={14} /> INICIAR SESIÓN
-          </Link>
+          <p className="mt-4 text-sm leading-6 text-blanco-60">
+            Ya no hay una pantalla de entrada: el hub se abre sin código. Si te hace falta
+            escribir, pídeselo a Dirección y que te lo den en tu cliente.
+          </p>
         </div>
       ) : (
         <>

@@ -120,7 +120,24 @@ check('el servidor valida transiciones con el motor real', /allowedTransitions\(
 check('el servidor relee el estado antes de transicionar', /current\.status !== from/.test(route));
 check('una discrepancia de estado da 409', /409/.test(route));
 // La atribucion de un comentario no la elige quien lo escribe.
-check('el autor del comentario lo pone el servidor', /author_label: `\$\{(?:ctx\.)?email\}/.test(route));
+//
+// MEDIDO 2026-10-03: el autor salia del correo de la SESION. Con el hub en
+// puerta por codigo la mayoria de las veces no hay sesion, y publicar en el hilo
+// respondia «Entra con el codigo de tu cliente». MEDIDO en produccion: el boton
+// se activaba, se pulsaba y no se publicaba nada.
+//
+// Ahora sale del PERFIL ELEGIDO, pero sigue siendo el servidor quien lo pone:
+// `body.authorProfile` no se escribe en la fila. Se busca en
+// `rr_hub_profiles` y se usa el `full_name` de esa fila. Escribir el nombre de
+// otra persona en el cuerpo no publica en su nombre: es el mismo principio que
+// tenia antes, con una fuente que funciona sin sesion.
+check('el autor del comentario lo pone el servidor, no quien lo escribe',
+  /author_label: `\$\{nombreAutor\}/.test(route));
+check('el autor sale de una fila de rr_hub_profiles, no del cuerpo',
+  /from\('rr_hub_profiles'\)[\s\S]{0,400}ilike\('email', identidad\)/.test(route));
+// El perfil se comprueba contra la lista del equipo, como en el voto.
+check('el autor del comentario tiene que estar en la lista del equipo',
+  /is_team_member/.test(route) && /is_active/.test(route));
 
 // 4. Las mutaciones pasan por la API.
 //

@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { quienEs } from '@/lib/quien-es';
 import { getIdeas, getClientesDeLaPersona } from '@/lib/data';
 import { statusMeta, type WorkflowStatus } from '@/lib/flow';
@@ -45,7 +44,15 @@ export default async function Home() {
   // `abiertos: []`, que haría pintar "todavía no tienes un cliente abierto" a
   // quien solo no se ha loggedeado todavía. Tampoco es verdad, y esconde la
   // puerta. Sin sesión se va al login, que es donde se teclea el código.
-  if (!sesion) redirect('/login');
+  // SIN PUERTA (2026-10-02). Este `redirect('/login')` venía de la portada de
+  // `main`, escrita cuando había un código de cuatro cifras. Con la puerta caída
+  // era un 404 para todo el mundo: `/` no llevaba a nada.
+  //
+  // Ahora, sin sesión, se listan los clientes abiertos (o sea, todos, que es el
+  // punto) y se deja elegir. La portada de `main` es mejor que la que había
+  // antes: explica de qué va y deja elegir con el conteo real al lado. Se queda
+  // esa y se le quita solo esto.
+
 
   const { abiertos, cerrados } = await getClientesDeLaPersona();
   // `sesion.proyecto` es el cliente de la cookie (el código con el que entraste).
@@ -54,7 +61,7 @@ export default async function Home() {
   // MEDIDO 2026-10-03: `quienEs()` devuelve `{email, nombre, proyecto}`. No hay
   // un campo `sesion.actual`: ese nombre venía de la idea, no de la base, y no
   // compilaba. Aquí `sesionActual` es el slug del cliente con el que se entró.
-  const sesionActual = sesion.proyecto || null;
+  const sesionActual = sesion?.proyecto || null;
 
   // Con sesión pero sin ningún cliente: se dice aquí, en la propia página, con lo
   // que sí se sabe. Un rebote a una pantalla que no existe es un 404.
@@ -109,8 +116,8 @@ export default async function Home() {
         </h1>
         <p className="mt-6 max-w-3xl text-base leading-8 text-blanco-70 anim-rise" style={{ animationDelay: '160ms' }}>
           Un solo lugar donde una idea de Wundeer o de Candilejas deja de ser un mensaje suelto
-          y se vuelve un trabajo con dueño, fecha y estado. Se entra con el código del
-          cliente y tu nombre: sin correos ni contraseñas.
+          y se vuelve un trabajo con dueño, fecha y estado. Se entra directo, sin código y sin
+          contraseñas: quien llega sin acceso abre en modo lectura.
         </p>
         <p className="mt-5 font-mono text-[11px] leading-6 text-blanco-50 anim-rise" style={{ animationDelay: '200ms' }}>
           {abiertos.length === 1
@@ -171,7 +178,13 @@ export default async function Home() {
                 <span aria-hidden="true" className="h-9 w-9 shrink-0 border border-blanco-40"
                   style={cliente.brand_primary_color ? { backgroundColor: cliente.brand_primary_color } : undefined} />
                 <div className="min-w-0">
-                  <p className="mono-label text-blanco-50">[{cliente.rol.toUpperCase()}]</p>
+                  {/* El rol crudo en pantalla era `CLIENT_VIEWER`, que es un nombre
+                      de tabla y no una palabra. Para quien entra sin sesión, que es
+                      casi todo el mundo desde el 2026-10-02, poner el rol en
+                      mayúsculas lo hace parecer un error. */}
+                  <p className="mono-label text-blanco-50">
+                    [{cliente.rol === 'client_viewer' ? 'LECTURA' : cliente.rol.toUpperCase()}]
+                  </p>
                   <h3 className="mt-1 font-display text-3xl font-bold text-blanco md:text-4xl">{cliente.name}</h3>
                 </div>
               </div>
@@ -235,7 +248,9 @@ export default async function Home() {
         La auditoría es la vista de solo lectura: contadores por fase y trazabilidad de cada
         decisión. {' '}
         <Link href={abiertos.length === 1 ? `/audit/${abiertos[0].slug}` : `/${abiertos[0].slug}/metricas`}
-          className="text-blanco-70 underline underline-offset-4 hover:text-blanco">
+          /* MEDIDO 2026-10-03 a 390 px: este enlace medía 184x11 px. Once de
+             alto: con un dedo no se abre, y es el enlace que lleva a las métricas. */
+          className="inline-flex min-h-[44px] items-center text-blanco-70 underline underline-offset-4 hover:text-blanco">
           {abiertos.length === 1 ? 'ABRE LA AUDITORÍA' : 'MIRA LAS MÉTRICAS DEL BANCO'}
         </Link>
         . También puedes ir directo: cada cliente vive en <span className="text-blanco-60">/wundeer</span>,{' '}

@@ -72,14 +72,19 @@ export default async function SelectProject() {
                   {esActual ? ' · AQUÍ ESTÁS' : ''}
                 </p>
                 <div className="mt-6 flex flex-wrap items-end justify-between gap-6">
-                  <div className="flex items-center gap-4">
+                  <div className="flex min-w-0 items-center gap-4">
                     <span
                       aria-hidden="true"
                       className="h-10 w-10 shrink-0 border border-blanco-40"
                       style={cliente.brand_primary_color ? { backgroundColor: cliente.brand_primary_color } : undefined}
                     />
-                    <div>
-                      <h2 className="font-display text-5xl font-bold text-blanco md:text-7xl">{cliente.name}</h2>
+                    {/* MEDIDO 2026-10-03 a 320 px: sin `min-w-0` esta columna no
+                        baja de su contenido y el título se salía 65 px a la
+                        derecha. `break-words` para que un nombre largo no empuje
+                        la caja; el título baja a text-3xl en móvil porque a 5xl
+                        «CANDILEJAS» necesita 280 px y no hay 280 px. */}
+                    <div className="min-w-0">
+                      <h2 className="break-words font-display text-3xl font-bold text-blanco sm:text-5xl md:text-7xl">{cliente.name}</h2>
                       {cliente.description && (
                         <p className="mt-3 max-w-lg text-sm leading-6 text-blanco-60">{cliente.description}</p>
                       )}

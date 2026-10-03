@@ -50,10 +50,10 @@ export default function NoEncontrado() {
 
       <div className="mt-8 flex flex-wrap gap-3">
         <Link
-          href="/login"
+          href="/"
           className="inline-flex items-center border-2 border-mostaza px-5 py-3 font-mono text-xs tracking-[0.15em] text-mostaza hover:bg-mostaza hover:text-negro"
         >
-          IR A LA PUERTA →
+          IR A LA PORTADA →
         </Link>
         <Link
           href="/"

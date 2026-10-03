@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { crearSesion, NOMBRE_COOKIE } from '@/lib/hub-session';
 import { quienEs } from '@/lib/quien-es';
-import { CLIENTES_CONOCIDOS } from '@/lib/projects';
+import { clienteExiste } from '@/lib/projects';
 
 /**
  * Cambiar de cliente sin salir del hub.
@@ -51,9 +51,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Falta el cliente al que quieres pasar.' }, { status: 400 });
   }
 
-  // La lista corta, no la de autorización: un slug tiene que ser uno de los
-  // conocidos para que un inventado no abra nada.
-  if (!(CLIENTES_CONOCIDOS as readonly string[]).includes(destino)) {
+  // Un slug tiene que existir de verdad para que un inventado no abra nada.
+  //
+  // Antes esta línea miraba `CLIENTES_CONOCIDOS`, una lista escrita a mano con dos
+  // nombres ('wundeer', 'candilejas') de los cuatro clientes que hay en la base:
+  // BOGA y Satiro no se podían cambiar a ni venir. Con la puerta abierta la
+  // pregunta ya no es "qué nombres tiene el código escritos" sino "qué clientes
+  // existen", y eso lo responde la base.
+  if (!(await clienteExiste(destino))) {
     return NextResponse.json({ error: 'Ese cliente no existe.' }, { status: 404 });
   }
 

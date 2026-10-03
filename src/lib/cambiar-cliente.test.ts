@@ -15,6 +15,13 @@ import { join } from 'node:path';
 const raiz = join(process.cwd(), 'src');
 const leer = (ruta: string) => readFileSync(join(raiz, ruta), 'utf8');
 
+/** El codigo sin comentarios: un test que busca un nombre lo encuentra en el
+ *  comentario que explica por que se borro, y falla cuando esta bien. */
+function codigo(ruta: string): string {
+  const crudo = leer(ruta);
+  return crudo.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*/g, '');
+}
+
 describe('la ruta que cambia de cliente', () => {
   const ruta = leer('app/api/cambiar-cliente/route.ts');
 
@@ -41,11 +48,18 @@ describe('la ruta que cambia de cliente', () => {
     expect(ruta).toMatch(/status:\s*403/);
   });
 
-  it('valida el destino contra la lista de clientes conocidos', () => {
+  it('valida el destino contra los clientes que existen DE VERDAD', () => {
     // Sin esto, un `{"proyecto":"inventado"}` crearía una sesión con un slug que
     // no existe y la navegación se quedaría sin rutas.
-    expect(ruta).toMatch(/CLIENTES_CONOCIDOS/);
-    expect(ruta).toMatch(/status:\s*404/);
+    //
+    // Antes miraba `CLIENTES_CONOCIDOS`, una lista escrita a mano con dos nombres
+    // de los cuatro clientes que hay en la base. Ahora pregunta a la base, y por
+    // eso el test mira que se llame a `clienteExiste` y no a una constante: si
+    // alguien vuelve a escribir la lista en el código, esto falla.
+    const c = codigo('app/api/cambiar-cliente/route.ts');
+    expect(c).toMatch(/clienteExiste/);
+    expect(c).toMatch(/status:\s*404/);
+    expect(c).not.toMatch(/CLIENTES_CONOCIDOS/);
   });
 
   it('firma la cookie igual que la puerta', () => {
@@ -156,15 +170,28 @@ describe('la lista la da el servidor, no el navegador', () => {
     expect(bloque).toMatch(/project_id/);
   });
 
-  it('abrir exige fila de acceso, y la fila manda sobre el global_role', () => {
-    // El bug anterior: `esAdmin || fila` y luego `rol: esAdmin ? 'owner'`. Un
-    // admin global se veía como `owner` en TODOS los clientes, tuviera fila o no.
-    // La base dice la verdad: `rr_hub_access` es la fila real, y si no está, no
-    // se abre. (Igual que en `rolEnProyecto`, que ya no cae a admin global.)
+  it('la fila manda sobre el global_role, y sin fila es solo lectura', () => {
+    // Lo que este test protegía antes y SIGUE siendo cierto: la fila real de
+    // `rr_hub_access` manda sobre el global_role. El bug viejo era `esAdmin ||
+    // fila` con `rol: esAdmin ? 'owner'`, que veía a un admin global como owner
+    // en clientes donde no tenía fila. Eso no volvió.
+    //
+    // Lo que SÍ cambió el 2026-10-02 es la puerta: `abiertos` ya no se filtra
+    // por fila, porque sin cookie `rolPorProyecto` salía vacío y los cuatro
+    // clientes caían a `cerrados`. MEDIDO en producción: la raíz decía
+    // "Todavía no tienes un cliente abierto" con todo dado de alta.
+    //
+    // Entonces el rol por defecto NO es `owner` ni `sin_rol`: es
+    // `client_viewer`, el mismo de los visitantes. La fila da el rol si la hay;
+    // si no, lectura. Ver un cliente no es escribir en él: eso lo sigue
+    // decidiendo `rr_hub_access` en el guard.
     const data = leer('lib/data.ts');
     const bloque = data.slice(data.indexOf('export async function getClientesDeLaPersona'));
-    expect(bloque).toMatch(/\.filter\(\(p\) => rolPorProyecto\.has\(p\.id\)\)/);
     expect(bloque).not.toMatch(/esAdmin/);
+    // El rol sale de la fila cuando existe.
+    expect(bloque).toMatch(/rolPorProyecto\.get\(p\.id\)/);
+    // Y sin fila no es el rol mas alto.
+    expect(bloque).not.toMatch(/\?\? 'owner'/);
   });
 
   it('los cerrados salen del catálogo ENTERO, no de la lista corta', () => {
@@ -209,11 +236,13 @@ describe('la lista la da el servidor, no el navegador', () => {
     expect(componente).toMatch(/Tu correo no tiene acceso/);
   });
 
-  it('la puerta sigue cerrada para los que solo se ven', () => {
-    // Ver un cliente en el desplegable no lo abre: la ruta valida la lista
-    // corta por separado. Si esta comprobación se rompe, el candado se vuelve
-    // decorativo.
-    const ruta = leer('app/api/cambiar-cliente/route.ts');
-    expect(ruta).toMatch(/CLIENTES_CONOCIDOS/);
+  it('la lista de clientes NO vuelve a escribirse en el codigo', () => {
+    // Este test existia para que la lista corta siguierauhaciendose cargo. Con la
+    // puerta abierta ya no hay lista: la responde la base. Si alguien la vuelve a
+    // escribir a mano, BOGA y Satiro volveran a quedar fuera sin avisar, que es
+    // exactamente como se rompió la primera vez.
+    const c = codigo('app/api/cambiar-cliente/route.ts');
+    expect(c).not.toMatch(/CLIENTES_CONOCIDOS/);
+    expect(c).toMatch(/clienteExiste/);
   });
 });

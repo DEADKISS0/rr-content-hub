@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { isVisibleProject } from '@/lib/projects';
+import { clienteExiste } from '@/lib/projects';
 import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -130,7 +130,7 @@ export async function GET(request: NextRequest) {
   // de API. Lo que sí hace es dejar de estar atada a un solo cliente: escribir
   // `project=wundeer` o `project=candilejas` devuelve las ideas de ese cliente.
   const slug = new URL(request.url).searchParams.get('project') ?? 'wundeer';
-  if (!isVisibleProject(slug)) return error('Ese cliente no existe.', 400);
+  if (!(await clienteExiste(slug))) return error('Ese cliente no existe.', 400);
 
   const { data: project, error: projectError } = await setup.supabase.from('rr_hub_projects').select('id').eq('slug', slug).single();
   if (projectError || !project) return error(`${slug} no existe en la base.`, 404);
@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
   let body: Payload;
   try { body = await request.json(); } catch { return error('El cuerpo debe ser JSON válido.', 400); }
   const slug = body.project_slug ?? 'wundeer';
-  if (!isVisibleProject(slug)) return error('Ese cliente no existe.', 400);
+  if (!(await clienteExiste(slug))) return error('Ese cliente no existe.', 400);
 
   const problem = validate(body);
   if ('error' in problem) return error(problem.error, 400);
