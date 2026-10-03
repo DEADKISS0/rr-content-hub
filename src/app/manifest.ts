@@ -65,7 +65,7 @@ export default function manifest(): MetadataRoute.Manifest {
      * la identidad de la app, y si cambia Android la trata como una app
      * DISTINTA y a quien ya la tenía instalada le aparece otra vez.
      */
-    start_url: '/login?fuente=app',
+    start_url: '/',
     scope: '/',
     display: 'standalone',
     // La app se abre sin barra del navegador: es lo que la hace parecer app y no
@@ -99,10 +99,18 @@ export default function manifest(): MetadataRoute.Manifest {
         url: '/wundeer/ideas',
         icons: [icono('icono-96.png', '96x96')],
       },
+      // Antes había aquí un acceso directo "Entrada" con `url: '/login'`, o sea
+      // un icono en la pantalla de inicio que abría una pantalla de acceso que se
+      // borró el 2026-10-02. Tocar ese icono daba un 404: la PWA apuntaba a algo
+      // que no existe.
+      //
+      // Se quitó en vez de apuntarlo a otro lado. Un acceso directo que no lleva a
+      // la puerta tiene que ir a la portada, y la portada ya está en el
+      // `start_url`: dos iconos que abren lo mismo no aportan nada.
       {
-        name: 'Entrada',
-        short_name: 'Entrada',
-        url: '/login',
+        name: 'Auditoría',
+        short_name: 'Auditoría',
+        url: '/audit',
         icons: [icono('icono-96.png', '96x96')],
       },
     ],

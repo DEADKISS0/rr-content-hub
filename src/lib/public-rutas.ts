@@ -1,40 +1,60 @@
 /**
  * Que rutas del hub se sirven SIN sesion.
  *
- * ESTO ES LO QUE HACE EXISTIR LA PWA (medido en produccion el 2026-09-30, dos
- * veces seguidas). La PWA se instala ANTES de tener sesion: el navegador pide el
- * manifest y los iconos para poder mostrar el boton de instalar. Si esas rutas
- * exigieran cookie, el proxy las mandaria a `/login`, el navegador recibiria
- * HTML donde esperaba un JSON, y no apareceria ningun boton de instalar ni en
- * Android ni en iPhone. Sin un solo error visible: sencillamente no hay app.
+ * DESDE 2026-10-02: TODAS.
  *
- * POR QUE ESTA EN SU PROPIO ARCHIVO Y NO EN EL PROXY. Dos veces se ha tried
- * fixarlo aqui y las dos veces el arreglo se quedaba en el proxy sin que nada lo
- * comprobara. Ademas, una regla de "quien puede ver que" que se decide mirando
- * cadenas de texto es una regla que no se puede probar de verdad. Aqui la
- * funcion se exporta y los tests la EJECUTAN: si alguien mueve el prefijo de
- * sitio, el test lo dice. Un test que mira texto no ve un bug de comparacion.
+ * Santiago decidio abrir el Content Hub con la misma decision que el Centro de
+ * Comandos del mega-dashboard: sin codigo de cuatro cifras, sin pedir correo, sin
+ * sesion que comprobar. Los cuatro clientes (BOGA, Candilejas, Satiro Sushi y
+ * Wundeer) quedan accesibles a cualquiera que llegue a la URL.
+ *
+ * LO QUE SE BORRA Y POR QUE
+ *
+ * Este archivo tenia una lista de rutas publicas y un monton de comentarios que
+ * explicaban por que `/login` tenia que estar en ella: la PWA se instala antes
+ * de tener sesion, y si el manifest exigiera cookie, el navegador recibiria HTML
+ * donde esperaba JSON y el boton de instalar no aparecia en Android ni en iPhone.
+ * Ese problema era real y estaba bien resuelto.
+ *
+ * Con la puerta abierta ya no tiene sentido: TODAS las rutas son publicas, asi
+ * que no hay lista que mantener y no hay nada que pueda volver a caerse. Una
+ * lista de "excepciones" que ya no tiene excepciones es una lista que el proximo
+ * va a intentar volver a usar.
+ *
+ * SE CONSERVA LA FUNCION, y no por cortesia. Dos razones:
+ *
+ *  1. Hay tests que la EJECUTAN. Un archivo que decide a quien se le sirve cada
+ *     ruta tiene que poder probarse, no solo leerse. Borrarla dejaria
+ *     `public-rutas.test.ts` importando algo que no existe.
+ *  2. Sirve como el unico sitio donde se responde "que es publico". El dia que
+ *     aparezca una excepcion de verdad (un endpoint que tenga que seguir cerrado,
+ *     como el guard de escritura del mega-dashboard), se escribe AQUI y en ningun
+ *     otro sitio. Una regla de acceso repartida en tres archivos es una regla
+ *     que se contradice en cuanto uno de los tres se queda viejo.
+ *
+ * `false` queda como respuesta por defecto para que la funcion siga siendo una
+ * DECISION y no un `return true` disfrazado: si alguien la llama esperando que
+ * filtre, ve que no filtra, en vez de obtener `true` y no enterarse de nada.
  */
-
-/** Rutas exactas publicas, ademas de lo que este en `/`. */
-const PUBLICAS = ['/login', '/api/entrar', '/offline', '/manifest.webmanifest', '/sw.js'];
 
 /**
- * Prefijos de ficheros estaticos que tambien son publicos: los iconos de la
- * PWA. Van APARTE y a proposito.
+ * Rutas que siguen SIN ser publicas.
  *
- * La comparacion de `PUBLICAS` es `path === p || path.startsWith(`${p}/`)`. Si
- * un prefijo de ruta acabara en barra y se metiera en esa lista, la comparacion
- * buscaria `/app//`, con doble barra, y no coincidiria con NADA. Pasó: los doce
- * iconos devolvian 307 y el navegador recibia HTML. Por eso los prefijos que ya
- * terminan en `/` se comparan con `startsWith` a secas.
+ * Vacio a proposito. No se relleno con `/login` (ya no hay puerta que mostrar) ni
+ * con los endpoints que habian quedado Publicos de serie.
  *
- * Y NO se pone `'/'` aqui: abriria el hub entero sin sesion.
+ * Cuando haga falta, la condicion va con una razon al lado. Por ejemplo, si el
+ * panel de administracion tuviera que seguir cerrado, seria algo asi:
+ *
+ *   const CERRADAS = [
+ *     // El panel escribe en rr_hub_assets: acceso abierto no puede significar
+ *     // acceso para escribir. La razon va aqui, no en el codigo de quien llama.
+ *     '/api/admin',
+ *   ];
  */
-const PREFIJOS_PUBLICOS = ['/app/'];
+const CERRADAS: { prefijo: string; razon: string }[] = [];
 
 /** ¿Esta ruta se sirve sin sesion? */
 export function esPublica(path: string): boolean {
-  if (PREFIJOS_PUBLICOS.some((p) => path.startsWith(p))) return true;
-  return PUBLICAS.some((p) => path === p || path.startsWith(`${p}/`));
+  return !CERRADAS.some((c) => path === c.prefijo || path.startsWith(`${c.prefijo}/`));
 }

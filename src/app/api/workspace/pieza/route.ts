@@ -19,9 +19,6 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: NextRequest) {
   const sesion = await quienEs();
-  if (!sesion) {
-    return NextResponse.json({ error: 'Entra con el código de tu cliente.' }, { status: 401 });
-  }
 
   const ideaId = request.nextUrl.searchParams.get('ideaId') ?? '';
   if (!ideaId) return NextResponse.json({ error: 'Falta la idea.' }, { status: 400 });
@@ -39,7 +36,24 @@ export async function GET(request: NextRequest) {
     .maybeSingle();
   const slug = (idea as { projects?: { slug?: string } | { slug?: string }[] } | null)?.projects;
   const proyectoSlug = Array.isArray(slug) ? slug[0]?.slug : slug?.slug;
-  if (!proyectoSlug || proyectoSlug !== sesion.proyecto) {
+  if (!proyectoSlug) {
+    return NextResponse.json({ error: 'Esa pieza no existe.' }, { status: 404 });
+  }
+
+  /**
+   * MEDIDO 2026-10-03. Este endpoint devolvía 401 sin sesión, y con él el
+   * `refresh()` del hilo se quedaba sin hacer nada: se publicaba un comentario,
+   * la respuesta decía «✓ Comentario publicado» y la lista no cambiaba hasta
+   * recargar la página entera. MEDIDO en producción: publicar y no verse.
+   *
+   * Leer la ficha no es escribirla. Sin sesión se comprueba que la idea exista y
+   * se devuelven sus comentarios; escribir sigue exigiendo perfil comprobado en
+   * `comment` y `vote`.
+   *
+   * Con sesión sí se mantiene la comprobación de que la idea sea del cliente de
+   * la cookie, porque ahí se puede saber si alguien está mirando otro cliente.
+   */
+  if (sesion && proyectoSlug !== sesion.proyecto) {
     return NextResponse.json({ error: 'Esa pieza no es de tu cliente.' }, { status: 404 });
   }
 

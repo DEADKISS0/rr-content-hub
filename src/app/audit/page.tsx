@@ -17,5 +17,20 @@ export default async function AuditIndex() {
   const fila: any = projects[0];
   const anidado: any = fila?.projects ?? fila;
   const primero: any = Array.isArray(anidado) ? anidado[0] : anidado;
-  redirect(primero?.slug ? `/audit/${primero.slug}` : '/login');
+  // Sin clientes no hay a dónde ir, y `/login` ya no existe (2026-10-02): un
+  // rebote ahí sería un 404 para quien llega. Se dice que no hay nada que ver.
+  if (!primero?.slug) {
+    return (
+      <main className="min-h-screen bg-negro">
+        <div className="mx-auto max-w-3xl px-5 py-24 text-center">
+          <h1 className="display-title">Todavía no hay clientes.</h1>
+          <p className="mt-6 text-blanco-60">
+            La auditoría está abierta, pero no hay ningún cliente dado de alta. Cuando se
+            cree el primero, su trazabilidad aparece aquí.
+          </p>
+        </div>
+      </main>
+    );
+  }
+  redirect(`/audit/${primero.slug}`);
 }

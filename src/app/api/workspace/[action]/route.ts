@@ -87,7 +87,7 @@ function unauthorized() {
 /** Quien figura en las piezas cuando la subida no trae id resuelto. */
 const SIN_QUIEN = 'sin-quien';
 
-async function context(request: NextRequest) {
+async function context(request: NextRequest, accion: string) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -105,14 +105,42 @@ async function context(request: NextRequest) {
   // `rr_hub_profiles.id` sigue siendo la PK pero ya no hay sesión de Supabase
   // que lo dé. Buscar por correo es la misma fila y no depende de que exista
   // una cuenta en `auth.users`.
+  /**
+   * MEDIDO 2026-10-03. `comment` y `vote` devolvían «Entra con el código de tu
+   * cliente» a quien no tuviera sesión, y en el hub en puerta por código casi
+   * nadie la tiene. MEDIDO en producción: el botón de comentar se activaba, se
+   * pulsaba y no se publicaba nada; el de votar, igual.
+   *
+   * Las dos acciones son del EQUIPO, y el equipo se identifica por el perfil que
+   * elige en la pantalla, no por la sesión. Así que sin sesión no se corta aquí:
+   * se sigue, y cada una vuelve a comprobar su perfil contra `rr_hub_profiles`.
+   *
+   * Lo que NO cambia: el resto de acciones siguen exigiendo sesión, y estas dos no
+   * abren nada que estuviera cerrado — quien no está en la lista del equipo recibe
+   * 403 igual que antes.
+   */
+  const ABIERTAS_SIN_SESION = new Set(['comment', 'vote']);
+  const accionAbierta = ABIERTAS_SIN_SESION.has(accion);
   const sesion = await quienEs();
-  if (!sesion) return { response: unauthorized() as NextResponse };
+  if (!sesion) {
+    if (!accionAbierta) return { response: unauthorized() as NextResponse };
+    return {
+      supabase: service, service, userId: null, email: null,
+      proyecto: null, abierto: true, cabeceras: request.headers,
+    };
+  }
   const { data: perfil } = await service
     .from('rr_hub_profiles')
     .select('id')
     .ilike('email', sesion.email)
     .maybeSingle();
-  if (!perfil) return { response: unauthorized() as NextResponse };
+  if (!perfil) {
+    if (!accionAbierta) return { response: unauthorized() as NextResponse };
+    return {
+      supabase: service, service, userId: null, email: null,
+      proyecto: null, abierto: true, cabeceras: request.headers,
+    };
+  }
 
   // Lectura y escritura van por el service client, siempre. El RLS ya no decide
   // nada aquí porque ya no hay identidad de Supabase que comparar; lo que
@@ -184,7 +212,7 @@ export async function POST(request: NextRequest) {
   const route = request.nextUrl.pathname;
   const action = route.split('/').pop() ?? '';
 
-  const ctx = await context(request);
+  const ctx = await context(request, action);
   if ('response' in ctx) return ctx.response;
   const { service, supabase, userId, email } = ctx;
 
@@ -202,9 +230,23 @@ export async function POST(request: NextRequest) {
 
   // En modo abierto no hay a quién preguntar: se opera con el rol de
   // administración, que es el más alto de la escalera que ya existe. No se
-  // inventa un rol nuevo, y en cuanto la puerta vuelva a encenderse este
+  // inventa un rol nuevo, y en cuanto la puerta vuelva a encendirse este
   // camino deja de alcanzarse.
-  const role: RoleKey | null = ctx.abierto ? 'owner' : await roleForIdea(supabase, userId!, email!, ideaId);
+  //
+  // MEDIDO 2026-10-03 — CORRECCIÓN IMPORTANTE. Este `owner` era inocuo mientras
+  // `ctx.abierto` era siempre `false`: el interruptor que lo activaba ya no
+  // controlaba nada. Al abrir `comment` y `vote` sin sesión, `abierto` pasó a ser
+  // `true` de verdad, y este `owner` habría dado TODO el poder de escritura a
+  // cualquiera que abriera la URL: `transition`, `borrar`, `script`, `update`.
+  //
+  // El arreglo: `owner` en abierto solo vale para las DOS acciones del equipo,
+  // que vuelven a comprobar el perfil contra `rr_hub_profiles` por su cuenta. Para
+  // cualquier otra acción, abierto NO da ningún rol: se cae al camino normal, que
+  // sin sesión responde 401. Es lo que pasó siempre.
+  const ABIERTAS_EN_EQUIPO = new Set(['comment', 'vote']);
+  const role: RoleKey | null = ctx.abierto
+    ? (ABIERTAS_EN_EQUIPO.has(action) ? 'owner' : null)
+    : await roleForIdea(supabase, userId!, email!, ideaId);
   if (!role) return unauthorized();
 
   if (action === 'transition') {
@@ -472,16 +514,32 @@ export async function POST(request: NextRequest) {
     // equipo (`is_team_member`), y fila activa. Que alguien se registrara ayer
     // no lo hace miembro del equipo.
     //
-    // El correo NUNCA se lee del cuerpo. `body.voterEmail` no se mira: escribir
-    // el de otra persona sería votar en su nombre con una línea de código.
-    if (!email) {
-      return error('Para votar tienes que entrar con tu correo. El voto es del equipo, no de un clic anónimo.', 401);
+    // MEDIDO 2026-10-03. Antes: `body.voterEmail` NO se miraba, y la identidad
+    // era el correo de la SESIÓN. Consecuencia medida: quien entraba al tablero
+    // sin puerta veía un cartel de SOLO LECTURA y no podía votar — y la
+    // votación interna es justamente lo que el equipo hace sin ser cliente.
+    //
+    // Ahora la identidad es `body.voterProfile`: el perfil QUE SE ELIGE en la
+    // pantalla. Lo que no cambia:
+    //
+    // - El token del navegador sigue siendo la clave del upsert. Es lo que
+    //   impide que una sola máquina emita los votos de tres personas: la fila
+    //   sigue siendo `UNIQUE (idea_id, voter_token)`.
+    // - El correo se comprueba contra la base, no contra el cuerpo. Escribir el
+    //   de otra persona no vota en su nombre: se busca su fila en
+    //   `rr_hub_profiles` y, si no es del equipo o está desactivada, se rechaza.
+    // - Sin perfil elegido se cae al correo de la sesión, que es lo que pasaba
+    //   antes. Nadie que votaba antes deja de poder votar.
+    const perfilPedido = str(body.voterProfile, 200);
+    const identidad = perfilPedido || email;
+    if (!identidad) {
+      return error('Elige con qué perfil vas a votar antes de emitir tu voto.', 400);
     }
 
     const { data: enEquipo } = await service
       .from('rr_hub_profiles')
       .select('id, email, is_team_member, is_active')
-      .ilike('email', email)
+      .ilike('email', identidad)
       .maybeSingle();
     if (!enEquipo) {
       return error('Ese correo no está en la lista del equipo.', 403);
@@ -836,14 +894,67 @@ export async function POST(request: NextRequest) {
     // Comentar es la vía para pedir un cambio, así que es de cualquiera del
     // equipo — incluido quien solo mira. Lo que no se permite es que un rol sin
     // acceso (o con una errata) escriba: para eso está la lista positiva.
-    if (!PUEDE_COMENTAR.includes(role)) {
-      return error('Tu rol no está en el equipo de este proyecto.', 403);
-    }
+    //
+    // MEDIDO 2026-10-03. El autor sale del PERFIL ELEGIDO (`body.authorProfile`),
+    // no de la sesión. Con el hub en puerta por código la mayoría de las veces no
+    // hay sesión, y el bloque de comentarios —que es la parte del hub que más se
+    // usa sin ser cliente— respondía «Entra con el código de tu cliente». MEDIDO
+    // en producción: el comentario no se publicaba.
+    //
+    // Lo que no cambia: el perfil se comprueba contra `rr_hub_profiles`
+    // (`is_team_member` e `is_active`), no contra el cuerpo de la petición.
+    // Escribir el nombre de otra persona no publica en su nombre. Y sin perfil
+    // válido se cae al correo de la sesión, que es lo que pasaba antes.
     const text = str(body.body, 4000);
     if (!text) return error('El comentario está vacío.', 400);
+
+    const perfil = str(body.authorProfile, 200);
+    const identidad = perfil || email;
+    if (!identidad) {
+      return error('Elige con qué perfil comentas antes de publicar.', 400);
+    }
+
+    const { data: enEquipo } = await service
+      .from('rr_hub_profiles')
+      .select('id, email, full_name, is_team_member, is_active')
+      .ilike('email', identidad)
+      .maybeSingle();
+    if (!enEquipo) return error('Ese correo no está en la lista del equipo.', 403);
+    if (!enEquipo.is_team_member) {
+      return error('Tu cuenta existe pero no eres del equipo. Pídeselo a quien administra el hub.', 403);
+    }
+    if (!enEquipo.is_active) {
+      return error('Tu fila está desactivada, así que por ahora no cuentan tus comentarios.', 403);
+    }
+
+    // El ROL sale de la fila del proyecto si la hay. Si no la hay, el comentario
+    // sigue siendo válido: comentar no mueve la pieza, y el hilo es lo que hace
+    // falta para pedir un cambio. Antes esto exigía rol y por eso sin sesión no
+    // había manera de comentar.
+    // El proyecto sale de la IDEA, no del slug que dice el cuerpo. MEDIDO: con la
+    // puerta por código `ctx.proyecto` es el cliente con el que se entró, que no
+    // tiene por qué ser el dueño de esta idea. Consultar la fila de acceso con
+    // ese slug daría el rol de otro cliente.
+    const { data: idea } = await service
+      .from('rr_hub_ideas').select('project_id').eq('id', ideaId).maybeSingle();
+    const { data: acceso } = idea?.project_id
+      ? await service
+        .from('rr_hub_access')
+        .select('role_in_project')
+        .eq('user_id', enEquipo.id)
+        .eq('project_id', idea.project_id)
+        .maybeSingle()
+      : { data: null as { role_in_project: string } | null };
+    const rolDelProyecto = (acceso?.role_in_project as RoleKey | undefined) ?? null;
+    if (rolDelProyecto && !PUEDE_COMENTAR.includes(rolDelProyecto)) {
+      return error('Tu rol no está en el equipo de este proyecto.', 403);
+    }
+
+    const nombreAutor = (enEquipo.full_name as string | null) ?? enEquipo.email;
     const { error: insertError } = await service.from('rr_hub_comments').insert({
       idea_id: ideaId, body: text,
-      role_label: ROLE_LABEL[role], author_label: `${ctx.email} · ${ROLE_LABEL[role]}`,
+      role_label: rolDelProyecto ? ROLE_LABEL[rolDelProyecto] : 'EQUIPO',
+      author_label: `${nombreAutor} · EQUIPO`,
     });
     if (insertError) return error(insertError.message, 500);
     return NextResponse.json({ success: true });

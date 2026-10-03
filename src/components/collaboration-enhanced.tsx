@@ -1,5 +1,6 @@
 'use client';
 
+import { useSyncExternalStore } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   addComment,
@@ -12,6 +13,8 @@ import {
   type TimelineEvent,
 } from '@/lib/workspace-client';
 import { statusMeta } from '@/lib/flow';
+import { emailElegido, esDelEquipo, perfilElegido, suscribirPerfil } from '@/lib/perfil-votante';
+import { SelectorPerfil } from '@/components/selector-perfil';
 
 const stageOptions: Array<{ value: AssetStage; label: string }> = [
   { value: 'reference_brief', label: 'REFERENCIA / BRIEF' },
@@ -37,6 +40,12 @@ interface EnhancedIdeaCollaborationProps {
   comentariosIniciales: IdeaComment[];
   assetsIniciales: IdeaAsset[];
   timelineInicial: TimelineEvent[];
+  /**
+   * Las personas del equipo, para el selector de perfil. MEDIDO 2026-10-03: sin
+   * esto el bloque de comentarios era la parte del hub que no funcionaba sin
+   * sesión, y el hilo es justamente lo que el equipo usa sin ser cliente.
+   */
+  equipo?: { email: string; nombre: string }[];
 }
 
 /**
@@ -46,13 +55,20 @@ interface EnhancedIdeaCollaborationProps {
  * - Barra de progreso básica
  * - Comentarios con estado en vivo
  */
-export function EnhancedIdeaCollaboration({ projectSlug, ideaId, comentariosIniciales, assetsIniciales, timelineInicial }: EnhancedIdeaCollaborationProps) {
+export function EnhancedIdeaCollaboration({ projectSlug, ideaId, comentariosIniciales, assetsIniciales, timelineInicial, equipo = [] }: EnhancedIdeaCollaborationProps) {
   // Arrancan con lo que leyó el servidor, para que la ficha se pinte con su
   // contenido en el primer render y no con tres listas vacías.
   const [comments, setComments] = useState<IdeaComment[]>(comentariosIniciales);
   const [assets, setAssets] = useState<IdeaAsset[]>(assetsIniciales);
   const [text, setText] = useState('');
   const [showResolved, setShowResolved] = useState(false);
+  /**
+   * MEDIDO 2026-10-03: sin perfil elegido el comentario no se publica. Antes
+   * el botón se activaba, se pulsaba y el servidor respondía «Entra con el código
+   * de tu cliente». Ahora se explica antes de intentarlo.
+   */
+  const perfilActual = useSyncExternalStore(suscribirPerfil, perfilElegido, () => null);
+  const puedeComentar = esDelEquipo(perfilActual?.email ?? '', equipo);
   const [stage, setStage] = useState<AssetStage>('reference_brief');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -94,7 +110,19 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId, comentariosInic
     event.preventDefault();
     if (!text.trim()) return;
     setBusy(true);
-    const { error } = await addComment({ ideaId, body: text.trim(), roleLabel: 'RR ALIADOS' });
+    /**
+     * MEDIDO 2026-10-03. Esto fallaba con «Entra con el código de tu cliente y con
+     * un correo de la lista», que es exactamente lo que ve el equipo con el hub
+     * en puerta por código. El comentario exigía sesión, y el hilo —que es lo
+     * que más se usa sin ser cliente— quedaba sin poder usarse.
+     *
+     * Ahora el autor sale del perfil elegido, el mismo que usa la votación. El
+     * servidor lo vuelve a comprobar contra `rr_hub_profiles`; escribir el
+     * nombre de otra persona en el cuerpo no publica en su nombre.
+     */
+    const { error } = await addComment({
+      ideaId, body: text.trim(), authorProfile: emailElegido(), roleLabel: 'RR ALIADOS',
+    });
     setBusy(false);
     if (error) { 
       setNotice(`No se publicó el comentario: ${error}`); 
@@ -213,6 +241,23 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId, comentariosInic
         )}
       </div>
 
+      {/* MEDIDO 2026-10-03. El selector va AQUÍ, pegado al campo, y no en un
+          menú del perfil general. Publicar en el hilo es la vía para pedir un
+          cambio —es lo que más se usa sin ser cliente—, y antes exigía sesión sin
+          decir dónde conseguirla. El error decía «Entra con el código de tu
+          cliente», que en el hub sin puerta no lleva a ninguna parte. */}
+      {equipo.length > 0 && (
+        <div className="mb-3">
+          <SelectorPerfil equipo={equipo} slug={projectSlug} />
+        </div>
+      )}
+      {!puedeComentar && (
+        <p className="mb-3 border-l-4 border-l-mostaza bg-mostaza-05 px-3 py-2 text-sm leading-6 text-mostaza">
+          Elige con qué perfil del equipo comentas. Sin perfil no se puede publicar
+          en el hilo.
+        </p>
+      )}
+
       <form 
         onSubmit={submitComment} 
         className="mt-4 border-t border-blanco-20 pt-3"
@@ -232,7 +277,7 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId, comentariosInic
         </div>
         <div className="mt-2 flex justify-end">
           <button
-            disabled={busy || !text.trim()}
+            disabled={busy || !text.trim() || (equipo.length > 0 && !puedeComentar)}
             className="btn-brutal text-[10px] px-3 py-1.5 disabled:opacity-50 transition-transform hover:scale-[1.02]"
           >
             {busy ? 'ENVIANDO…' : 'ENVIAR COMENTARIO →'}

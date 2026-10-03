@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { getIdea, getProject, getProfileName, getVotos, getPresencia, getComentarios, getAssets, getTimeline, getCoverDelAnuncio } from '@/lib/data';
+import { getIdea, getProject, getProfileName, getVotos, getPresencia, getEquipoVotante, getComentarios, getAssets, getTimeline, getCoverDelAnuncio } from '@/lib/data';
 import { rolEnProyecto } from '@/lib/project-guard';
 import { StatusBadge, STATUS_ICON } from '@/components/status-badge';
 import { IdeaActions } from '@/components/idea-actions';
@@ -8,6 +8,7 @@ import { AssignOwner } from '@/components/assign-owner';
 import { IdeaEditor } from '@/components/idea-editor';
 import { IdeaVoting } from '@/components/idea-voting';
 import { PanelPresencia } from '@/components/presencia-equipo';
+import { SelectorPerfil } from '@/components/selector-perfil';
 import { ReferenceWithBrief } from '@/components/reference-with-brief';
 import { fechaEs, cuantoPara } from '@/lib/fecha-salida';
 import { IdeaCoverFrame } from '@/components/ui/idea-cover-frame';
@@ -48,6 +49,9 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
   // la página no puede exponer quién votó aunque quiera mostrarlo.
   const votos = await getVotos(ideaId);
   const presencia = await getPresencia();
+  // MEDIDO 2026-10-03: el selector de perfil necesita el equipo de `rr_hub_profiles`,
+  // no el de `rr_hub_presencia`, que solo dice quien se ha conectado.
+  const equipo = await getEquipoVotante();
   // Comentarios, archivos e historial llegan desde aqui, no desde el navegador:
   // el cliente anon ya no lee esas tablas y llegaban vacios sin dar error.
   const [comentarios, assets, timeline] = await Promise.all([
@@ -123,7 +127,21 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
         {/* La votación va pegada a la acción porque en `voting` ES la acción:
             quien entra a mirar la idea viene a decidir, no a leer. */}
         <div className="mt-5">
-          <IdeaVoting ideaId={ideaId} status={idea.status} inicial={{ aFavor: votos.aFavor, enContra: votos.enContra, detalle: votos.detalle }} />
+          {/* El selector va PEGADO a la votación y no en el menú del perfil, que
+              es donde vive el resto de identidad. MEDIDO 2026-10-03: el equipo
+              llegaba al tablero sin puerta y veía un cartel de SOLO LECTURA. La
+              votación interna es lo que el equipo hace sin ser cliente: tener
+              que abrir un menú para poder votar era la razón de que no se votara. */}
+          <div className="mb-4">
+            <SelectorPerfil equipo={equipo} slug={projectSlug} />
+          </div>
+          <IdeaVoting
+            ideaId={ideaId}
+            status={idea.status}
+            slug={projectSlug}
+            equipo={equipo}
+            inicial={{ aFavor: votos.aFavor, enContra: votos.enContra, detalle: votos.detalle }}
+          />
         </div>
         {/* Quién está en línea, pegado a la votación: es la pregunta que se hace
             justo antes de votar ("¿a quién le pregunto?"). */}
@@ -242,6 +260,7 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
               comentariosIniciales={comentarios}
               assetsIniciales={assets}
               timelineInicial={timeline}
+              equipo={equipo}
             />
           </div>
         </section>

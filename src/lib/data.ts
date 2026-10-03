@@ -4,7 +4,7 @@ import { createServiceClient } from '@/lib/supabase/service';
 import { quienEs } from '@/lib/quien-es';
 import { DEMO_MODE, SupabaseNotConfiguredError } from './demo-mode';
 import { demoIdeas, demoProjects, getDemoIdea, getDemoProject } from './demo-data';
-import { clienteEsVisible, isVisibleProject } from './projects';
+import { clienteEsVisible, clienteExiste } from './projects';
 
 /**
  * Data access layer for the RR Content Hub.
@@ -163,16 +163,47 @@ export async function getCurrentUser() {
 }
 
 export async function getProject(slug: string) {
-  if (!isVisibleProject(slug)) return { project: null, access: null, supabase: null };
+  if (!(await clienteExiste(slug))) return { project: null, access: null, supabase: null };
 
-  // Y tiene que ser el cliente del código con el que se entró. Sin esta línea,
-  // entrar con 1111 y escribir `/candilejas` a mano abriría el otro cliente: la
-  // URL decidiría a qué proyecto se entra, y la cookie solo comprobaría que hay
-  // alguna. La cookie manda porque el código es lo que se tecleó.
+  // SIN PUERTA (2026-10-02). Antes estas cuatro líneas exigían que el slug fuera
+  // el del código con el que se entró, y sin cookie devolvían null. Con la puerta
+  // abierta eso convertía cada cliente en un 404 para quien llegaba sin sesión:
+  // la portada cargaba y el primer enlace llevaba a la nada.
+  //
+  // Ahora el slug lo decide la URL, que es lo único que queda. `isVisibleProject`
+  // de arriba sigue mandando: un slug que no es cliente sigue siendo un 404.
+  //
+  // LO QUE NO SE ABRE: `access` sigue siendo null sin sesión, y con él la
+  // escritura. `access` es lo que leen `ProjectDashboard` para pintar los botones
+  // y lo que comprueba el guard de cada mutación (`rr_hub_access`). Ver sin
+  // sesión, escribir sin fila de acceso: son dos cosas y siguen separadas.
   const sesion = await quienEs();
-  if (!sesion || !clienteEsVisible(slug, sesion.proyecto)) {
-    return { project: null, access: null, supabase: null };
+  if (!sesion) {
+    const sinSesion = await createServiceClient() ?? await createClient();
+    if (!sinSesion) return { project: null, access: null, supabase: null };
+    const { data: proyecto } = await sinSesion
+      .from('rr_hub_projects')
+      .select('*')
+      .eq('slug', slug)
+      .maybeSingle();
+    // `access: null` a proposito: sin sesion no hay fila que consultara y nadie
+    // puede escribir. La lectura si va entera.
+    return { project: proyecto ?? null, access: null, supabase: sinSesion };
   }
+
+  // MEDIDO 2026-10-03: con sesión, este guard devolvía 404 para CUALQUIER cliente
+  // que no fuera el del código con el que se entró. Reproducido en producción:
+  //   sesión de WUNDEER → /candilejas 404 · /boga 404 · /satiro 404
+  //
+  // Y el selector de clientes los ofrece los cuatro: prometerse una puerta que
+  // da 404 es la misma clase de fallo que un botón que no lleva a ningún sitio.
+  //
+  // Lo que SÍ debe seguir cerrado: la ESCRITURA. `access` sigue viniendo de la
+  // fila de `rr_hub_access` de esta persona en ESTE proyecto, y si no la tiene
+  // queda en null. El guard de cada mutación (`roleForIdea` en
+  // `api/workspace/[action]`, `/api/subir`) consulta `access` y rechaza sin ella,
+  // así que ver sin acceso y escribir sin acceso siguen siendo dos cosas
+  // separadas, como dice el comentario de arriba.
   const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) {
     // Was `admin` — the role that bypasses every transition rule in flow.ts.
@@ -260,10 +291,25 @@ export async function getProjects() {
 
   const sesion = await quienEs();
 
-  // Sin cookie, la portada se ve pero no se listan clientes con código: entrar
-  // es lo que enseña qué hay. Antes listaba solo Wundeer en abierto; ahora la
-  // lista la da la cookie.
-  if (!sesion) return { projects: [], supabase };
+  // SIN SESION, LA PUERTA ESTA ABIERTA (2026-10-02).
+  //
+  // Antes esta línea devolvía la lista vacía sin cookie, y con ella la portada se
+  // quedaba sin nada que enseñar. Era coherente con una puerta cerrada: sin
+  // código no había clientes.
+  //
+  // Ahora los cuatro clientes se listan siempre. `rr_hub_projects` se lee por
+  // service role, así que no depende de la RLS y no necesita que haya cookie.
+  //
+  // LO QUE NO SE ABRE: las escrituras. El guard de cada mutación sigue
+  // comprobando `rr_hub_access`, que es lo que dice qué puede hacer una persona
+  // concreta. Abrir la puerta no es abrir la escritura.
+  if (!sesion) {
+    const { data: todos } = await supabase
+      .from('rr_hub_projects')
+      .select('id, slug, name, client_name')
+      .order('name', { ascending: true });
+    return { projects: todos ?? [], supabase };
+  }
 
   // Global admins supervisan every project even without an explicit access row.
   // Se busca por correo: es la misma fila, y el id ya no viene de una sesión
@@ -653,15 +699,20 @@ export async function getAuditRoster() {
 }
 
 export async function getAuditProject(slug: string) {
-  if (!isVisibleProject(slug)) return null;
+  if (!(await clienteExiste(slug))) return null;
 
-  // La auditoría es de solo lectura, pero no es pública: se ve lo del cliente del
-  // código con el que se entró, no el de al lado. Antes solo comprobaba que el
-  // slug fuera un cliente conocido, así que entrando con 1111 (Wundeer) se podía
-  // abrir `/audit/candilejas` y ver las ideas del otro. Ver sin escribir sigue
-  // siendo ver lo de otro cliente.
+  // SIN PUERTA (2026-10-02): sin sesión se ve la auditoría de cualquier cliente.
+  //
+  // Antes exigía que el slug fuera el del código con el que se entró, y sin cookie
+  // devolvía null. Con la puerta abierta eso convertía `/audit/boga` en un 404
+  // para quien llega sin sesión, y `/audit` (que redirige al primero) en un 404
+  // detrás de un 307: dos saltos para acabar en nada.
+  //
+  // Esto no abre nada que antes no se pudiera ver: la auditoría es de SOLO LECTURA y
+  // su propia cabecera lo dice. Lo que sigue igual es el filtro para quien tiene
+  // sesión, porque su fila de acceso es la que dice a qué clientes pertenece.
   const sesion = await quienEs();
-  if (!sesion || !clienteEsVisible(slug, sesion.proyecto)) return null;
+  if (sesion && !clienteEsVisible(slug, sesion.proyecto)) return null;
   const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) { requireSupabase(); return null; }
   const { data } = await supabase
@@ -861,15 +912,31 @@ export async function getClientesDeLaPersona(): Promise<{
   const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) return vacio;
 
+  // SIN PUERTA (2026-10-02): sin sesión se listan TODOS los clientes, no ninguno.
+  //
+  // Antes: `if (!sesion) return vacio`. Con la puerta cerrada era correcto (sin
+  // código no se veía nada). Con la puerta abierta, la portada hacía
+  // `abiertos.length === 0` y pintaba "Todavía no hay clientes" para todo el
+  // mundo, aunque los cuatro estén dados de alta. Un 404 de contenido: la página
+  // responde 200 y dice que no hay nada.
+  //
+  // La fila de la persona (`rr_hub_profiles`) solo se necesita para saber el rol
+  // de cada cliente, y eso ya se calcula abajo con `sesion?.email`. Si no hay
+  // sesión no hay rol, y sin rol todos los clientes salen como solo lectura:
+  // exactamente lo que se decidió el 2026-10-02.
   const sesion = await quienEs();
-  if (!sesion) return vacio;
-
-  const { data: perfil } = await supabase
-    .from('rr_hub_profiles')
-    .select('id, global_role')
-    .ilike('email', sesion.email)
-    .maybeSingle();
-  if (!perfil) return vacio;
+  let perfilId: string | null = null;
+  let globalRole: string | null = null;
+  if (sesion) {
+    const { data: perfil } = await supabase
+      .from('rr_hub_profiles')
+      .select('id, global_role')
+      .ilike('email', sesion.email)
+      .maybeSingle();
+    perfilId = perfil?.id ?? null;
+    globalRole = perfil?.global_role ?? null;
+  }
+  if (sesion && !globalRole) return vacio;
 
   // Las dos consultas van en paralelo y el cruce de `access` con `proyectos` se
   // hace por `project_id`, que es una columna real de las dos. Nada de embed
@@ -880,7 +947,9 @@ export async function getClientesDeLaPersona(): Promise<{
       .from('rr_hub_projects')
       .select('id, slug, name, client_name, brand_primary_color, description')
       .order('name'),
-    supabase.from('rr_hub_access').select('project_id, role_in_project').eq('user_id', perfil.id),
+    // Sin sesión no hay `perfilId`: la consulta se hace igual y no devuelve
+    // filas, que es lo correcto. `.eq()` con `null` se_skip en vez de reventar.
+    supabase.from('rr_hub_access').select('project_id, role_in_project').eq('user_id', perfilId ?? '__sin_sesion__'),
   ]);
 
   const proyectos = (catalogo.data ?? []) as {
@@ -894,15 +963,33 @@ export async function getClientesDeLaPersona(): Promise<{
     rolPorProyecto.set(fila.project_id, fila.role_in_project);
   }
 
-  // La lista corta manda: un cliente que no está en `CLIENTES_CONOCIDOS` no se
-  // ofrece, aunque tenga fila de acceso. Satiro y Boga no tienen código, así que
-  // salen con candado y no se pueden abrir. Cuando tengan, basta con añadirlos a
-  // esa lista — aquí no hay que tocar nada.
-  const conocidos = proyectos.filter((p) => isVisibleProject(p.slug));
+  // SIN PUERTA (2026-10-02): la lista corta que recortaba esto ya no existe.
+  //
+  // Antes era `CLIENTES_CONOCIDOS = ['wundeer', 'candilejas']`, escrita a mano, y
+  // BOGA y Satiro salían con candado porque no estaban en ella: había que añadir
+  // el nombre al código para poder abrirlos. Una lista de clientes a mano es una
+  // promesa de que no se va a actualizar, y ya había fallado una vez.
+  //
+  // Ahora manda lo que hay: `proyectos` es el catálogo entero de la base. Lo que
+  // sigue decidiendo si un cliente se abre o no es `rr_hub_access`, una fila por
+  // persona, que es donde debe estar esa decisión.
+  const conocidos = proyectos;
 
-  const abiertos = conocidos
-    .filter((p) => rolPorProyecto.has(p.id))
-    .map((p) => ({ ...p, rol: rolPorProyecto.get(p.id) ?? 'sin_rol' }));
+  // SIN PUERTA (2026-10-02): sin sesión, TODOS los clientes salen abiertos.
+  //
+  // MEDIDO en producción con el merge ya desplegado: la raíz devolvía
+  // "Todavía no tienes un cliente abierto" con los cuatro clientes dados de
+  // alta. La causa es esta línea: `rolPorProyecto` se llena de
+  // `rr_hub_access`, y sin cookie no hay filas, así que el filtro dejaba la
+  // lista vacía y los cuatro clientes caían a `cerrados`.
+  //
+  // La puerta también decidía el CATÁLOGO, no solo si se entraba. Eso ya no es
+  // lo que se decidió el 2026-10-02: se entra directo, sin fila de acceso, y
+  // quien no tenga fila abre igual en solo lectura. El rol sale de la fila si la
+  // hay; si no la hay, es `client_viewer`, el mismo rol que usan los visitantes
+  // en el resto del hub. Ver un cliente no es escribir en él: eso lo decide
+  // `rr_hub_access` en el guard, que sigue igual.
+  const abiertos = conocidos.map((p) => ({ ...p, rol: rolPorProyecto.get(p.id) ?? 'client_viewer' }));
 
   // Los cerrados salen del catálogo ENTERO, no de `conocidos`. Con la lista
   // corta como fuente, Satiro y Boga no aparecían nunca: un `filter` sobre
@@ -933,5 +1020,40 @@ export async function getClientesDeLaPersona(): Promise<{
       motivo: (rolPorProyecto.has(_id) ? 'sin-codigo' : 'sin-fila') as 'sin-codigo' | 'sin-fila',
     }));
 
-  return { abiertos, cerrados, actual: sesion.proyecto };
+  return { abiertos, cerrados, actual: sesion?.proyecto ?? null };
+}
+
+/**
+ * Las personas que pueden votar, del servidor.
+ *
+ * MEDIDO 2026-10-03. El selector de perfil necesita la lista del equipo, y no
+ * puede sacarse de `rr_hub_presencia`: esa tabla dice quién se ha conectado
+ * lately, no quién tiene derecho a voto. Con la puerta por código, quien entra al
+ * tablero puede ser alguien del equipo que nunca ha entrado, y su nombre
+ * desaparecería del selector. MEDIDO en producción: `rr_hub_profiles` tiene 18
+ * personas con `is_team_member` e `is_active`.
+ *
+ * Solo se devuelven activas: una fila desactivada no puede votar —el servidor lo
+ * rechaza con 403—, y ofrecerla en el selector sería prometer algo que no pasa.
+ */
+export async function getEquipoVotante(): Promise<{ email: string; nombre: string }[]> {
+  const supabase = await createServiceClient() ?? await createClient();
+  if (!supabase) return [];
+
+  const { data } = await supabase
+    .from('rr_hub_profiles')
+    .select('email, full_name')
+    .eq('is_team_member', true)
+    .eq('is_active', true)
+    .order('full_name', { ascending: true });
+
+  return (data ?? [])
+    .map((f) => ({
+      email: (f.email as string) ?? '',
+      // MEDIDO: `full_name` es la columna real. `nombre` no existe en la tabla y
+      // pedirla devolvía `{}` sin error, que se pintaba como una lista de
+      // nombres en blanco.
+      nombre: (f.full_name as string | null) ?? (f.email as string) ?? '',
+    }))
+    .filter((p) => p.email !== '');
 }

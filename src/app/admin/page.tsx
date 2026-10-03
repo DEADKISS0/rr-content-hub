@@ -7,5 +7,7 @@ export default async function AdminPage() {
   // echaba a Wundeer. Ahora sale el cliente de la cookie, que es el único sitio
   // donde se sabe cuál es.
   const sesion = await quienEs();
-  redirect(sesion?.proyecto ? `/${sesion.proyecto}` : '/login');
+  // `/login` ya no existe (2026-10-02): sin cliente en la cookie se va a la
+  // portada, que es donde está el catálogo. Antes esto devolvía un 404.
+  redirect(sesion?.proyecto ? `/${sesion.proyecto}` : '/');
 }

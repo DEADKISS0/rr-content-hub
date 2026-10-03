@@ -124,7 +124,7 @@ export function BoardControls({
                       type="button"
                       onClick={() => onChange({ view })}
                       aria-pressed={active}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 font-mono text-xs transition-colors ${active ? 'bg-blanco text-negro' : 'text-blanco-60 hover:text-blanco'}`}
+                      className={`inline-flex min-h-[44px] items-center gap-1.5 px-3 py-1.5 font-mono text-xs transition-colors ${active ? 'bg-blanco text-negro' : 'text-blanco-60 hover:text-blanco'}`}
                     >
                       <Icon name={view === 'map' ? 'grid' : 'list'} size={13} />
                       {view === 'map' ? 'TARJETAS' : 'LISTA'}
@@ -138,7 +138,7 @@ export function BoardControls({
                   type="button"
                   onClick={() => onChange({ act: 'all' })}
                   aria-pressed={filters.act === 'all'}
-                  className={`border px-2.5 py-1.5 font-mono text-xs uppercase tracking-[0.06em] transition-colors ${filters.act === 'all' ? 'border-blanco bg-blanco text-negro' : 'border-blanco-20 text-blanco-60 hover:border-blanco hover:text-blanco'}`}
+                  className={`inline-flex min-h-[44px] items-center border px-2.5 py-1.5 font-mono text-xs uppercase tracking-[0.06em] transition-colors ${filters.act === 'all' ? 'border-blanco bg-blanco text-negro' : 'border-blanco-20 text-blanco-60 hover:border-blanco hover:text-blanco'}`}
                 >
                   TODOS
                 </button>
@@ -150,7 +150,7 @@ export function BoardControls({
                       type="button"
                       onClick={() => onChange({ act: active ? 'all' : group.key, phase: 'all' })}
                       aria-pressed={active}
-                      className={`border px-2.5 py-1.5 font-mono text-xs uppercase tracking-[0.06em] transition-colors ${active ? 'border-blanco bg-blanco text-negro' : 'border-blanco-20 text-blanco-60 hover:border-blanco hover:text-blanco'}`}
+                      className={`inline-flex min-h-[44px] items-center border px-2.5 py-1.5 font-mono text-xs uppercase tracking-[0.06em] transition-colors ${active ? 'border-blanco bg-blanco text-negro' : 'border-blanco-20 text-blanco-60 hover:border-blanco hover:text-blanco'}`}
                     >
                       {group.label}
                     </button>
@@ -172,7 +172,7 @@ export function BoardControls({
                       type="button"
                       onClick={() => onChange({ category: 'all' })}
                       aria-pressed={filters.category === 'all'}
-                      className={`border px-2.5 py-1.5 font-mono text-xs uppercase tracking-[0.06em] transition-colors ${filters.category === 'all' ? 'border-orquidea bg-orquidea text-blanco' : 'border-blanco-20 text-blanco-60 hover:border-blanco hover:text-blanco'}`}
+                      className={`inline-flex min-h-[44px] items-center border px-2.5 py-1.5 font-mono text-xs uppercase tracking-[0.06em] transition-colors ${filters.category === 'all' ? 'border-orquidea bg-orquidea text-blanco' : 'border-blanco-20 text-blanco-60 hover:border-blanco hover:text-blanco'}`}
                     >
                       TODAS
                     </button>
@@ -185,7 +185,7 @@ export function BoardControls({
                           onClick={() => onChange({ category: activa ? 'all' : arista.valor })}
                           aria-pressed={activa}
                           title={`${arista.n} ${arista.n === 1 ? 'pieza' : 'piezas'}`}
-                          className={`border px-2.5 py-1.5 font-mono text-xs uppercase tracking-[0.06em] transition-colors ${activa ? 'border-orquidea bg-orquidea text-blanco' : 'border-blanco-20 text-blanco-60 hover:border-blanco hover:text-blanco'}`}
+                          className={`inline-flex min-h-[44px] items-center border px-2.5 py-1.5 font-mono text-xs uppercase tracking-[0.06em] transition-colors ${activa ? 'border-orquidea bg-orquidea text-blanco' : 'border-blanco-20 text-blanco-60 hover:border-blanco hover:text-blanco'}`}
                         >
                           {arista.valor}
                           <span className={activa ? 'text-blanco-70' : 'text-blanco-40'}> · {arista.n}</span>
@@ -202,7 +202,7 @@ export function BoardControls({
             <button
               type="button"
               onClick={() => onChange({ query: '', phase: 'all', act: 'all' })}
-              className="anim-pop inline-flex items-center gap-1 border border-blanco-20 px-2.5 py-1.5 font-mono text-xs text-blanco-60 transition-colors hover:border-blanco-40 hover:bg-blanco-10 hover:text-blanco"
+              className="anim-pop inline-flex min-h-[44px] items-center gap-1 border border-blanco-20 px-2.5 py-1.5 font-mono text-xs text-blanco-60 transition-colors hover:border-blanco-40 hover:bg-blanco-10 hover:text-blanco"
             >
               <Icon name="close" size={12} /> VER TODAS OTRA VEZ
             </button>

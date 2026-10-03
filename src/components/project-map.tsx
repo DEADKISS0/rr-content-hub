@@ -303,6 +303,7 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
                           {idea.status === 'voting' && (
                             <VoteQuick
                               ideaId={idea.id}
+                              slug={projectSlug}
                               inicial={{ aFavor: idea.aFavor ?? 0, enContra: idea.enContra ?? 0 }}
                             />
                           )}

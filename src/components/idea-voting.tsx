@@ -1,9 +1,11 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useSyncExternalStore } from 'react';
 import { voteIdea, type VotoResultado } from '@/lib/workspace-client';
 import { estadoVotacion, votosParaDecidir, VOTOS_NECESARIOS, type DecisionVoto } from '@/lib/flow';
 import { Icon, type IconName } from '@/components/ui/icons';
+import { emailElegido, esDelEquipo, perfilElegido, suscribirPerfil } from '@/lib/perfil-votante';
+import { useVotosEnVivo } from '@/lib/use-votos-vivo';
 
 /**
  * Votación interna de una idea.
@@ -42,16 +44,44 @@ import { Icon, type IconName } from '@/components/ui/icons';
 export function IdeaVoting({
   ideaId,
   status,
+  slug,
+  equipo,
   inicial,
 }: {
   ideaId: string;
   status: string;
+  /** El cliente, para preguntar por sus votaciones en vivo. */
+  slug: string;
+  /** Las personas que pueden votar, para el selector de perfil. */
+  equipo: { email: string; nombre: string }[];
   /** Conteo que llega del servidor al pintar la ficha. */
   inicial: { aFavor: number; enContra: number; detalle?: DecisionVoto[] };
 }) {
-  const [aFavor, setAFavor] = useState(inicial.aFavor);
-  const [enContra, setEnContra] = useState(inicial.enContra);
-  const [cambios, setCambios] = useState(0);
+  /**
+   * MEDIDO 2026-10-03. El conteo venía de `useState(inicial)` y se quedaba en el
+   * número que el servidor mandó al pintar. Votaba una persona y las demás
+   * seguían viendo el viejo hasta recargar.
+   *
+   * Ahora el hook pregunta cada 10 s y solo repinta si el número cambió. Los
+   * `setAFavor`/`setEnContra` de después de votar siguen existiendo para el
+   * instante entre el clic y la siguiente pregunta: el voto propio se ve al
+   * instante, sin esperar al siguiente turno del intervalo.
+   */
+  const { conteo, minimo: minimoVivo, hayCambio } = useVotosEnVivo(
+    slug,
+    ideaId,
+    {
+      aFavor: inicial.aFavor,
+      enContra: inicial.enContra,
+      cambios: inicial.detalle?.filter((d) => d === 'change').length ?? 0,
+      total: inicial.aFavor + inicial.enContra,
+      ultimo: null,
+    },
+  );
+
+  const [aFavor, setAFavor] = useState<number | null>(null);
+  const [enContra, setEnContra] = useState<number | null>(null);
+  const [cambios, setCambios] = useState<number | null>(null);
   // La respuesta de cada persona, para pintar un emoji por persona en vez de un
   // número suelto. Llega del servidor; aquí no se cuenta nada.
   const [detalle, setDetalle] = useState<DecisionVoto[]>(inicial.detalle ?? []);
@@ -67,15 +97,36 @@ export function IdeaVoting({
   const [pidiendo, setPidiendo] = useState<'change' | 'note' | null>(null);
   const [texto, setTexto] = useState('');
 
-  const total = aFavor + enContra;
+  /**
+   * El número que se PINTA. El voto propio manda sobre el del servidor: entre
+   * que se pulsa y el siguiente turno del intervalo, este número es el nuevo y
+   * el otro todavía es el viejo. Al revés se vería un rebote al número
+   * anterior, que es peor que esperar diez segundos.
+   */
+  const aFavorPintado = aFavor ?? conteo.aFavor;
+  const enContraPintado = enContra ?? conteo.enContra;
+  const cambiosPintados = cambios ?? conteo.cambios;
+  const total = aFavorPintado + enContraPintado;
   // La regla vive en el dominio: aquí solo se pinta lo que ya decidió. Si el
   // mínimo cambia en `flow.ts`, esta pantalla no se toca.
-  const comoVa = estadoVotacion(aFavor, enContra);
-  const faltan = votosParaDecidir(aFavor, enContra);
+  const comoVa = estadoVotacion(aFavorPintado, enContraPintado);
+  const faltan = votosParaDecidir(aFavorPintado, enContraPintado);
 
   // Solo hay algo que hacer en `voting`. En cualquier otro estado el bloque
   // informa, o desaparece si nunca hubo votación.
   const abierto = status === 'voting';
+  /**
+   * MEDIDO 2026-10-03: el perfil se elige en el navegador y se recuerda. Sin
+   * perfil no se emite: es preferible un aviso a un voto que se pierde.
+   *
+   * `puedeVotar` se DERIVA, no se guarda en estado. Estaba en un `useEffect` con
+   * `setState`, y el linter lo marcaba: setState síncrono dentro de un efecto
+   * puede encadenar renders. Con `useSyncExternalStore` no hay estado que
+   * sincronizar —el perfil elegido ES el estado— y el servidor lo comprueba
+   * igual en cada voto, así que esto solo decide si el botón se explica o no.
+   */
+  const perfilActual = useSyncExternalStore(suscribirPerfil, perfilElegido, () => null);
+  const puedeVotar = esDelEquipo(perfilActual?.email ?? '', equipo);
 
   const votar = useCallback(async (decision: DecisionVoto, nota = '') => {
     if (enviando) return;
@@ -83,7 +134,7 @@ export function IdeaVoting({
     setFallo('');
     setAviso('');
 
-    const resultado: VotoResultado = await voteIdea(ideaId, decision, nota);
+    const resultado: VotoResultado = await voteIdea(ideaId, decision, nota, emailElegido());
     setEnviando(false);
 
     if (resultado.error) { setFallo(resultado.error); return; }
@@ -149,7 +200,7 @@ export function IdeaVoting({
               "1 a favor" se leería como que va ganando y no es así: está
               incompleta. La línea de debajo dice si falta y cuánto. */}
           {abierto && comoVa === 'esperando' && total > 0 && (
-            <span className="text-mostaza"> · FALTAN {faltan}</span>
+            <span className="text-mostaza"> · FALTAN {faltan ?? 0}</span>
           )}
         </p>
       </div>
@@ -157,13 +208,13 @@ export function IdeaVoting({
       {/* El contador va con palabras además de con cifras: si alguien no
           distingue fucsia de mostaza, "3 a favor / 1 en contra" sigue leyéndose. */}
       <div className="mt-4 flex items-baseline gap-5">
-        <p className="font-display text-4xl font-bold text-orquidea">{aFavor}</p>
+        <p className="font-display text-4xl font-bold text-orquidea">{aFavorPintado}</p>
         <p className="font-mono text-[10px] uppercase tracking-wide text-blanco-50">
           a favor
           <br />
           <span className="text-blanco-40">sale si gana</span>
         </p>
-        <p className="ml-auto font-display text-4xl font-bold text-blanco-40">{enContra}</p>
+        <p className="ml-auto font-display text-4xl font-bold text-blanco-40">{enContraPintado}</p>
         <p className="font-mono text-[10px] uppercase tracking-wide text-blanco-50">
           en contra
           <br />
@@ -198,9 +249,22 @@ export function IdeaVoting({
         <>
           <p className="mt-4 text-xs leading-5 text-blanco-60">
             Sale al cliente con más votos a favor que en contra, y hacen falta{' '}
-            {VOTOS_NECESARIOS} votos para que la votación decida. Puedes cambiar tu
+            {minimoVivo} votos para que la votación decida. Puedes cambiar tu
             voto: el último vale.
           </p>
+
+          {/* El cambio de otra persona, sin recargar. MEDIDO 2026-10-03: antes el
+              número era el del servidor al pintar y se quedaba viejo. El aviso
+              aparece solo si el número cambió de verdad, y se apaga solo. */}
+          {hayCambio && (
+            <p
+              role="status"
+              className="mt-3 border-l-4 border-l-orquidea bg-blanco-05 px-3 py-2 text-sm leading-6 text-blanco-80 anim-pop"
+            >
+              Alguien más acaba de votar. Ahora va {conteo.aFavor} a favor y{' '}
+              {conteo.enContra} en contra.
+            </p>
+          )}
 
           {/* Las cuatro respuestas, con su icono. Santiago, 2026-09-29: "cuando
               votas que sí, tu voto se va reflejado como un emoji de manito hacia
@@ -211,11 +275,22 @@ export function IdeaVoting({
               equipo avanza), el pulgar abajo es blanco roto (no sale), el 6-7 es
               mostaza (pide un cambio) y la nota es gris (no cuenta). Que se
               distinguan sin leer es el objetivo. */}
-          <div className="mt-4 grid gap-px bg-blanco-10 sm:grid-cols-2">
+          {/* MEDIDO 2026-10-03: quien entraba sin puerta veía el bloque entero
+              como un cartel de SOLO LECTURA y no podía votar. El botón que se
+              vé para los dos casos es el que explica: sin perfil no se puede
+              emitir, y se dice por qué en vez de dejar un botón que falla. */}
+          {!puedeVotar && (
+            <p className="mt-4 border-l-4 border-l-mostaza bg-mostaza-05 px-3 py-2 text-sm leading-6 text-mostaza">
+              Para votar, elige con qué perfil del equipo estás.emitiendo este
+              voto. Está arriba a la derecha.
+            </p>
+          )}
+
+          <div className="mt-4 grid gap-px bg-blanco-10 sm:grid-cols-2" aria-disabled={!puedeVotar}>
             <BotonVoto
               icono="pulgar-arriba"
               texto="SÍ, SALE"
-              ayuda={`Tu sí. Hacen falta ${VOTOS_NECESARIOS} para que decida.`}
+              ayuda={`Tu sí. Hacen falta ${minimoVivo} para que decida.`}
               onClick={() => votar('yes')}
               enviado={enviando}
               destacado={false}
@@ -296,18 +371,18 @@ export function IdeaVoting({
             </div>
           )}
 
-          {cambios > 0 && !pidiendo && (
+          {cambiosPintados > 0 && !pidiendo && (
             <p className="mt-4 border-l-4 border-l-mostaza bg-mostaza-05 px-3 py-2 text-sm leading-6 text-mostaza">
-              {cambios === 1
+              {cambiosPintados === 1
                 ? 'Alguien pidió cambiar algo. La idea está en revisión interna hasta que se aplique.'
-                : `${cambios} personas pidieron cambios. La idea está en revisión interna hasta que se apliquen.`}
+                : `${cambiosPintados} personas pidieron cambios. La idea está en revisión interna hasta que se apliquen.`}
             </p>
           )}
         </>
       ) : (
         <p className="mt-4 font-mono text-[10px] text-blanco-50">
           VOTACIÓN {comoVa === 'ganada' ? 'GANADA' : comoVa === 'perdida' ? 'PERDIDA' : 'SIN DECIDIR'} ·{' '}
-          {aFavor} A FAVOR · {enContra} EN CONTRA
+          {aFavorPintado} A FAVOR · {enContraPintado} EN CONTRA
         </p>
       )}
 

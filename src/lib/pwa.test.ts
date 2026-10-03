@@ -100,10 +100,15 @@ describe('El hub se puede instalar como app', () => {
     ]) {
       expect(esPublica(ruta), `${ruta} deberia servirse sin sesion`).toBe(true);
     }
-    // Y la puerta sigue cerrada. Abrir de mas seria peor que el bug original:
-    // dejaria el hub entero sin sesion.
+    // Y DESDE 2026-10-02 TAMBIEN LOS CLIENTES. Antes esta lista afirmaba que
+    // `/wundeer` NO debia servirse sin sesion, y era lo correcto con una puerta
+    // cerrada: sin codigo no habia clientes.
+    //
+    // Con la puerta abierta, estas cuatro rutas se sirven sin sesion. El cliente
+    // se elige escribiendo el slug en la URL, que es lo unico que la puerta
+    // hacia antes.
     for (const ruta of ['/wundeer', '/candlejas', '/api/votar', '/wundeer/ideas/x1']) {
-      expect(esPublica(ruta), `${ruta} NO deberia servirse sin sesion`).toBe(false);
+      expect(esPublica(ruta), `${ruta} deberia servirse sin sesion`).toBe(true);
     }
     // El proxy tiene que usar ESA funcion, no su propia copia: dos reglas
     // distintas en dos sitios divergen sin que nada se entere.
@@ -125,28 +130,20 @@ describe('El hub se puede instalar como app', () => {
     // `src/app/page.tsx` hace `redirect('/login')` sin cookie, porque
     // `rr_hub_projects` está detrás del RLS. Arrancar en `/` daba el MISMO 307.
     // La portada no es la puerta: es el tablero, y el tablero necesita sesión.
-    expect(manifest).toMatch(/start_url: '\/login\?fuente=app'/);
-    // Ni `/` ni `/wundeer`: los dos dan 307 al login.
-    expect(manifest).not.toMatch(/start_url: '\/wundeer'/);
-    expect(manifest).not.toMatch(/start_url: '\/'[,\s]/);
+    // DESDE 2026-10-02: la app arranca en la PORTADA, y la portada es pública.
+    //
+    // Antes `start_url` era `/login?fuente=app` porque la portada exigía sesión y
+    // daba el mismo 307 que cualquier otra ruta: el icono abría la puerta. Con la
+    // puerta abierta, `/` es pública de verdad y es donde hay que empezar.
+    expect(manifest).toMatch(/start_url: '\/'/);
+    expect(manifest).not.toMatch(/start_url: '\/login/);
 
-    // El otro extremo del ciclo: el login TIENE que tener salida.
-    const login = leer('src/app/login/formulario.tsx');
-    expect(login).toMatch(/VOLVER A LA PORTADA/);
-    expect(login).toMatch(/<Link href="\/"/);
-
-    // Y `/login` TIENE que ser pública de verdad, comprobado EJECUTANDO la
-    // regla y no leyendo la lista: `start_url` apunta ahí, así que si
-    // `esPublica('/login')` fuera falso, la app seguiría abriendo en un 307.
-    // OJO: `request.nextUrl.pathname` en Next NO lleva la query, asi que
-    // `esPublica` nunca ve '/login?fuente=app'. Probarlo seria probar un caso
-    // que no existe. Lo que importa es el pathname limpio.
+    // Y la regla se EJERTA, no se lee: un test que mirase el texto de
+    // `public-rutas.ts` pasaría en verde con la lista medio vacía.
+    expect(esPublica('/')).toBe(true);
     expect(esPublica('/login')).toBe(true);
-
-    // OJO, la trampa que me llevé: `/` NO es pública aunque lo parezca.
-    // `esPublica('/')` da false, y es lo correcto: `page.tsx` redirige al login
-    // sin cookie. Lo que la hace pública es la rama de la puerta, no esta lista.
-    expect(esPublica('/')).toBe(false);
+    expect(esPublica('/wundeer')).toBe(true);
+    expect(esPublica('/api/entrar')).toBe(true);
   });
 
   it('la app instalada no ofrece volver a instalar, y en iOS explica el camino', () => {

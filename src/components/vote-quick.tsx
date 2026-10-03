@@ -4,6 +4,8 @@ import { useCallback, useState } from 'react';
 import { Icon } from './ui/icons';
 import { Chip } from './ui/chips';
 import { voteIdea, type VotoResultado } from '@/lib/workspace-client';
+import { emailElegido } from '@/lib/perfil-votante';
+import { useVotosEnVivo } from '@/lib/use-votos-vivo';
 import { votosParaDecidir, VOTOS_NECESARIOS, type DecisionVoto } from '@/lib/flow';
 
 /**
@@ -36,14 +38,38 @@ import { votosParaDecidir, VOTOS_NECESARIOS, type DecisionVoto } from '@/lib/flo
  */
 export function VoteQuick({
   ideaId,
+  slug,
   inicial,
 }: {
   ideaId: string;
+  /** El cliente: hace falta para preguntar por SUS votaciones en vivo. */
+  slug: string;
   /** Conteo que llega del servidor, igual que en la ficha. */
   inicial: { aFavor: number; enContra: number };
 }) {
-  const [aFavor, setAFavor] = useState(inicial.aFavor);
-  const [enContra, setEnContra] = useState(inicial.enContra);
+  /**
+   * MEDIDO 2026-10-03. Este botón se quedaba en el número con el que se pintó la
+   * página, mientras la ficha sí se actualizaba sola. MEDIDO: en el tablero, el
+   * "FALTAN 2 DE 3" seguía diciendo 2 después de que otro votara.
+   *
+   * Se conecta al mismo hook, y con el mismo reparto: con 19 ideas en votación
+   * hay 19 tarjetas preguntando. Por eso el hook no pregunta con la pestaña
+   * oculta y por eso el endpoint responde con `max-age` de 10 s: el navegador
+   * sirve la misma respuesta a varias tarjetas sin volver a pedirla.
+   */
+  const { conteo } = useVotosEnVivo(slug, ideaId, {
+    aFavor: inicial.aFavor,
+    enContra: inicial.enContra,
+    cambios: 0,
+    total: inicial.aFavor + inicial.enContra,
+    ultimo: null,
+  });
+
+  /** El voto propio manda sobre el del servidor, igual que en la ficha. */
+  const [propio, setPropio] = useState<{ aFavor: number; enContra: number } | null>(null);
+  const aFavor = propio?.aFavor ?? conteo.aFavor;
+  const enContra = propio?.enContra ?? conteo.enContra;
+
   const [enviando, setEnviando] = useState(false);
   const [fallo, setFallo] = useState('');
   const [guardado, setGuardado] = useState<DecisionVoto | null>(null);
@@ -58,14 +84,18 @@ export function VoteQuick({
       if (enviando) return;
       setEnviando(true);
       setFallo('');
-      const resultado: VotoResultado = await voteIdea(ideaId, decision);
+      // MEDIDO 2026-10-03: este botón NO mandaba perfil, así que el servidor
+      // caía al correo de la sesión. Y aquí, en el tablero, casi siempre no hay
+      // ninguna: quien abre el hub sin puerta recibía «no entra con tu correo»
+      // y el botón se quedaba sin efecto. MEDIDO: el clic se registraba y no
+      // pasaba nada en la base.
+      const resultado: VotoResultado = await voteIdea(ideaId, decision, '', emailElegido());
       setEnviando(false);
       if (resultado.error) {
         setFallo(resultado.error);
         return;
       }
-      setAFavor(resultado.aFavor ?? 0);
-      setEnContra(resultado.enContra ?? 0);
+      setPropio({ aFavor: resultado.aFavor ?? 0, enContra: resultado.enContra ?? 0 });
       // El rebote dura poco y se va: es la confirmación de que el servidor
       // guardó, no un estado que se quede puesto y parezca seleccionado.
       setGuardado(decision);
@@ -116,7 +146,7 @@ export function VoteQuick({
       {fallo && (
         <p className="mt-2 font-mono text-[9px] leading-4 text-fucsia">
           {/* El fallo se dice, no se esconde: si el voto no se guardó, quien
-             .try lo tiene que saber, o Cree que sí votó. */}
+              lo tiene que saber, o cree que sí votó. */}
           {fallo}
         </p>
       )}

@@ -114,6 +114,32 @@ export function GuidedTour() {
   const tarjeta = useRef<HTMLDivElement>(null);
   const reducido = useRef(false);
 
+  /**
+   * MEDIDO 2026-10-03. Santiago: «el apartado de como se usa, para celular esta
+   * totalmente dañado». Y tenía razón, medido en cuatro anchos:
+   *
+   *   390x844   zona de texto   40 px de alto   (necesita 284)
+   *            SIGUIENTE       top=1087        (289 px POR DEBAJO de la pantalla)
+   *
+   * La causa: la tarjeta se colocaba pegada al elemento resaltado, con
+   * `top: caja.top + caja.height + 24`. En escritorio el elemento está arriba y
+   * eso cabe. En un celular el elemento resaltado puede estar en y=600, el
+   * `top` daba 664, y la tarjeta —con `max-h`— se quedaba con el alto mínimo del
+   * contenido y el resto se iba debajo. Los botones, que van al final, nunca se
+   * veían: el tour no tenía salida en el móvil.
+   *
+   * En móvil la tarjeta deja de ir pegada al objetivo y pasa a ser un panel de
+   * pantalla completa con el texto en una zona que se baja y los botones FIJOS
+   * abajo, siempre visibles. Que es como funciona un tutorial en un teléfono.
+   */
+  const [movil, setMovil] = useState(false);
+  useEffect(() => {
+    const medir = () => setMovil(window.innerWidth < 768);
+    medir();
+    window.addEventListener('resize', medir);
+    return () => window.removeEventListener('resize', medir);
+  }, []);
+
   // La primera visita abre la guía sola. Terminarla o saltarla la marca vista:
   // una guía que vuelve a saltar en cada pantalla deja de ser ayuda y pasa a
   // ser estorbo. El botón flotante siempre está para volver a abrirla.
@@ -233,7 +259,11 @@ export function GuidedTour() {
       <button
         type="button"
         onClick={() => setPaso(0)}
-        className="fixed bottom-0 left-0 right-0 z-40 flex h-12 w-full items-center justify-center gap-2 border-t border-blanco-20 bg-negro font-mono text-xs text-blanco-70 transition-colors hover:bg-blanco-10 hover:text-blanco sm:bottom-4 sm:left-auto sm:right-4 sm:h-auto sm:w-auto sm:border sm:px-3 sm:py-2 sm:bottom-20"
+        /* MEDIDO 2026-10-03: esto era `bottom-0 left-0 right-0 w-full h-12`, una
+           barra que cruzaba la pantalla entera en el móvil y tapaba el borde
+           inferior de la lista. En un teléfono un botón de ayuda va en su
+           esquina, como en escritorio, y ocupa lo que ocupa. */
+        className="fixed bottom-3 left-3 z-40 inline-flex min-h-[44px] items-center justify-center gap-2 border border-blanco-20 bg-negro px-3 font-mono text-xs text-blanco-70 transition-colors hover:bg-blanco-10 hover:text-blanco sm:bottom-20 sm:left-auto sm:right-4 sm:px-3 sm:py-2"
         aria-label="Abrir la guía: te explica cada botón"
         title="¿Cómo se usa?"
       >
@@ -251,7 +281,10 @@ export function GuidedTour() {
               usuario queda encerrado en la guía. Por eso el overlay tampoco
               cierra al hacer clic fuera — cerrarlo sería un descuido. Lo que
               se puede es saltar, con Escape o el botón. */}
-              {caja && (
+              {/* MEDIDO 2026-10-03: en móvil el recuadro se descarta. El objetivo se
+             orce outside y el panel ocupa casi toda la pantalla; un borde de
+              300 px pegado a un elemento que no se ve solo añade ruido. */}
+          {caja && !movil && (
             <div
               aria-hidden="true"
               className="pointer-events-none fixed border-2 border-mostaza"
@@ -264,12 +297,22 @@ export function GuidedTour() {
               }}
             />
           )}
-          {!caja && <div aria-hidden="true" className="pointer-events-none fixed inset-0 bg-negro/45" />}
+          {(movil || !caja) && <div aria-hidden="true" className="pointer-events-none fixed inset-0 bg-negro/45" />}
 
           <div
             ref={tarjeta}
             tabIndex={-1}
-            className="anim-pop fixed left-1/2 flex max-h-[calc(100dvh-2rem)] w-[min(34rem,calc(100vw-2rem))] -translate-x-1/2 flex-col overflow-y-auto border border-blanco-30 bg-negro p-5 outline-none"
+            className={`anim-pop fixed flex flex-col border border-blanco-30 bg-negro outline-none ${
+              movil
+                ? 'inset-x-3 top-3 max-h-[calc(100dvh-6.5rem)] rounded-none'
+                /* MEDIDO 2026-10-03 a 1440x900: el popup daba 544x434, el 48% de
+                   la altura de la pantalla, para un texto de tres líneas y 170
+                   caracteres. Lo que se pide es que RODEE EL MENSAJE, no que
+                   ocupe media pantalla. `w-fit` + `max-w` deja que la caja tenga
+                   el ancho del texto más largo y nada más; el `max-h` sigue
+                   guarding casos de un texto largo en una pantalla chica. */
+                : 'left-1/2 w-fit max-w-[min(34rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] -translate-x-1/2 overflow-y-auto p-5'
+            }`}
             /*
              * MEDIDO 2026-10-01: esto estaba anclado con
              *   top: Math.min(caja.top + caja.height + 24, window.innerHeight - 220)
@@ -285,24 +328,44 @@ export function GuidedTour() {
              * `max-h` + `overflow-y-auto` por si el texto es largo de verdad.
              * `dvh` y no `vh`: en iPhone la barra del navegador encoge el `vh`.
              */
-            style={caja && caja.top < window.innerHeight / 2
-              ? { top: Math.max(16, caja.top + caja.height + 24), bottom: 16 }
-              : { top: 16, bottom: 16 }}
+            style={movil || !caja || caja.top >= window.innerHeight / 2
+              ? undefined
+              // El `top` se acota a media pantalla: por muy abajo que esté el
+              // elemento resaltado, la tarjeta nunca puede arrancar donde no
+              // queda sitio para ella. Antes no había cota y en móvil eso era
+              // exactamente el corte.
+              : { top: Math.min(Math.max(16, caja.top + caja.height + 24), window.innerHeight / 2), bottom: 16 }}
           >
-            <p className="font-mono text-xs tracking-[0.1em] text-blanco-50">
-              PASO {paso! + 1} DE {pasos.length}
-            </p>
-            <h2 id="guia-titulo" className="mt-2 font-display text-2xl font-bold leading-tight text-blanco">
-              {pasos[paso!].titulo}
-            </h2>
-            <p className="mt-3 text-base leading-7 text-blanco-70 sm:text-lg sm:leading-8">{pasos[paso!].texto}</p>
+            {/* MEDIDO 2026-10-03: en móvil el contenido se separa en dos. El texto
+                se baja solo en una zona con `overflow-y-auto`, y los botones van
+                FUERA de esa zona, fijos abajo. Antes todo iba en el mismo bloque
+                scrolleable: los botones quedaban al final de un texto largo, es
+                decir, fuera de la pantalla, y el tour no tenía salida.
 
-            <div className="mt-5 flex flex-wrap items-center gap-3">
+                `flex-1 min-h-0` es lo que hace el reparto: sin `min-h-0` un
+                hijo flexible no baja de su alto de contenido y el padre se
+                desborda en lugar de dejar que el hijo se encoja. */}
+            <div className={`flex min-h-0 flex-1 flex-col ${movil ? 'overflow-hidden' : ''}`}>
+              <div className={movil ? 'min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1' : ''}>
+                <p className="font-mono text-[11px] tracking-[0.1em] text-blanco-60 sm:text-xs sm:text-blanco-50">
+                  PASO {paso! + 1} DE {pasos.length}
+                </p>
+                <h2 id="guia-titulo" className="mt-2 font-display text-2xl font-bold leading-tight text-blanco">
+                  {pasos[paso!].titulo}
+                </h2>
+                <p className="mt-3 text-[15px] leading-7 text-blanco-80 sm:text-lg sm:leading-8">{pasos[paso!].texto}</p>
+              </div>
+
+              <div className={`flex flex-wrap items-center gap-3 ${
+                movil
+                  ? 'shrink-0 border-t border-blanco-20 bg-negro pt-3 pb-1'
+                  : 'mt-5'
+              }`}>
               {paso! > 0 && (
                 <button
                   type="button"
                   onClick={() => setPaso((n) => Math.max(0, (n ?? 0) - 1))}
-                  className="inline-flex items-center gap-2 border border-blanco-20 px-3 py-2 font-mono text-xs text-blanco-60 transition-colors hover:border-blanco-40 hover:text-blanco"
+                  className="inline-flex min-h-[44px] items-center gap-2 border border-blanco-20 px-3 py-2 font-mono text-xs text-blanco-60 transition-colors hover:border-blanco-40 hover:text-blanco"
                 >
                   ← ATRÁS
                 </button>
@@ -310,7 +373,7 @@ export function GuidedTour() {
               <button
                 type="button"
                 onClick={() => (ultimo ? cerrar() : setPaso((n) => (n ?? 0) + 1))}
-                className="btn-brutal inline-flex items-center gap-2"
+                className="btn-brutal inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 sm:flex-none"
               >
                 {ultimo ? 'YA ENTENDÍ' : 'SIGUIENTE'} <Icon name="arrow" size={14} />
               </button>
@@ -324,6 +387,7 @@ export function GuidedTour() {
               >
                 {ultimo ? 'CERRAR' : 'SALTAR'}
               </button>
+              </div>
             </div>
           </div>
         </div>
