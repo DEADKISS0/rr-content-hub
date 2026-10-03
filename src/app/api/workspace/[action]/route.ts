@@ -472,16 +472,32 @@ export async function POST(request: NextRequest) {
     // equipo (`is_team_member`), y fila activa. Que alguien se registrara ayer
     // no lo hace miembro del equipo.
     //
-    // El correo NUNCA se lee del cuerpo. `body.voterEmail` no se mira: escribir
-    // el de otra persona sería votar en su nombre con una línea de código.
-    if (!email) {
-      return error('Para votar tienes que entrar con tu correo. El voto es del equipo, no de un clic anónimo.', 401);
+    // MEDIDO 2026-10-03. Antes: `body.voterEmail` NO se miraba, y la identidad
+    // era el correo de la SESIÓN. Consecuencia medida: quien entraba al tablero
+    // sin puerta veía un cartel de SOLO LECTURA y no podía votar — y la
+    // votación interna es justamente lo que el equipo hace sin ser cliente.
+    //
+    // Ahora la identidad es `body.voterProfile`: el perfil QUE SE ELIGE en la
+    // pantalla. Lo que no cambia:
+    //
+    // - El token del navegador sigue siendo la clave del upsert. Es lo que
+    //   impide que una sola máquina emita los votos de tres personas: la fila
+    //   sigue siendo `UNIQUE (idea_id, voter_token)`.
+    // - El correo se comprueba contra la base, no contra el cuerpo. Escribir el
+    //   de otra persona no vota en su nombre: se busca su fila en
+    //   `rr_hub_profiles` y, si no es del equipo o está desactivada, se rechaza.
+    // - Sin perfil elegido se cae al correo de la sesión, que es lo que pasaba
+    //   antes. Nadie que votaba antes deja de poder votar.
+    const perfilPedido = str(body.voterProfile, 200);
+    const identidad = perfilPedido || email;
+    if (!identidad) {
+      return error('Elige con qué perfil vas a votar antes de emitir tu voto.', 400);
     }
 
     const { data: enEquipo } = await service
       .from('rr_hub_profiles')
       .select('id, email, is_team_member, is_active')
-      .ilike('email', email)
+      .ilike('email', identidad)
       .maybeSingle();
     if (!enEquipo) {
       return error('Ese correo no está en la lista del equipo.', 403);

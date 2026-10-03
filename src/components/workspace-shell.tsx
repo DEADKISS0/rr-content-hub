@@ -254,9 +254,22 @@ export function WorkspaceShell({ children, project, role, email, nombre, puedeEs
             <button onClick={() => setMenuOpen(true)} className="inline-flex items-center gap-2 border border-blanco-20 px-2 py-1.5 font-mono text-xs text-blanco-70 md:hidden">
               <Icon name="list" size={14} /> MENÚ
             </button>
-            <Link href={`/${slug}`} className="hidden font-mono text-xs text-blanco-60 transition-colors hover:text-blanco md:block">
-              {project.name.toUpperCase()} · TODO EL CONTENIDO EN UN LUGAR
-            </Link>
+            <div className="hidden items-center gap-4 md:flex">
+              <Link href={`/${slug}`} className="font-mono text-xs text-blanco-60 transition-colors hover:text-blanco">
+                {project.name.toUpperCase()} · TODO EL CONTENIDO EN UN LUGAR
+              </Link>
+              {/* MEDIDO 2026-10-03: la votación interna solo se llegaba a través
+                  de la ficha de cada idea. Con 18 piezas en `voting`, eso es
+                  recorrer el tablero buscando cuál abrir. Este enlace va en la
+                  barra, no dentro de un menú, porque la reunión empieza buscando
+                  "qué hay que decidir hoy". */}
+              <Link
+                href={`/${slug}/ideas/en-votacion`}
+                className="border border-mostaza-40 px-2 py-1 font-mono text-[10px] text-mostaza transition-colors hover:border-mostaza"
+              >
+                VOTACIÓN INTERNA
+              </Link>
+            </div>
             <div className="flex items-center gap-2">
               {/* El hub está en modo abierto mientras el login de Google se
                   resuelve: el acceso no se pide, así que aquí ya no hay nada
@@ -292,9 +305,17 @@ export function WorkspaceShell({ children, project, role, email, nombre, puedeEs
                 // Ahora dice lo que es verdad: se está leyendo sin sesión y para
                 // escribir hace falta que Dirección dé de alta el acceso. No
                 // ofrece un camino que no hay.
-                <span className="inline-flex items-center gap-2 border border-blanco-20 px-2 py-1.5 font-mono text-[10px] text-blanco-70">
-                  <Icon name="user" size={14} /> SOLO LECTURA
-                </span>
+                /* MEDIDO 2026-10-03. Antes esto era un <span> con el texto SOLO
+                   LECTURA: deadweight puro. No hacía nada y, peor, decía que no
+                   se podía hacer nada, cuando lo que no se podía era ESCRIBIR en
+                   el tablero. La votación interna sí se puede, y es justo lo que
+                   el equipo viene a hacer.
+                   Ahora enlaza al selector de perfil de la ficha, que es donde se
+                   elige con qué nombre se vota. Un enlace que lleva a donde se
+                   resuelve; un cartel que no lleva a ninguna parte es un callejón. */
+                <Link href={`/${slug}/ideas/en-votacion`} className="inline-flex items-center gap-2 border border-mostaza-40 px-2 py-1.5 font-mono text-[10px] text-mostaza hover:border-mostaza">
+                  <Icon name="user" size={14} /> ELEGIR QUIÉN VOTA
+                </Link>
               ))}
 
               {puedeEscribir ? (

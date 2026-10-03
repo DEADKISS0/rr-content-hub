@@ -278,17 +278,26 @@ export async function voteIdea(
   ideaId: string,
   decision: DecisionVoto,
   nota = '',
+  voterProfile = '',
 ): Promise<VotoResultado> {
   const token = tokenVotante();
   if (!token) {
     return { error: 'Este navegador no puede emitir un voto con seguridad.' };
+  }
+  // MEDIDO 2026-10-03: el perfil elegido viaja como `voterProfile`, NO como
+  // `voterEmail`. El nombre importa por lo que dice el servidor: `voterEmail` es
+  // un campo que la ruta de vote IGNORA a propósito, para que escribir el correo
+  // de otra persona en el cuerpo no vote en su nombre. Mandar el perfil por
+  // otro nombre hace imposible confundir los dos caminos.
+  if (!voterProfile) {
+    return { error: 'Elige con qué perfil vas a votar antes de emitir tu voto.' };
   }
   // `note` va siempre, también vacío: la API lo ignora en `yes` y `no` y lo exige
   // en `change` y `note`. Mandarlo siempre evita tener que decidir en el
   // navegador si el campo va o no, y que aparezca el aviso de "no dice qué
   // cambiar" sin que se haya escrito nada.
   const response = await postWorkspaceAction('vote', {
-    ideaId, voterToken: token, decision, note: nota,
+    ideaId, voterToken: token, decision, note: nota, voterProfile,
   });
   if (!response) return { error: 'No se pudo contactar al servidor.' };
   if (response.error) return { error: String(response.error) };

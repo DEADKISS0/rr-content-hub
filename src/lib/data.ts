@@ -1022,3 +1022,38 @@ export async function getClientesDeLaPersona(): Promise<{
 
   return { abiertos, cerrados, actual: sesion?.proyecto ?? null };
 }
+
+/**
+ * Las personas que pueden votar, del servidor.
+ *
+ * MEDIDO 2026-10-03. El selector de perfil necesita la lista del equipo, y no
+ * puede sacarse de `rr_hub_presencia`: esa tabla dice quién se ha conectado
+ * lately, no quién tiene derecho a voto. Con la puerta por código, quien entra al
+ * tablero puede ser alguien del equipo que nunca ha entrado, y su nombre
+ * desaparecería del selector. MEDIDO en producción: `rr_hub_profiles` tiene 18
+ * personas con `is_team_member` e `is_active`.
+ *
+ * Solo se devuelven activas: una fila desactivada no puede votar —el servidor lo
+ * rechaza con 403—, y ofrecerla en el selector sería prometer algo que no pasa.
+ */
+export async function getEquipoVotante(): Promise<{ email: string; nombre: string }[]> {
+  const supabase = await createServiceClient() ?? await createClient();
+  if (!supabase) return [];
+
+  const { data } = await supabase
+    .from('rr_hub_profiles')
+    .select('email, full_name')
+    .eq('is_team_member', true)
+    .eq('is_active', true)
+    .order('full_name', { ascending: true });
+
+  return (data ?? [])
+    .map((f) => ({
+      email: (f.email as string) ?? '',
+      // MEDIDO: `full_name` es la columna real. `nombre` no existe en la tabla y
+      // pedirla devolvía `{}` sin error, que se pintaba como una lista de
+      // nombres en blanco.
+      nombre: (f.full_name as string | null) ?? (f.email as string) ?? '',
+    }))
+    .filter((p) => p.email !== '');
+}
