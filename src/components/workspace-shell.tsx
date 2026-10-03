@@ -340,9 +340,14 @@ export function WorkspaceShell({ children, project, role, email, nombre, puedeEs
                   <Icon name="plus" size={14} /> NUEVA PIEZA
                 </Link>
               ) : (
-                <span className="hidden font-mono text-[10px] text-blanco-40 sm:inline" title="Tu rol es de solo lectura">
-                  SOLO LECTURA
-                </span>
+                /* MEDIDO 2026-10-03. Este <span> decía SOLO LECTURA y era
+                   deadweight: no era un enlace, no hacía nada, y estaba justo
+                   al lado del selector de perfil que SÍ abre. Leído en fila dice
+                   «no puedes hacer nada aquí», que es falso: la votación interna
+                   es lo que este equipo viene a hacer, y se puede. Lo que no se
+                   puede es crear piezas, y eso ya se explica dentro del tablero.
+                   Un cartel que no lleva a ninguna parte es un callejón. */
+                null
               )}
             </div>
           </div>
