@@ -328,13 +328,22 @@ export function GuidedTour() {
              * `max-h` + `overflow-y-auto` por si el texto es largo de verdad.
              * `dvh` y no `vh`: en iPhone la barra del navegador encoge el `vh`.
              */
+            /* MEDIDO 2026-10-03 a 1440x900. El `bottom: 16` de aquí es lo que
+               hace que la caja mida 544x434 — el 48% de la altura de la
+               pantalla — para un texto de tres líneas. `top` Y `bottom` juntos
+               son una orden de ESTIRAR: el navegador reparte el hueco que sobra
+               entre los dos bordes, aunque el contenido no lo llene.
+
+               El `bottom` estaba ahí para que la tarjeta no se saliera por abajo.
+               Eso se consigue con `max-h`, que ya está en las clases, y no con un
+               segundo borde que la estira. Ahora se ancla solo con `top` y la caja
+               mide lo que mide el mensaje. El `top` sigue acotado a media
+               pantalla: por muy abajo que esté el elemento resaltado, la tarjeta
+               nunca arranca donde no queda sitio para ella, que era exactamente
+               el corte del móvil. */
             style={movil || !caja || caja.top >= window.innerHeight / 2
               ? undefined
-              // El `top` se acota a media pantalla: por muy abajo que esté el
-              // elemento resaltado, la tarjeta nunca puede arrancar donde no
-              // queda sitio para ella. Antes no había cota y en móvil eso era
-              // exactamente el corte.
-              : { top: Math.min(Math.max(16, caja.top + caja.height + 24), window.innerHeight / 2), bottom: 16 }}
+              : { top: Math.min(Math.max(16, caja.top + caja.height + 24), window.innerHeight / 2) }}
           >
             {/* MEDIDO 2026-10-03: en móvil el contenido se separa en dos. El texto
                 se baja solo en una zona con `overflow-y-auto`, y los botones van

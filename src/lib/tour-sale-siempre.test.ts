@@ -45,10 +45,20 @@ describe('el tour se puede salir siempre', () => {
     expect(codigo).not.toMatch(/window\.innerHeight\s*-\s*\d+/);
   });
 
-  it('la tarjeta se ancla con top y bottom, no solo con top', () => {
-    // Si se dan los dos, el navegador resuelve la diferencia de altura: la
-    // tarjeta se estira dentro de la ventana y los botones nunca caen fuera.
-    expect(tour).toMatch(/top:[\s\S]{0,400}bottom:/);
+  it('la tarjeta se ancla con top, y su alto lo dice max-h', () => {
+    /* MEDIDO 2026-10-03 a 1440x900: con `top` Y `bottom` la caja daba 434 px de
+       alto — el 48% de la pantalla — para tres líneas de texto. `top` y `bottom`
+       juntos NO son «no salir por abajo»: son una orden de ESTIRAR. El
+       navegador reparte el hueco sobrante entre los dos bordes aunque el
+       contenido no lo llene.
+
+       Este aserto exigía el `bottom`, o sea: exigía el defecto. Lo que protege de
+       verdad salirse por abajo es `max-h` + `overflow-y-auto`, que es el test
+       siguiente. Este ahora vigila lo contrario: que no vuelva el `bottom`. */
+    const codigo = tour.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    expect(codigo).not.toMatch(/top:[\s\S]{0,200},?\s*bottom:/);
+    // el anclaje por arriba sigue, acotado a media pantalla
+    expect(codigo).toMatch(/top:\s*Math\.min\(Math\.max\(16, caja\.top \+ caja\.height \+ 24\), window\.innerHeight \/ 2\)/);
   });
 
   it('la tarjeta tiene tope inferior, no solo superior', () => {

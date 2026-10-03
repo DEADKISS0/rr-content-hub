@@ -110,4 +110,20 @@ describe('la guía cabe y se puede cerrar en un teléfono', () => {
     // el tope sigue estando, para el caso de un texto largo
     expect(c).toMatch(/max-h-\[calc\(100dvh-2rem\)\]/);
   });
+
+  it('el popup no se estira hasta el borde inferior', () => {
+    const c = leer('src/components/guided-tour.tsx');
+    /* MEDIDO 2026-10-03 a 1440x900: la caja daba 434 px de alto — el 48% de la
+       pantalla — para tres líneas de texto. Con `w-fit` ya correcto el ancho,
+       lo que la estiraba era `top` Y `bottom` a la vez en el style: eso es una
+       orden de estirar, el navegador reparte el hueco sobrante aunque el
+       contenido no lo llene. El `max-h` de las clases ya evita que se salga por
+       abajo; el segundo borde sobra. */
+    const style = c.slice(c.indexOf('ref={tarjeta}')).match(/style=\{[\s\S]*?\}\}/);
+    expect(style).not.toBeNull();
+    expect(style?.[0]).not.toMatch(/bottom:\s*16/);
+    // el anclaje por arriba sigue, acotado a media pantalla
+    expect(style?.[0]).toMatch(/caja\.top \+ caja\.height \+ 24/);
+    expect(style?.[0]).toMatch(/window\.innerHeight \/ 2/);
+  });
 });
