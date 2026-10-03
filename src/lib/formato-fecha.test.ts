@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { fechaEs, fechaIsoCorta, cuantoPara } from './fecha-salida';
 
@@ -102,5 +104,37 @@ describe('la cuenta regresiva es honesta', () => {
   it('sin fecha no hay cuenta atrás que inventar', () => {
     expect(cuantoPara(null)).toBeNull();
     expect(cuantoPara('basura')).toBeNull();
+  });
+});
+
+describe('el dia se cuenta en la zona del cliente, no en la del servidor', () => {
+  /**
+   * MEDIDO 2026-10-03. El CI fallo con 2 de 10 pruebas en UTC y paso en Bogotá:
+   * `setHours(0,0,0,0)` usa la zona del SERVIDOR. Vercel corre en UTC, así que
+   * desde las 19:00 en Colombia "hoy" salía como "mañana" y una salida para el
+   * día siguiente decía "hoy". No era solo un problema de pruebas.
+   */
+  it('el dia de hoy se lee igual sin importar donde corra el servidor', () => {
+    const hoy = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Bogota', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date());
+    expect(cuantoPara(hoy)?.texto).toBe('hoy');
+    expect(cuantoPara(hoy)?.vencido).toBe(false);
+  });
+
+  it('una salida manana sigue siendo manana, no hoy', () => {
+    // El caso que se rompe de noche: en UTC, "manana" cae en el dia siguiente.
+    const manana = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Bogota', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date(Date.now() + 86_400_000));
+    expect(cuantoPara(manana)?.texto).toBe('mañana');
+  });
+
+  it('la zona esta escrita en el codigo, no la pone el runtime', () => {
+    // Si alguien quita 'America/Bogota' y deja que la maquina decida, esto
+    // falla aunque las pruebas sigan verdes en una maquina en Bogota.
+    const src = readFileSync(join(process.cwd(), 'src/lib/fecha-salida.ts'), 'utf8');
+    expect(src).toMatch(/timeZone: 'America\/Bogota'/);
+    expect(src).not.toMatch(/hoy\.setHours|new Date\(\)\.setHours/);
   });
 });
