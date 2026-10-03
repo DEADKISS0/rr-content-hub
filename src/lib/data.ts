@@ -891,7 +891,11 @@ export async function getTimeline(ideaId: string) {
  * ve los que tiene en `rr_hub_access`.
  */
 export async function getClientesDeLaPersona(): Promise<{
-  abiertos: { slug: string; name: string; client_name: string; brand_primary_color: string | null; description: string | null; rol: string }[];
+  // MEDIDO 2026-10-03: el tipo declarado se olvidaba de `id`, que SÍ viene en la
+  // fila. La portada nueva lo necesita para pedir el conteo de piezas de cada
+  // cliente sin una consulta extra por cliente. El tipo mentía sobre el dato: por
+  // eso `getIdeas(cliente.id)` no compilaba aunque el objeto fuera correcto.
+  abiertos: { id: string; slug: string; name: string; client_name: string; brand_primary_color: string | null; description: string | null; rol: string }[];
   cerrados: { slug: string; name: string; client_name: string; brand_primary_color: string | null; description: string | null; motivo: 'sin-fila' | 'sin-codigo' }[];
   actual: string | null;
 }> {
@@ -899,15 +903,31 @@ export async function getClientesDeLaPersona(): Promise<{
   const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) return vacio;
 
+  // SIN PUERTA (2026-10-02): sin sesión se listan TODOS los clientes, no ninguno.
+  //
+  // Antes: `if (!sesion) return vacio`. Con la puerta cerrada era correcto (sin
+  // código no se veía nada). Con la puerta abierta, la portada hacía
+  // `abiertos.length === 0` y pintaba "Todavía no hay clientes" para todo el
+  // mundo, aunque los cuatro estén dados de alta. Un 404 de contenido: la página
+  // responde 200 y dice que no hay nada.
+  //
+  // La fila de la persona (`rr_hub_profiles`) solo se necesita para saber el rol
+  // de cada cliente, y eso ya se calcula abajo con `sesion?.email`. Si no hay
+  // sesión no hay rol, y sin rol todos los clientes salen como solo lectura:
+  // exactamente lo que se decidió el 2026-10-02.
   const sesion = await quienEs();
-  if (!sesion) return vacio;
-
-  const { data: perfil } = await supabase
-    .from('rr_hub_profiles')
-    .select('id, global_role')
-    .ilike('email', sesion.email)
-    .maybeSingle();
-  if (!perfil) return vacio;
+  let perfilId: string | null = null;
+  let globalRole: string | null = null;
+  if (sesion) {
+    const { data: perfil } = await supabase
+      .from('rr_hub_profiles')
+      .select('id, global_role')
+      .ilike('email', sesion.email)
+      .maybeSingle();
+    perfilId = perfil?.id ?? null;
+    globalRole = perfil?.global_role ?? null;
+  }
+  if (sesion && !globalRole) return vacio;
 
   // Las dos consultas van en paralelo y el cruce de `access` con `proyectos` se
   // hace por `project_id`, que es una columna real de las dos. Nada de embed
@@ -918,7 +938,9 @@ export async function getClientesDeLaPersona(): Promise<{
       .from('rr_hub_projects')
       .select('id, slug, name, client_name, brand_primary_color, description')
       .order('name'),
-    supabase.from('rr_hub_access').select('project_id, role_in_project').eq('user_id', perfil.id),
+    // Sin sesión no hay `perfilId`: la consulta se hace igual y no devuelve
+    // filas, que es lo correcto. `.eq()` con `null` se_skip en vez de reventar.
+    supabase.from('rr_hub_access').select('project_id, role_in_project').eq('user_id', perfilId ?? '__sin_sesion__'),
   ]);
 
   const proyectos = (catalogo.data ?? []) as {
@@ -944,9 +966,21 @@ export async function getClientesDeLaPersona(): Promise<{
   // persona, que es donde debe estar esa decisión.
   const conocidos = proyectos;
 
-  const abiertos = conocidos
-    .filter((p) => rolPorProyecto.has(p.id))
-    .map((p) => ({ ...p, rol: rolPorProyecto.get(p.id) ?? 'sin_rol' }));
+  // SIN PUERTA (2026-10-02): sin sesión, TODOS los clientes salen abiertos.
+  //
+  // MEDIDO en producción con el merge ya desplegado: la raíz devolvía
+  // "Todavía no tienes un cliente abierto" con los cuatro clientes dados de
+  // alta. La causa es esta línea: `rolPorProyecto` se llena de
+  // `rr_hub_access`, y sin cookie no hay filas, así que el filtro dejaba la
+  // lista vacía y los cuatro clientes caían a `cerrados`.
+  //
+  // La puerta también decidía el CATÁLOGO, no solo si se entraba. Eso ya no es
+  // lo que se decidió el 2026-10-02: se entra directo, sin fila de acceso, y
+  // quien no tenga fila abre igual en solo lectura. El rol sale de la fila si la
+  // hay; si no la hay, es `client_viewer`, el mismo rol que usan los visitantes
+  // en el resto del hub. Ver un cliente no es escribir en él: eso lo decide
+  // `rr_hub_access` en el guard, que sigue igual.
+  const abiertos = conocidos.map((p) => ({ ...p, rol: rolPorProyecto.get(p.id) ?? 'client_viewer' }));
 
   // Los cerrados salen del catálogo ENTERO, no de `conocidos`. Con la lista
   // corta como fuente, Satiro y Boga no aparecían nunca: un `filter` sobre
@@ -977,5 +1011,5 @@ export async function getClientesDeLaPersona(): Promise<{
       motivo: (rolPorProyecto.has(_id) ? 'sin-codigo' : 'sin-fila') as 'sin-codigo' | 'sin-fila',
     }));
 
-  return { abiertos, cerrados, actual: sesion.proyecto };
+  return { abiertos, cerrados, actual: sesion?.proyecto ?? null };
 }

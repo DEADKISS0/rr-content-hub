@@ -170,15 +170,28 @@ describe('la lista la da el servidor, no el navegador', () => {
     expect(bloque).toMatch(/project_id/);
   });
 
-  it('abrir exige fila de acceso, y la fila manda sobre el global_role', () => {
-    // El bug anterior: `esAdmin || fila` y luego `rol: esAdmin ? 'owner'`. Un
-    // admin global se veía como `owner` en TODOS los clientes, tuviera fila o no.
-    // La base dice la verdad: `rr_hub_access` es la fila real, y si no está, no
-    // se abre. (Igual que en `rolEnProyecto`, que ya no cae a admin global.)
+  it('la fila manda sobre el global_role, y sin fila es solo lectura', () => {
+    // Lo que este test protegía antes y SIGUE siendo cierto: la fila real de
+    // `rr_hub_access` manda sobre el global_role. El bug viejo era `esAdmin ||
+    // fila` con `rol: esAdmin ? 'owner'`, que veía a un admin global como owner
+    // en clientes donde no tenía fila. Eso no volvió.
+    //
+    // Lo que SÍ cambió el 2026-10-02 es la puerta: `abiertos` ya no se filtra
+    // por fila, porque sin cookie `rolPorProyecto` salía vacío y los cuatro
+    // clientes caían a `cerrados`. MEDIDO en producción: la raíz decía
+    // "Todavía no tienes un cliente abierto" con todo dado de alta.
+    //
+    // Entonces el rol por defecto NO es `owner` ni `sin_rol`: es
+    // `client_viewer`, el mismo de los visitantes. La fila da el rol si la hay;
+    // si no, lectura. Ver un cliente no es escribir en él: eso lo sigue
+    // decidiendo `rr_hub_access` en el guard.
     const data = leer('lib/data.ts');
     const bloque = data.slice(data.indexOf('export async function getClientesDeLaPersona'));
-    expect(bloque).toMatch(/\.filter\(\(p\) => rolPorProyecto\.has\(p\.id\)\)/);
     expect(bloque).not.toMatch(/esAdmin/);
+    // El rol sale de la fila cuando existe.
+    expect(bloque).toMatch(/rolPorProyecto\.get\(p\.id\)/);
+    // Y sin fila no es el rol mas alto.
+    expect(bloque).not.toMatch(/\?\? 'owner'/);
   });
 
   it('los cerrados salen del catálogo ENTERO, no de la lista corta', () => {

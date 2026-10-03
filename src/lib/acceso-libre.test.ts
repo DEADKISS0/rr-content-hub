@@ -202,4 +202,49 @@ describe('la puerta del hub se queda abierta', () => {
     expect(c).not.toMatch(/if \(!sesion \|\| !clienteEsVisible/);
     expect(c).toMatch(/if \(sesion && !clienteEsVisible/);
   });
+  it('la portada NO dice "no hay clientes" a quien no entro', () => {
+    // El bug mas caro de la fusion, y no lo produjo ninguno de los dos lados.
+    //
+    // La portada de `main` (mas nueva y mejor) hacia `if (!sesion) return vacio`
+    // en `getClientesDeLaPersona`, y luego `if (abiertos.length === 0)` para
+    // pintar "Todavia no hay clientes". Con la puerta cerrada era coherente. Con
+    // la puerta abierta, cualquier visitante sin cookie recibia un 200 diciendo
+    // que la base estaba vacia, con los cuatro clientes dados de alta.
+    //
+    // Un 404 de contenido: la pagina responde bien y miente. Y es el fallo que
+    // mas se propaga, porque el visitante ve "no hay nada aqui" y se va.
+    const c = codigo('src/lib/data.ts');
+    const i = c.indexOf('export async function getClientesDeLaPersona');
+    expect(i, 'no existe getClientesDeLaPersona').toBeGreaterThan(-1);
+    const cuerpo = c.slice(i, i + 1400);
+    // `if (!sesion) return vacio` es la trampa: vacio antes de mirar la base.
+    expect(cuerpo).not.toMatch(/if \(!sesion\)\s*return\s*vacio/);
+    // Y la portada tiene que poder seguir sin sesion.
+    expect(cuerpo).toMatch(/if \(sesion && !globalRole\)/);
+
+    const portada = codigo('src/app/page.tsx');
+    expect(portada).not.toMatch(/redirect\(/);
+    expect(portada).toMatch(/sesion\?\.proyecto/);
+  });
+  it('sin sesion los clientes salen ABIERTOS, no cerrados', () => {
+    // MEDIDO en produccion, con el merge ya desplegado: la raiz decia
+    // "Todavia no tienes un cliente abierto" con los cuatro dados de alta.
+    //
+    // Arreglar solo el `if (!sesion) return vacio` NO alcanza, y por eso fallo la
+    // primera vez. El filtro que deja la lista vacia es otro, mas abajo:
+    // `abiertos` se armaba con `.filter((p) => rolPorProyecto.has(p.id))`, y
+    // `rolPorProyecto` viene de `rr_hub_access`. Sin cookie no hay filas, los
+    // cuatro caen a `cerrados`, y la pagina dice que no tienes clientes.
+    //
+    // O sea: la puerta no solo impedia entrar. Decidia tambien el CATALOGO.
+    const c = codigo('src/lib/data.ts');
+    const i = c.indexOf('const abiertos =');
+    expect(i, 'no existe la linea que arma abiertos').toBeGreaterThan(-1);
+    const linea = c.slice(i, c.indexOf(';', i));
+    // Sin filtro por fila de acceso: los que no la tienen abren en lectura.
+    expect(linea).not.toMatch(/\.filter\(/);
+    // Y el rol por defecto es el de solo lectura, no el mas alto.
+    expect(linea).toMatch(/client_viewer/);
+    expect(linea).not.toMatch(/owner/);
+  });
 });
