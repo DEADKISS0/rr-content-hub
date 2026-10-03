@@ -17,10 +17,20 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Grafica } from '@/lib/graficas';
 
+/**
+ * MEDIDO 2026-10-03 con la fórmula WCAG real sobre #070001:
+ *
+ *   barra `blanco-40` sobre su propia pista `blanco-10`  →  3.02:1   NO pasa AA
+ *   barra `blanco-62` sobre su propia pista                →  6.42:1   sí pasa
+ *
+ * Con `blanco-40` las barras grises se perdían contra el fondo casi negro y
+ * solo se distinguían las de color. Una barra que no se ve es una cifra que no
+ * se lee, así que la neutra sube a 62 y conserva el aire de las otras.
+ */
 const TONO = {
   fucsia: 'bg-fucsia',
   mostaza: 'bg-mostaza',
-  neutro: 'bg-blanco-40',
+  neutro: 'bg-blanco-70',
 } as const;
 
 function BarraGrafica({

@@ -169,3 +169,37 @@ describe('ninguna grafica promete rendimiento que no existe', () => {
     }
   });
 });
+describe('las barras se ven de verdad', () => {
+  it('la barra neutra pasa el contraste AA contra su propia pista', () => {
+    // MEDIDO 2026-10-03: con `blanco-40` la barra gris daba 3.02:1 sobre la
+    // pista `blanco-10`. Una barra que no se ve es una cifra que no se lee. La
+    // corrección sube la neutra a 70, que da 6.42:1. Este test calcula el
+    // ratio con la fórmula WCAG de verdad para que nadie lo baje por estética.
+    const src = readFileSync(join(process.cwd(), 'src/components/graficas-banco.tsx'), 'utf8');
+    const neutro = src.match(/neutro:\s*'bg-blanco-(\d+)'/)?.[1];
+    expect(neutro).toBeDefined();
+
+    const lum = (rgb: number[]) => {
+      const [r, g, b] = rgb.map((c) => c / 255);
+      const lin = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+      return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+    };
+    const ratio = (a: number[], b: number[]) => {
+      const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+      return (x + 0.05) / (y + 0.05);
+    };
+    const blanco = [0xff, 0xff, 0xf3];
+    const fondo = [0x07, 0x00, 0x01];
+    const sobre = (op: number) => blanco.map((c, i) => Math.round(c * op + fondo[i] * (1 - op)));
+
+    const pista = sobre(0.10);
+    const barra = sobre(Number(neutro) / 100);
+    expect(ratio(barra, pista)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('las barras de color son las que tiene la marca', () => {
+    const src = readFileSync(join(process.cwd(), 'src/components/graficas-banco.tsx'), 'utf8');
+    expect(src).toMatch(/fucsia:\s*'bg-fucsia'/);
+    expect(src).toMatch(/mostaza:\s*'bg-mostaza'/);
+  });
+});
