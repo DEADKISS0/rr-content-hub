@@ -116,8 +116,8 @@ export default async function Home() {
         </h1>
         <p className="mt-6 max-w-3xl text-base leading-8 text-blanco-70 anim-rise" style={{ animationDelay: '160ms' }}>
           Un solo lugar donde una idea de Wundeer o de Candilejas deja de ser un mensaje suelto
-          y se vuelve un trabajo con dueño, fecha y estado. Se entra con el código del
-          cliente y tu nombre: sin correos ni contraseñas.
+          y se vuelve un trabajo con dueño, fecha y estado. Se entra directo, sin código y sin
+          contraseñas: quien llega sin acceso abre en modo lectura.
         </p>
         <p className="mt-5 font-mono text-[11px] leading-6 text-blanco-50 anim-rise" style={{ animationDelay: '200ms' }}>
           {abiertos.length === 1
@@ -178,7 +178,13 @@ export default async function Home() {
                 <span aria-hidden="true" className="h-9 w-9 shrink-0 border border-blanco-40"
                   style={cliente.brand_primary_color ? { backgroundColor: cliente.brand_primary_color } : undefined} />
                 <div className="min-w-0">
-                  <p className="mono-label text-blanco-50">[{cliente.rol.toUpperCase()}]</p>
+                  {/* El rol crudo en pantalla era `CLIENT_VIEWER`, que es un nombre
+                      de tabla y no una palabra. Para quien entra sin sesión, que es
+                      casi todo el mundo desde el 2026-10-02, poner el rol en
+                      mayúsculas lo hace parecer un error. */}
+                  <p className="mono-label text-blanco-50">
+                    [{cliente.rol === 'client_viewer' ? 'LECTURA' : cliente.rol.toUpperCase()}]
+                  </p>
                   <h3 className="mt-1 font-display text-3xl font-bold text-blanco md:text-4xl">{cliente.name}</h3>
                 </div>
               </div>
