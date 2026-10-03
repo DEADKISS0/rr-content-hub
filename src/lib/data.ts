@@ -849,7 +849,11 @@ export async function getTimeline(ideaId: string) {
  * ve los que tiene en `rr_hub_access`.
  */
 export async function getClientesDeLaPersona(): Promise<{
-  abiertos: { slug: string; name: string; client_name: string; brand_primary_color: string | null; description: string | null; rol: string }[];
+  // MEDIDO 2026-10-03: el tipo declarado se olvidaba de `id`, que SÍ viene en la
+  // fila. La portada nueva lo necesita para pedir el conteo de piezas de cada
+  // cliente sin una consulta extra por cliente. El tipo mentía sobre el dato: por
+  // eso `getIdeas(cliente.id)` no compilaba aunque el objeto fuera correcto.
+  abiertos: { id: string; slug: string; name: string; client_name: string; brand_primary_color: string | null; description: string | null; rol: string }[];
   cerrados: { slug: string; name: string; client_name: string; brand_primary_color: string | null; description: string | null; motivo: 'sin-fila' | 'sin-codigo' }[];
   actual: string | null;
 }> {
