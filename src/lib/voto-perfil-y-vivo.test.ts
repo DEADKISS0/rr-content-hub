@@ -144,23 +144,18 @@ describe('el botón que estaba muerto ahora lleva a donde se resuelve', () => {
     expect(shell).not.toMatch(/<span[^>]*>\s*<Icon name="user"[^>]*\/> SOLO LECTURA/);
   });
 
-  it('ELEGIR QUIÉN VOTA está dentro de un Link abierto, y no hay span por medio', () => {
-    // La forma real del código es
-    //   <Link href={...} className={...}> <Icon/> TEXTO </Link>
-    // así que el aserto acota el trozo entre la ruta y el texto y exige que el
-    // <Link> siga abierto. Hay dos enlaces a esta pantalla (la barra y el botón)
-    // y solo importa el del botón, que es el ÚLTIMO.
+  it('ELEGIR QUIÉN VOTA ya no es un enlace: es el selector, en la barra', () => {
+    // MEDIDO 2026-10-03. Este aserto exigía un `<Link>` abierto con el texto
+    // ELEGIR QUIÉN VOTA, y pasó a fallar al arreglar «no deja cambiar el perfil»:
+    // el enlace se iba a otra pantalla y el selector entró en su lugar.
+    //
+    // Un test que obliga a mantener un enlace con esa etiqueta está obligando a
+    // mantener el bug. Este ya no exige el enlace: exige que el rótulo con esa
+    // promesa tenga debajo un selector, que es lo que hace.
     const shell = leer('src/components/workspace-shell.tsx');
-    const ruta = 'href={`/${slug}/ideas/en-votacion`}';
-    const hasta = shell.indexOf('ELEGIR QUIÉN VOTA');
-    expect(hasta).toBeGreaterThan(-1);
-    const desdeRuta = shell.lastIndexOf(ruta, hasta);
-    expect(desdeRuta).toBeGreaterThan(-1);
-    const desde = shell.lastIndexOf('<', desdeRuta);
-    const trozo = shell.slice(desde, hasta);
-    expect(trozo).toContain('<Link');
-    expect(trozo).not.toContain('</Link>');
-    expect(trozo).not.toContain('<span');
+    expect(shell).toContain('<SelectorPerfil slug={slug} pedirEquipo />');
+    // El enlace a la pantalla de votación sobrevive, con su propio nombre.
+    expect(shell).toMatch(/VOTACIÓN INTERNA/);
   });
 
   it('el enlace apunta a una pantalla que existe', () => {
@@ -271,5 +266,76 @@ describe('abrir comment y vote sin sesion no abre el resto', () => {
     // Abrir la puerta no es abrir el turno: el perfil se comprueba en la base.
     const ruta = leer('src/app/api/workspace/[action]/route.ts');
     expect(ruta.match(/is_team_member/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+  });
+});
+
+
+describe('cambiar de perfil es cambiar un perfil, no irse a otra pantalla', () => {
+  it('la barra tiene el selector, no un enlace que se lleva a otro sitio', () => {
+    // MEDIDO 2026-10-03. «No deja cambiar el perfil». En la barra había un
+    // `<Link href="/{slug}/ideas/en-votacion">ELEGIR QUIÉN VOTA</Link>`: un enlace
+    // con esa etiqueta promete elegir y entrega otra pantalla. MEDIDO en
+    // producción: `tagName = "A"`, `href = "/candilejas/ideas/en-votacion"`, y el
+    // selector no existía en el tablero. El único camino para cambiar de perfil
+    // era salirse del tablero.
+    const shell = leer('src/components/workspace-shell.tsx');
+    const barra = shell.slice(shell.indexOf('SIN PUERTA'));
+    expect(barra).toContain('<SelectorPerfil');
+    expect(barra).not.toMatch(/ELEGIR QUIÉN VOTA<\/Link>/);
+  });
+
+  it('el enlace a la pantalla de votación sigue ahí, pero con su propio nombre', () => {
+    const shell = leer('src/components/workspace-shell.tsx');
+    expect(shell).toContain('/ideas/en-votacion');
+    expect(shell).toMatch(/VOTACIÓN INTERNA/);
+  });
+
+  it('guardar un perfil avisa a esta misma pestaña', () => {
+    // MEDIDO 2026-10-03. `suscribirPerfil` escuchaba solo el evento `storage`, y
+    // el navegador NO lo dispara en la pestaña que escribe: solo en las demás. El
+    // bug era visible en la propia pestaña —elegir un perfil y el botón seguía
+    // diciendo ELEGIR QUIÉN VOTA—, y eso es «no deja cambiar el perfil».
+    const lib = leer('src/lib/perfil-votante.ts');
+    expect(lib).toMatch(/EVENTO_PERFIL/);
+    expect(lib).toMatch(/avisarCambioPerfil\(\)/);
+    expect(lib).toMatch(/addEventListener\(EVENTO_PERFIL, alCambiar\)/);
+    // Y `guardarPerfil` tiene que llamarla: un evento propio que nadie dispara
+    // no arregla nada.
+    const guardar = lib.slice(lib.indexOf('export function guardarPerfil'));
+    const fin = guardar.indexOf('export ');
+    expect(guardar.slice(0, fin > 0 ? fin : guardar.length)).toMatch(/avisarCambioPerfil\(\)/);
+  });
+
+  it('con perfil elegido el botón dice que se puede cambiar', () => {
+    const comp = leer('src/components/selector-perfil.tsx');
+    expect(comp).toMatch(/CAMBIAR · /);
+  });
+
+  it('el aviso de "elige tu perfil" no sale cuando ya hay perfil', () => {
+    // MEDIDO 2026-10-03. El aviso se pintaba con `!puedeVotar`, que se calcula
+    // con `esDelEquipo(...)`. Con perfil elegido pero `equipo` aún vacío, el
+    // aviso decía «Elige tu perfil» encima de un perfil YA elegido, y cambiar no
+    // lo quitaba: parecía que el botón no hacía nada.
+    const comp = leer('src/components/selector-perfil.tsx');
+    expect(comp).toMatch(/\{!elegido && \(/);
+    expect(comp).not.toMatch(/\{!puedeVotar && \(/);
+  });
+
+  it('mientras se pide el equipo no dice que no hay equipo', () => {
+    const comp = leer('src/components/selector-perfil.tsx');
+    // Acotado al JSX de los dos retornos, no al archivo: la primera aparición de
+    // cada rótulo está en un comentario que lo explica, y comparar sobre eso
+    // daba el orden equivocado y no miraba el código.
+    // El orden de las dos guardas es el contrato: si `sinEquipo` se comprueba
+    // antes que `cargando`, un tablero vacío muestra «SIN EQUIPO...» durante la
+    // carga. No se compara el tamaño de los bloques (frágil: depende de cuánto
+    // comentario lleve cada uno) sino DÓNDE cae cada guarda.
+    const iCarga = comp.indexOf('if (cargando) {');
+    const iVacia = comp.indexOf('if (sinEquipo) {');
+    expect(iCarga).toBeGreaterThan(-1);
+    expect(iVacia).toBeGreaterThan(-1);
+    expect(iCarga).toBeLessThan(iVacia);
+    expect(comp.slice(iCarga, iVacia)).toContain('CARGANDO EQUIPO');
+    expect(comp.slice(iVacia)).toContain('SIN EQUIPO DE VOTACIÓN CONFIGURADO');
   });
 });

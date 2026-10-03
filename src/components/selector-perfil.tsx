@@ -25,20 +25,41 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import {
-  emailElegido, esDelEquipo, guardarPerfil, perfilElegido, suscribirPerfil,
-  type PerfilVotante,
+  guardarPerfil, perfilElegido, suscribirPerfil, type PerfilVotante,
 } from '@/lib/perfil-votante';
 import { Icon } from '@/components/ui/icons';
 
 export function SelectorPerfil({
-  equipo,
+  equipo: equipoDelServidor,
   slug,
+  /** Si no le llegan personas, las pide ella misma. */
+  pedirEquipo = false,
 }: {
   /** Las personas que pueden votar, del servidor. */
-  equipo: PerfilVotante[];
-  /** El cliente, solo para el `data-guia` del tour. */
+  equipo?: PerfilVotante[];
+  /** El cliente, solo para el `data-guia` del tour y para pedir el equipo. */
   slug: string;
+  /** Pedir el equipo por `fetch` cuando no viene por props. */
+  pedirEquipo?: boolean;
 }) {
+  // MEDIDO 2026-10-03. `WorkspaceShell` lo usan ocho pantallas; pasar el equipo
+  // por props a todas era ocho sitios que mantener para lo mismo. Aquí se pide una
+  // vez y se cachea por cliente en el navegador.
+  const [equipoTraido, setEquipoTraido] = useState<PerfilVotante[]>(equipoDelServidor ?? []);
+  const [cargando, setCargando] = useState(!equipoDelServidor && pedirEquipo);
+  useEffect(() => {
+    if (equipoDelServidor || !pedirEquipo) return;
+    let vivo = true;
+    fetch(`/api/workspace/equipo?proyecto=${encodeURIComponent(slug)}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((d: { equipo?: PerfilVotante[] }) => { if (vivo) { setEquipoTraido(d.equipo ?? []); setCargando(false); } })
+      // Un fallo al pedir la lista NO es motivo para tapar el selector: sin equipo
+      // se muestra el texto de que no hay, que es la verdad de ese momento.
+      .catch(() => { if (vivo) { setEquipoTraido([]); setCargando(false); } });
+    return () => { vivo = false; };
+  }, [equipoDelServidor, pedirEquipo, slug]);
+
+  const equipo = equipoDelServidor ?? equipoTraido;
   /**
    * `useSyncExternalStore` y no un `useEffect` con `setState`.
    *
@@ -55,7 +76,6 @@ export function SelectorPerfil({
   const elegido = useSyncExternalStore(suscribirPerfil, perfilElegido, () => null);
   const [abierto, setAbierto] = useState(false);
   const caja = useRef<HTMLDivElement>(null);
-  const listo = true;
 
   // Cierra al pulsar fuera. Con un `click` en el documento, no en `pointerdown`:
   // el segundo se dispara antes de que el botón reciba el clic, y el menú se
@@ -75,7 +95,15 @@ export function SelectorPerfil({
   }, [abierto]);
 
   const sinEquipo = equipo.length === 0;
-  const puedeVotar = listo && esDelEquipo(emailElegido(), equipo);
+
+  // Mientras se pide la lista, no se dice que no hay: se está diciendo lo que no
+  // se sabe. MEDIDO 2026-10-03 — un «SIN EQUIPO DE VOTACIÓN CONFIGURADO»
+  // aparecerá en el tablero durante el primer medio segundo de cada carga.
+  if (cargando) {
+    return (
+      <p className="font-mono text-[10px] text-blanco-40">CARGANDO EQUIPO…</p>
+    );
+  }
 
   if (sinEquipo) {
     return (
@@ -101,7 +129,7 @@ export function SelectorPerfil({
         }`}
       >
         <Icon name="user" size={13} />
-        {elegido ? elegido.nombre.toUpperCase() : 'ELEGIR QUIÉN VOTA'}
+        {elegido ? `CAMBIAR · ${elegido.nombre.toUpperCase()}` : 'ELEGIR QUIÉN VOTA'}
         <Icon name={abierto ? 'arrow' : 'chevron'} size={11} />
       </button>
 
@@ -151,8 +179,18 @@ export function SelectorPerfil({
 
       {/* El aviso va fuera del desplegable: si viviera dentro, cerrarse el menú
           se llevaría por delante el texto que explica por qué no se puede
-          pulsar. */}
-      {!puedeVotar && (
+          pulsar.
+
+          MEDIDO 2026-10-03. Este aviso salía SIEMPRE que `puedeVotar` fuera falso,
+          y `puedeVotar` se calcula con `esDelEquipo(emailElegido(), equipo)`. Con
+          un perfil elegido pero cuyo correo no está en la lista que llegó del
+          servidor —o simplemente con `equipo` aún vacío mientras carga— el aviso
+          decía «Elige tu perfil» con un perfil YA elegido. Cambiar de perfil no
+          cambiaba el aviso, y parecía que el botón no hacía nada.
+
+          Ahora el aviso solo aparece cuando NO hay perfil. Si hay, lo que urge es
+          poder cambiarlo: para eso está el desplegable, y para eso `CAMBiar`. */}
+      {!elegido && (
         <p className="mt-1 font-mono text-[10px] leading-4 text-mostaza">
           Elige tu perfil antes de votar. El voto necesita un nombre del equipo.
         </p>

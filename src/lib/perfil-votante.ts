@@ -72,9 +72,14 @@ export function guardarPerfil(perfil: PerfilVotante | null): void {
   if (typeof window === 'undefined') return;
   if (!perfil) {
     window.localStorage.removeItem(LLAVE_PERFIL);
+    avisarCambioPerfil();
     return;
   }
   window.localStorage.setItem(LLAVE_PERFIL, JSON.stringify(perfil));
+  // El `storage` del navegador no salta en ESTA pestaña. Sin esto, elegir un
+  // perfil no repinta el botón que acabas de pulsar: se guardaba bien y se veía
+  // como si nada. MEDIDO 2026-10-03 en producción.
+  avisarCambioPerfil();
 }
 
 /** El email del perfil elegido, o cadena vacía si no hay ninguno. */
@@ -96,18 +101,36 @@ export function esDelEquipo(email: string, equipo: PerfilVotante[]): boolean {
 }
 
 /**
- * Avisar cuando el perfil elegido cambia en ESTA pestaña.
+ * Avisar cuando el perfil elegido cambia.
  *
- * Va con el evento `storage`, que el navegador dispara en las OTRAS pestañas
- * cuando una guarda. En la que guarda no se dispara: por eso `guardarPerfil` no
- * necesita disparar nada, porque quien guarda ya sabe lo que guardó y quien lo
- * muestra se lo pide.
+ * MEDIDO 2026-10-03. Esto solo escuchaba el evento `storage`, y el navegador NO lo
+ * dispara en la pestaña que escribe: solo en las OTRAS. El bug era visible en la
+ * propia pestaña —elegir un perfil y el botón seguía diciendo «ELEGIR QUIÉN VOTA»—
+ * y «no deja cambiar el perfil» era justo eso.
  *
- * Sin esto, abrir el selector en dos pestañas del mismo equipo —que es lo normal
- * en una reunión— mostraba perfiles distintos en cada una sin avisar.
+ * `useSyncExternalStore` re-lee `getSnapshot` cuando la suscripción avisa, así que
+ * no vale con que alguien escriba: hay que avisar, y en las DOS vías:
+ *
+ * - `rr_perfil_votante_cambio`, un evento propio que dispara `guardarPerfil`. Es lo
+ *   que arregla la propia pestaña.
+ * - `storage`, que el navegador dispara en las demás pestañas de la misma persona.
+ *
+ * Con las dos, cambiar el perfil se ve al instante en la reunión, que es donde se
+ * hace: dos pestañas del mismo equipo son lo normal, no la excepción.
  */
+const EVENTO_PERFIL = 'rr_perfil_votante_cambio';
+
+export function avisarCambioPerfil(): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(EVENTO_PERFIL));
+}
+
 export function suscribirPerfil(alCambiar: () => void): () => void {
   if (typeof window === 'undefined') return () => {};
   window.addEventListener('storage', alCambiar);
-  return () => window.removeEventListener('storage', alCambiar);
+  window.addEventListener(EVENTO_PERFIL, alCambiar);
+  return () => {
+    window.removeEventListener('storage', alCambiar);
+    window.removeEventListener(EVENTO_PERFIL, alCambiar);
+  };
 }
