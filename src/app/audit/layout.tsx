@@ -32,7 +32,7 @@ export default async function AuditLayout({ children }: { children: React.ReactN
             <Link href={`/audit/${slug}`} className="font-mono text-[10px] text-blanco-60 transition-colors hover:text-blanco">PROYECTO</Link>
             <Link href="/audit/admin" className="font-mono text-[10px] text-blanco-60 transition-colors hover:text-blanco">ADMIN</Link>
             <Link href={`/${slug}`} className="font-mono text-[10px] text-blanco-60 underline hover:text-blanco">VOLVER AL TABLERO →</Link>
-          </> : <Link href="/login" className="font-mono text-[10px] text-blanco-60 underline hover:text-blanco">ENTRAR CON TU CÓDIGO →</Link>}
+          </> : <Link href="/" className="font-mono text-[10px] text-blanco-60 underline hover:text-blanco">VOLVER A LA PORTADA →</Link>}
         </nav>
       </div>
     </header>

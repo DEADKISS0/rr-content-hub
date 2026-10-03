@@ -32,8 +32,8 @@ export default function Offline() {
       <ul className="mt-3 space-y-2 text-sm leading-6 text-blanco-60">
         <li>Comprobar la conexión y volver a entrar.</li>
         <li>
-          <Link href="/login" className="text-mostaza underline">
-            Ir a la entrada
+          <Link href="/select-project" className="text-mostaza underline">
+            Ir al catálogo
           </Link>{' '}
           para cambiar de cliente.
         </li>

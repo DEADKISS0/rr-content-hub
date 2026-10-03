@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { esPublica } from './public-rutas';
 
@@ -157,5 +157,38 @@ describe('la puerta del hub se queda abierta', () => {
     // Y que la comprobacion de existencia sea una consulta, no un includes().
     expect(c).toMatch(/clienteExiste/);
     expect(c).toMatch(/rr_hub_projects/);
+  });
+  it('NINGUN enlace de la interfaz apunta a /login', () => {
+    // El bug medido en produccion con la puerta ya abierta: la barra del cliente
+    // seguia mostrando un boton "INICIAR SESION" que llevaba a `/login`. Un enlace
+    // a una pantalla borrada es un 404 con un texto que promete entrar, que es lo
+    // peor de los dos: la interfaz anuncia algo que no existe.
+    //
+    // Se recorre el arbol de `src/` y se mira el codigo de cada archivo, no los
+    // comentarios: media explicacion de este cambio menciona `/login`.
+    const raiz = join(process.cwd(), 'src');
+    const culpables: string[] = [];
+    const recorrer = (dir: string) => {
+      for (const entrada of readdirSync(dir, { withFileTypes: true })) {
+        const ruta = join(dir, entrada.name);
+        if (entrada.isDirectory()) { recorrer(ruta); continue; }
+        if (!/\.(ts|tsx)$/.test(entrada.name)) continue;
+        // El propio archivo de test se compara consigo mismo y se declararia
+        // culpable. Y `pwa.test.ts` sigue nombrando `/login` en el texto de un
+        // comentario que explica por que se borro: eso es documentacion, no un
+        // enlace.
+        if (entrada.name.endsWith('.test.ts') || entrada.name.endsWith('.test.tsx')) continue;
+        const limpio = readFileSync(ruta, 'utf8')
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .replace(/\/\/.*/g, '')
+          .replace(/\/\*([\s\S]*?)\*\//g, '');
+        // Un enlace es href=".../login" o redirect('.../login').
+        if (/['"\`][^'"\`]*\/login/.test(limpio)) {
+          culpables.push(ruta.replace(process.cwd() + '/', ''));
+        }
+      }
+    };
+    recorrer(raiz);
+    expect(culpables, `estos archivos enlazan a /login: ${culpables.join(', ')}`).toEqual([]);
   });
 });

@@ -285,9 +285,16 @@ export function WorkspaceShell({ children, project, role, email, nombre, puedeEs
                   </div>
                 </details>
               ) : (
-                <Link href={`/login?next=${encodeURIComponent(`/${slug}/ideas/nueva`)}`} className="inline-flex items-center gap-2 border border-blanco-20 px-2 py-1.5 font-mono text-[10px] text-blanco-70 hover:border-blanco-40">
-                  <Icon name="user" size={14} /> INICIAR SESIÓN
-                </Link>
+                // SIN PUERTA (2026-10-02): este botón iba a `/login`, que ya no
+                // existe. Un enlace a una pantalla borrada es un 404 con un texto
+                // que promete entrar, o sea lo peor de los dos.
+                //
+                // Ahora dice lo que es verdad: se está leyendo sin sesión y para
+                // escribir hace falta que Dirección dé de alta el acceso. No
+                // ofrece un camino que no hay.
+                <span className="inline-flex items-center gap-2 border border-blanco-20 px-2 py-1.5 font-mono text-[10px] text-blanco-70">
+                  <Icon name="user" size={14} /> SOLO LECTURA
+                </span>
               ))}
 
               {puedeEscribir ? (
