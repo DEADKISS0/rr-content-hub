@@ -65,7 +65,7 @@ export default function manifest(): MetadataRoute.Manifest {
      * la identidad de la app, y si cambia Android la trata como una app
      * DISTINTA y a quien ya la tenía instalada le aparece otra vez.
      */
-    start_url: '/login?fuente=app',
+    start_url: '/',
     scope: '/',
     display: 'standalone',
     // La app se abre sin barra del navegador: es lo que la hace parecer app y no

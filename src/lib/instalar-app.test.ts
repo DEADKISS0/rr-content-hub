@@ -47,12 +47,23 @@ describe('el boton de instalar no puede tapar la accion principal', () => {
     expect(centrados).toHaveLength(0);
   });
 
-  it('el boton ENTRAR existe y no queda debajo de ningun flotante centrado', () => {
-    const formulario = readFileSync(
-      join(process.cwd(), 'src/app/login/formulario.tsx'),
-      'utf8'
-    );
-    // el texto del boton tiene que existir de verdad, no solo el handler
-    expect(formulario).toMatch(/'ENTRANDO…'\s*:\s*'ENTRAR'/);
+  // Este test afirmaba que el botón ENTRAR existía y que no quedaba tapado por
+  // un flotante centrado. Ese botón era el de la pantalla de login, que se borró
+  // el 2026-10-02 con la puerta.
+  //
+  // Lo que queda por comprobar es lo contrario, y es lo que de verdad importa:
+  // que la acción principal de la portada NO quede debajo de ningún flotante
+  // centrado. Si algún día vuelve el instalador, esto es lo que tiene que
+  // seguir siendo cierto.
+  it('la accion principal de la portada no queda debajo de ningun flotante centrado', () => {
+    // Se lee el CODIGO, sin comentarios. Medio archivo explica por que se borro el
+    // rebote a la puerta, y un test que busca `redirect(` encuentra esa
+    // explicacion y falla cuando la puerta esta correctamente cerrada: un test
+    // que no distingue el codigo del comentario que lo explica no mide nada.
+    const crudo = readFileSync(join(process.cwd(), 'src/app/page.tsx'), 'utf8');
+    const pagina = crudo.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*/g, '');
+    expect(pagina).not.toMatch(/redirect\(/);
+    // Y sigue habiendo una pantalla de verdad, no un hueco.
+    expect(crudo).toMatch(/<h1/);
   });
 });

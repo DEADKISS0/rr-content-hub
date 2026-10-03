@@ -260,10 +260,25 @@ export async function getProjects() {
 
   const sesion = await quienEs();
 
-  // Sin cookie, la portada se ve pero no se listan clientes con código: entrar
-  // es lo que enseña qué hay. Antes listaba solo Wundeer en abierto; ahora la
-  // lista la da la cookie.
-  if (!sesion) return { projects: [], supabase };
+  // SIN SESION, LA PUERTA ESTA ABIERTA (2026-10-02).
+  //
+  // Antes esta línea devolvía la lista vacía sin cookie, y con ella la portada se
+  // quedaba sin nada que enseñar. Era coherente con una puerta cerrada: sin
+  // código no había clientes.
+  //
+  // Ahora los cuatro clientes se listan siempre. `rr_hub_projects` se lee por
+  // service role, así que no depende de la RLS y no necesita que haya cookie.
+  //
+  // LO QUE NO SE ABRE: las escrituras. El guard de cada mutación sigue
+  // comprobando `rr_hub_access`, que es lo que dice qué puede hacer una persona
+  // concreta. Abrir la puerta no es abrir la escritura.
+  if (!sesion) {
+    const { data: todos } = await supabase
+      .from('rr_hub_projects')
+      .select('id, slug, name, client_name')
+      .order('name', { ascending: true });
+    return { projects: todos ?? [], supabase };
+  }
 
   // Global admins supervisan every project even without an explicit access row.
   // Se busca por correo: es la misma fila, y el id ya no viene de una sesión

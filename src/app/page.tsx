@@ -1,6 +1,5 @@
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
-import { getIdeas, getProjects, getClientesDeLaPersona } from '@/lib/data';
+import { getIdeas, getProjects } from '@/lib/data';
 import { statusMeta, type WorkflowStatus } from '@/lib/flow';
 import { BOARD_COLUMNS } from '@/lib/queues';
 import { Icon } from '@/components/ui/icons';
@@ -26,18 +25,22 @@ export default async function Home() {
   const { projects } = await getProjects();
   const found = firstProject(projects);
 
-  // Sin sesión no se puede saber nada del hub: los proyectos existen, pero
-  // `rr_hub_projects` está detrás del RLS y la anon no lee.
+  // SIN PUERTA (2026-10-02). Antes esto terminaba en `redirect('/login')` sin
+  // cookie, que era coherente con una puerta cerrada.
   //
-  // ⚠️ Lo que fallaba el 2026-09-29 y no debe volver: esta página pedía los
-  // proyectos ANTES de mirar si había cookie, así que sin sesión salía un cartel
-  // de "Sin proyectos disponibles" que además culpaba a Supabase. Era mentira en
-  // dos partes: los proyectos sí existen, y la causa no era la conexión. Ahora
-  // lo primero es la sesión; sin ella, al login.
+  // Ahora, si hay proyectos se enseña el primero; si no hay ninguno, se dice que
+  // no hay, en la propia página. Lo que NO se hace es mandar a una pantalla de
+  // acceso que ya no existe: un rebote a `/login` sería un 404 para quien llega.
   if (!found) {
-    const sesion = await getClientesDeLaPersona();
-    if (sesion.abiertos.length === 0) redirect('/login');
-    redirect(`/${sesion.actual ?? sesion.abiertos[0].slug}`);
+    return <main className="min-h-screen bg-negro">
+      <div className="mx-auto max-w-3xl px-5 py-24 text-center">
+        <h1 className="display-title">Todavía no hay clientes.</h1>
+        <p className="mt-6 text-blanco-60">
+          El hub está abierto y la base responde, pero no hay ningún cliente dado de
+          alta. Cuando se cree el primero, aparece aquí.
+        </p>
+      </div>
+    </main>;
   }
 
   const project = found.project;
