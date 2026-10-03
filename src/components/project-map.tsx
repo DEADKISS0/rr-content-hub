@@ -76,6 +76,9 @@ function matches(idea: BoardIdea, filters: BoardFilters, contentType: ContentTyp
     if (!column || !(column.statuses as readonly string[]).includes(idea.status)) return false;
   }
   if (filters.act !== 'all' && actGroup(idea.status as WorkflowStatus) !== filters.act) return false;
+  // MEDIDO 2026-10-02: filtro por arista. La categoría ya venía en la idea y
+  // en el buscador de texto, pero no se podía filtrar por ella.
+  if (filters.category !== 'all' && idea.category !== filters.category) return false;
   if (contentType !== 'all' && idea.content_type !== contentType) return false;
   // Santiago, 2026-09-30: separar de un vistazo lo que monta el equipo de lo que
   // monta Hermes. `undefined` se cuenta como manual: lo que no declara origen es
@@ -93,7 +96,7 @@ function matches(idea: BoardIdea, filters: BoardFilters, contentType: ContentTyp
  * vacíos, no repetido en cada sección. Cada filtro tiene un solo lugar.
  */
 export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; projectSlug: string }) {
-  const [filters, setFilters] = useState<BoardFilters>({ query: '', phase: 'all', act: 'all', view: 'map' });
+  const [filters, setFilters] = useState<BoardFilters>({ query: '', phase: 'all', act: 'all', view: 'map', category: 'all' });
   const [contentType, setContentType] = useState<ContentTypeFilter>('all');
   const [origen, setOrigen] = useState<OrigenTab>('all');
   const onChange = (next: Partial<BoardFilters>) => setFilters((current) => ({ ...current, ...next }));
@@ -107,6 +110,20 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
   // las unicas que traen el boton A FAVOR. Contarlas bien es lo que hace que el
   // desplegable abra solo y el contador diga la verdad.
   const enVotacion = ideas.filter((idea) => idea.status === 'voting').length;
+  // MEDIDO 2026-10-02: el conteo de cada arista, para que los botones de la
+  // barra digan cuántas hay y no solo el nombre. Se cuenta sobre TODO el banco,
+  // no sobre lo ya filtrado: si no, al elegir una arista las demásuzzarían a 0
+  // y el filtro quedaría sin salida.
+  const aristas = useMemo(() => {
+    const cuenta = new Map<string, number>();
+    for (const idea of ideas) {
+      if (!idea.category) continue;
+      cuenta.set(idea.category, (cuenta.get(idea.category) ?? 0) + 1);
+    }
+    return [...cuenta.entries()]
+      .map(([valor, n]) => ({ valor, n }))
+      .sort((a, b) => b.n - a.n || a.valor.localeCompare(b.valor));
+  }, [ideas]);
   // MEDIDO 2026-10-01: con `open={...}` SOLO como prop, el primer render abre
   // pero despues React deja de respetarlo (el <details> ya quedo "tocado" por el
   // usuario o por el navegador). Con estado propio el desplegable se puede
@@ -162,7 +179,7 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
           "O1" tenía que descubrir primero que existía un filtro). Y sin
           `sticky`, escribir no deja un contador flotando sobre un tablero
           cerrado: `dirty` abre el <details> en el mismo gesto. */}
-      <BoardControls filters={filters} onChange={onChange} total={ideas.length} shown={visible.length} waiting={waitingClient} />
+      <BoardControls filters={filters} onChange={onChange} total={ideas.length} shown={visible.length} waiting={waitingClient} aristas={aristas} />
 
       {/* El trabajo completo sigue aquí, a una línea de distancia. Si alguien
           filtra o busca, se abre solo: no hay que hacer dos gestos.

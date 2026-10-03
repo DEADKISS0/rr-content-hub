@@ -55,6 +55,13 @@ export function FlowBoard({ ideas, projectSlug }: { ideas: Idea[]; projectSlug: 
                 SALIDA · <span className={vencido ? 'text-mostaza' : 'text-blanco-70'}>{fecha}</span>
                 {faltan && <span> · {faltan.texto}</span>}
               </p>}
+              {/* MEDIDO 2026-10-02: `category` llegaba en el tipo y en la consulta,
+                  pero la tarjeta no lo pintaba. Con 28 variantes distintas y 14
+                  ideas sin categoría, el banco no se podía agrupar ni graficar.
+                  Ya normalizado a 12 valores; esto hace que se vea la arista. */}
+              {idea.category && <p className="mt-2 font-mono text-[9px] text-blanco-40">
+                ARISTA · <span className="text-orquidea">{idea.category}</span>
+              </p>}
               <div className="mt-4 flex items-center justify-between border-t border-blanco-10 pt-3 font-mono text-[9px] text-blanco-40"><span>ACTÚA: {meta.who}</span><span className="text-blanco-60">ABRIR →</span></div>
             </Link>; })}
             {!items.length && <p className="border border-dashed border-blanco-20 px-3 py-5 font-mono text-[10px] leading-5 text-blanco-40">Todavía no hay piezas aquí.</p>}

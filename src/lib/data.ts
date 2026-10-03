@@ -77,6 +77,19 @@ function mapIdea(row: RawIdea) {
     creator: 'RR ALIADOS',
     created_at: row.created_at as string,
     /**
+     * MEDIDO 2026-10-02 (auditoria del backend): `mapIdea` reconstruia el objeto
+     * campo por campo y se dejaba estos tres, que ya venian en la consulta.
+     * Consecuencias medidas, no supuestas:
+     *   - sin `updated_at`, `daysSince(idea.updated_at ?? idea.created_at)` caia
+     *     siempre a `created_at`: una pieza tocada hoy podia mostrar "14 DIAS SIN
+     *     MOVERSE". Es lo que se ve en la tarjeta del tablero y en la cola.
+     *   - sin `created_by`, el responsable de la pieza salia siempre vacio.
+     *   - sin `ad_id`, la miniatura del anuncio de Facebook nunca cargaba.
+     */
+    updated_at: (row.updated_at as string) ?? null,
+    created_by: (row.created_by as string) ?? null,
+    ad_id: (row.ad_id as string) ?? null,
+    /**
      * MEDIDO 2026-10-01: la fecha de salida se guardaba y no llegaba a la
      * pantalla. Dos motivos encadenados, y los dos había que arreglarlos:
      *
@@ -294,7 +307,7 @@ export async function getIdeas(projectId: string) {
 
   const { data } = await supabase
     .from('rr_hub_ideas')
-    .select('id, code, title, description, objective, content_type, category, origen, status, priority, created_at, due_at, published_url, reference_urls, camera_brief, talent_brief, edit_brief, script_content, ad_id')
+    .select('id, code, title, description, objective, content_type, category, origen, status, priority, created_at, updated_at, due_at, published_url, reference_urls, camera_brief, talent_brief, edit_brief, script_content, created_by, ad_id')
     .eq('project_id', projectId)
     // Las ideas archivadas desaparecen del tablero, pero NO se borran. Siguen en
     // la tabla con sus votos y sus comentarios, y se pueden volver a desarchivar.
@@ -534,6 +547,37 @@ export async function getVotosDeVarias(
 }
 
 /**
+ * MEDIDO 2026-10-03: cuántos votos pidieron un cambio, por proyecto.
+ *
+ * `getVotosDeVarias` solo mira `yes` y `no`, así que una idea con un "cambiar
+ * esto" salía con el MISMO conteo que una que nadie ha tocado. El decision
+ * `change` existe en la base (MEDIDO: 1 voto) y es el único que frena una
+ * pieza, pero ningún lector lo contaba. Se agrega su conteo aparte; la
+ * función de las gráficas lo usa para la barra de fricción.
+ */
+export async function getVotosDeCambio(projectId: string): Promise<number> {
+  const supabase = await createServiceClient() ?? await createClient();
+  if (!supabase) return 0;
+  // MEDIDO 2026-10-03: `rr_hub_votes` NO tiene columna `project_id`. Solo tiene
+  // `idea_id`, así que el proyecto se resuelve cruzando por la idea. Filtrar por
+  // `project_id` devolvía error y la función respondía 0 siempre.
+  const { data: ideas } = await supabase
+    .from('rr_hub_ideas')
+    .select('id')
+    .eq('project_id', projectId);
+  const ids = (ideas ?? []).map((i) => i.id as string);
+  if (!ids.length) return 0;
+
+  const { data, error } = await supabase
+    .from('rr_hub_votes')
+    .select('id')
+    .eq('decision', 'change')
+    .in('idea_id', ids);
+  if (error) return 0;
+  return data?.length ?? 0;
+}
+
+/**
  * El equipo y su último latido, para pintar quién está en línea.
  *
  * Solo devuelve filas que existen en `rr_hub_presencia`: quien nunca ha
@@ -727,7 +771,7 @@ export async function getComentarios(ideaId: string) {
   if (!supabase) return [];
   const { data } = await supabase
     .from('rr_hub_comments')
-    .select('id, body, author_label, resolved, created_at')
+    .select('id, body, author_label, resolved_at, created_at')
     .eq('idea_id', ideaId)
     .order('created_at', { ascending: true });
   // Se devuelve con la forma que el componente ya espera (`text`, `author`,
@@ -740,7 +784,7 @@ export async function getComentarios(ideaId: string) {
     author: (c.author_label as string) ?? 'RR ALIADOS',
     role: 'colaboracion',
     createdAt: (c.created_at as string) ?? '',
-    resolved: Boolean(c.resolved),
+    resolved: Boolean(c.resolved_at),
   }));
 }
 

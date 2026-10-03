@@ -46,7 +46,15 @@ describe('la fila se convierte en lo que el componente ve', () => {
   it('la consulta del tablero pide la columna', () => {
     // El motivo 1. `getIdeas` no usa `*`: nombra columna por columna, así que
     // una columna nueva no llega hasta que alguien la nombre.
-    expect(data).toMatch(/created_at,\s*due_at/);
+    // MEDIDO 2026-10-02: este aserto pedía el par `created_at, due_at` pegado y
+    // con ese orden. Al meter `updated_at` entre los dos —que es lo que pedía
+    // la auditoría— el test falló sin que hubiera ningún defecto. Un aserto que
+    // ata el ORDEN de las columnas se rompe con cada columna nueva que se
+    // agrega, y ese ruido esconde el fallo real. Ahora se exige que las dos
+    // estén en el MISMO select, que es lo que importa.
+    const select = data.match(/\.select\('id, code, title[\s\S]*?'\)/)?.[0] ?? '';
+    expect(select).toMatch(/created_at/);
+    expect(select).toMatch(/due_at/);
   });
 
   it('la ficha también trae el enlace de publicación', () => {
@@ -62,7 +70,12 @@ describe('el texto de la pantalla no basta para dar esto por hecho', () => {
     // comprueba que la columna SE PIDE prueba la consulta, no el dato.
     // Alguien tiene que mirar el `.map()`.
     expect(data).toMatch(/function mapIdea/);
-    const cuerpoMap = data.slice(data.indexOf('function mapIdea'));
-    expect(cuerpoMap.slice(0, 1400)).toMatch(/due_at/);
+    // MEDIDO 2026-10-02: miraba solo los primeros 1400 caracteres de mapIdea.
+    // Con los tres campos nuevos el bloque creció y `due_at` se quedó fuera de
+    // la ventana: el test falló sin defecto. Ahora se mira hasta la FIN de la
+    // función, que es lo que el aserto dice que quiere comprobar.
+    const desde = data.indexOf('function mapIdea');
+    const hasta = data.indexOf('\n}', desde);
+    expect(data.slice(desde, hasta)).toMatch(/due_at/);
   });
 });

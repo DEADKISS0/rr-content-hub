@@ -47,7 +47,12 @@ describe('la fecha de salida es visible, no un dato huérfano', () => {
      * mapeo, y la otra prueba (fecha-llega-al-componente) las separa para que
      * se vea cuál de las dos se rompió.
      */
-    expect(data).toMatch(/created_at,\s*due_at/);
+    // MEDIDO 2026-10-02: este aserto ataba el ORDEN de las columnas y falló al
+    // agregar `updated_at` (que pedía la auditoría) sin que hubiera defecto. Se
+    // exige que las dos estén en el mismo select, que es lo que importa.
+    const select = data.match(/\.select\('id, code, title[\s\S]*?'\)/)?.[0] ?? '';
+    expect(select).toMatch(/created_at/);
+    expect(select).toMatch(/due_at/);
     expect(data).toMatch(/due_at:\s*\(row\.due_at/);
   });
 });
