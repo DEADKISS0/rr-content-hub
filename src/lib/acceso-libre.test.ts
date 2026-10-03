@@ -143,4 +143,19 @@ describe('la puerta del hub se queda abierta', () => {
     // no abre tambien el anyadir un quinto cliente.
     expect(datos).toMatch(/clienteEsVisible\(slug, sesion\.proyecto\)/);
   });
+  it('la lista de clientes NO es una constante en el codigo', () => {
+    // El bug medido: `CLIENTES_CONOCIDOS = ['wundeer', 'candilejas']` escrita a
+    // mano, con cuatro clientes en la base. BOGA y Satiro no se podian abrir, y
+    // la portada ofrecia un enlace a BOGA que daba 404.
+    //
+    // Esto no puede mirar la base (un test no deberia depender de la red), asi que
+    // vigila lo que si se puede: que la lista no exista como constante. Si vuelve,
+    // los clientes que falten vuelven a quedar fuera sin que nada se entere.
+    const c = codigo('src/lib/projects.ts');
+    expect(c).not.toMatch(/CLIENTES_CONOCIDOS/);
+    expect(c).not.toMatch(/const\s+CLIENTES\w*\s*=\s*\[/);
+    // Y que la comprobacion de existencia sea una consulta, no un includes().
+    expect(c).toMatch(/clienteExiste/);
+    expect(c).toMatch(/rr_hub_projects/);
+  });
 });

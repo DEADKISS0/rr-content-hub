@@ -4,7 +4,7 @@ import { createServiceClient } from '@/lib/supabase/service';
 import { quienEs } from '@/lib/quien-es';
 import { DEMO_MODE, SupabaseNotConfiguredError } from './demo-mode';
 import { demoIdeas, demoProjects, getDemoIdea, getDemoProject } from './demo-data';
-import { clienteEsVisible, isVisibleProject } from './projects';
+import { clienteEsVisible, clienteExiste } from './projects';
 
 /**
  * Data access layer for the RR Content Hub.
@@ -163,7 +163,7 @@ export async function getCurrentUser() {
 }
 
 export async function getProject(slug: string) {
-  if (!isVisibleProject(slug)) return { project: null, access: null, supabase: null };
+  if (!(await clienteExiste(slug))) return { project: null, access: null, supabase: null };
 
   // SIN PUERTA (2026-10-02). Antes estas cuatro líneas exigían que el slug fuera
   // el del código con el que se entró, y sin cookie devolvían null. Con la puerta
@@ -690,7 +690,7 @@ export async function getAuditRoster() {
 }
 
 export async function getAuditProject(slug: string) {
-  if (!isVisibleProject(slug)) return null;
+  if (!(await clienteExiste(slug))) return null;
 
   // La auditoría es de solo lectura, pero no es pública: se ve lo del cliente del
   // código con el que se entró, no el de al lado. Antes solo comprobaba que el
@@ -927,11 +927,17 @@ export async function getClientesDeLaPersona(): Promise<{
     rolPorProyecto.set(fila.project_id, fila.role_in_project);
   }
 
-  // La lista corta manda: un cliente que no está en `CLIENTES_CONOCIDOS` no se
-  // ofrece, aunque tenga fila de acceso. Satiro y Boga no tienen código, así que
-  // salen con candado y no se pueden abrir. Cuando tengan, basta con añadirlos a
-  // esa lista — aquí no hay que tocar nada.
-  const conocidos = proyectos.filter((p) => isVisibleProject(p.slug));
+  // SIN PUERTA (2026-10-02): la lista corta que recortaba esto ya no existe.
+  //
+  // Antes era `CLIENTES_CONOCIDOS = ['wundeer', 'candilejas']`, escrita a mano, y
+  // BOGA y Satiro salían con candado porque no estaban en ella: había que añadir
+  // el nombre al código para poder abrirlos. Una lista de clientes a mano es una
+  // promesa de que no se va a actualizar, y ya había fallado una vez.
+  //
+  // Ahora manda lo que hay: `proyectos` es el catálogo entero de la base. Lo que
+  // sigue decidiendo si un cliente se abre o no es `rr_hub_access`, una fila por
+  // persona, que es donde debe estar esa decisión.
+  const conocidos = proyectos;
 
   const abiertos = conocidos
     .filter((p) => rolPorProyecto.has(p.id))
