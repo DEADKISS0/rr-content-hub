@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { STATUS_LABEL } from './flow';
 import {
   graficaPorFase,
   graficaPorArista,
@@ -59,13 +60,13 @@ describe('la fase se cuenta en el orden del flujo, no por cantidad', () => {
     const g = graficaPorFase([idea('x', 'draft', 'FIT', 'organic')]);
     const etiquetas = g.barras.map((b) => b.etiqueta);
     expect(etiquetas).toContain('EN VOTACIÓN');
-    expect(etiquetas).toContain('PUBLICADA');
-    expect(g.barras.find((b) => b.etiqueta === 'PUBLICADA')?.valor).toBe(0);
+    expect(etiquetas).toContain(STATUS_LABEL.published);
+    expect(g.barras.find((b) => b.etiqueta === STATUS_LABEL.published)?.valor).toBe(0);
   });
 
   it('la voting va en mostaza para que salte a la vista', () => {
     const g = graficaPorFase(BANCO);
-    expect(g.barras.find((b) => b.etiqueta === 'EN VOTACIÓN')?.tono).toBe('mostaza');
+    expect(g.barras.find((b) => b.etiqueta === STATUS_LABEL.voting)?.tono).toBe('mostaza');
   });
 });
 

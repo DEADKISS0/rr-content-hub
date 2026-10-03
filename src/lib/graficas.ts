@@ -38,6 +38,8 @@
  * Aquí solo se piden los tres campos que cada gráfica cuenta de verdad, y como
  * el resto es opcional cualquier idea sirve.
  */
+import { PHASES, STATUS_LABEL, type WorkflowStatus } from './flow';
+
 export type IdeaParaGraficas = {
   /** Necesario para cruzar con el conteo de votos, que viene indexado por id. */
   id: string;
@@ -75,29 +77,35 @@ type Conteo = { aFavor: number; enContra: number };
  * cuello de botella; uno ordenado por flujo lo enseña.
  */
 export function graficaPorFase(ideas: readonly IdeaParaGraficas[]): Grafica {
-  const orden: { etiqueta: string; status: string }[] = [
-    { etiqueta: 'BANCO', status: 'draft' },
-    { etiqueta: 'APROBADA', status: 'approved' },
-    { etiqueta: 'EN VOTACIÓN', status: 'voting' },
-    { etiqueta: 'CAMBIOS PEDIDOS', status: 'needs_changes' },
-    { etiqueta: 'REVISIÓN INTERNA', status: 'internal_review' },
-    { etiqueta: 'Aprobación cliente', status: 'pending_approval' },
-    { etiqueta: 'GUION', status: 'script_in_progress' },
-    { etiqueta: 'EDICIÓN', status: 'editing' },
-    { etiqueta: 'PRODUCCIÓN', status: 'in_production' },
-    { etiqueta: 'LISTA PARA PUBLICAR', status: 'ready_to_publish' },
-    { etiqueta: 'PUBLICADA', status: 'published' },
-    { etiqueta: 'DESCARTADA', status: 'closed' },
-  ];
+  // MEDIDO 2026-10-03: esta lista de estados estaba escrita a mano y el portero
+  // del repo (`npm run verify:states`) la rechaza, con razón: `flow.ts` es la
+  // autoridad y un estado nuevo tiene que aparecer solo. Ahora sale de `PHASES`
+  // y los rótulos de `STATUS_LABEL`, que además son los que ya usa el tablero:
+  // antes esta gráfica decía "APROBADA" donde el tablero dice "IDEA APROBADA".
   const cuenta = new Map<string, number>();
   for (const idea of ideas) cuenta.set(idea.status, (cuenta.get(idea.status) ?? 0) + 1);
+
+  // El orden del flujo, con cada estado una sola vez: `PHASES` es la autoridad
+  // y las etiquetas salen de `STATUS_LABEL`, que son las mismas que ya usa el
+  // tablero. Antes esta gráfica decía "APROBADA" donde el tablero dice
+  // "IDEA APROBADA": dos nombres para la misma fase.
+  const orden = [...new Set(PHASES.flatMap((f) => [...f.statuses] as string[]))];
+  // Estas dos se pintan aunque valgan cero. Si solo aparecieran las que tienen
+  // filas, un banco parado se vería como un banco vacío: `published` dio cero
+  // durante meses sin que nadie lo notara.
+  const SIEMPRE = new Set<string>([STATUS_LABEL.voting, STATUS_LABEL.published]);
+
   const barras = orden
-    .map(({ etiqueta, status }) => ({
-      etiqueta,
+    .map((status) => ({
+      etiqueta: STATUS_LABEL[status as WorkflowStatus] ?? status,
       valor: cuenta.get(status) ?? 0,
-      tono: status === 'voting' ? ('mostaza' as const) : status === 'published' ? ('fucsia' as const) : ('neutro' as const),
+      tono:
+        status === 'voting' ? ('mostaza' as const)
+        : status === 'published' ? ('fucsia' as const)
+        : ('neutro' as const),
     }))
-    .filter((b) => b.valor > 0 || b.etiqueta === 'EN VOTACIÓN' || b.etiqueta === 'PUBLICADA');
+    .filter((b) => b.valor > 0 || SIEMPRE.has(b.etiqueta));
+
   return {
     clave: 'fase',
     titulo: 'DÓNDE ESTÁ EL BANCO',
