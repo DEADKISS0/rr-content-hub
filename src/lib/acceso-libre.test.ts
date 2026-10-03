@@ -191,4 +191,15 @@ describe('la puerta del hub se queda abierta', () => {
     recorrer(raiz);
     expect(culpables, `estos archivos enlazan a /login: ${culpables.join(', ')}`).toEqual([]);
   });
+  it('las lecturas sin sesion NO filtran por cliente', () => {
+    // Los dos sitios donde quedaba un filtro de "es el cliente de mi cookie":
+    // `getProject` (el tablero) y `getAuditProject` (la auditoría). Los dos
+    // devolvían null sin sesión y convertían cada cliente en un 404.
+    //
+    // La forma que NO vale es `if (!sesion || ...)`: con `!sesion` delante, sin
+    // cookie se sale siempre, y el filtro solo existe para quien ya tiene sesión.
+    const c = codigo('src/lib/data.ts');
+    expect(c).not.toMatch(/if \(!sesion \|\| !clienteEsVisible/);
+    expect(c).toMatch(/if \(sesion && !clienteEsVisible/);
+  });
 });

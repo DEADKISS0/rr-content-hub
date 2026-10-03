@@ -692,13 +692,18 @@ export async function getAuditRoster() {
 export async function getAuditProject(slug: string) {
   if (!(await clienteExiste(slug))) return null;
 
-  // La auditoría es de solo lectura, pero no es pública: se ve lo del cliente del
-  // código con el que se entró, no el de al lado. Antes solo comprobaba que el
-  // slug fuera un cliente conocido, así que entrando con 1111 (Wundeer) se podía
-  // abrir `/audit/candilejas` y ver las ideas del otro. Ver sin escribir sigue
-  // siendo ver lo de otro cliente.
+  // SIN PUERTA (2026-10-02): sin sesión se ve la auditoría de cualquier cliente.
+  //
+  // Antes exigía que el slug fuera el del código con el que se entró, y sin cookie
+  // devolvía null. Con la puerta abierta eso convertía `/audit/boga` en un 404
+  // para quien llega sin sesión, y `/audit` (que redirige al primero) en un 404
+  // detrás de un 307: dos saltos para acabar en nada.
+  //
+  // Esto no abre nada que antes no se pudiera ver: la auditoría es de SOLO LECTURA y
+  // su propia cabecera lo dice. Lo que sigue igual es el filtro para quien tiene
+  // sesión, porque su fila de acceso es la que dice a qué clientes pertenece.
   const sesion = await quienEs();
-  if (!sesion || !clienteEsVisible(slug, sesion.proyecto)) return null;
+  if (sesion && !clienteEsVisible(slug, sesion.proyecto)) return null;
   const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) { requireSupabase(); return null; }
   const { data } = await supabase
