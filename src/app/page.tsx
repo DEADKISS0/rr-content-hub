@@ -1,104 +1,239 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { getIdeas, getProjects, getClientesDeLaPersona } from '@/lib/data';
+import { quienEs } from '@/lib/quien-es';
+import { getIdeas, getClientesDeLaPersona } from '@/lib/data';
 import { statusMeta, type WorkflowStatus } from '@/lib/flow';
 import { BOARD_COLUMNS } from '@/lib/queues';
 import { Icon } from '@/components/ui/icons';
 
-/** Resolves the first available project across both row shapes (join object or plain row). */
-function firstProject(projects: any[]) {
-  for (const row of projects) {
-    const project = row?.projects ?? row;
-    const slug = project?.slug ?? (Array.isArray(project) ? project[0]?.slug : null);
-    if (slug) return { project, role: row?.role_in_project ?? 'owner' };
-  }
-  return null;
-}
-
 /**
- * Puerta de entrada del hub.
+ * MEDIDO 2026-10-03. La puerta de entrada del hub.
  *
- * Antes era un párrafo y un botón. Ahora dice qué es esto, cuánto trabajo hay
- * dentro ahora mismo (cifras reales de la base) y da las dos entradas que
- * existen: el tablero de trabajo y la vista de auditoría de solo lectura.
+ * Antes esta página hacía `firstProject(projects)`: cogía el PRIMER proyecto de
+ * la lista y lo pintaba como "PROYECTO ACTIVO", sin menciona que había otros.
+ * MEDIDO: una persona con Wundeer y Candilejas abiertos entrando con la sesión de
+ * Candilejas veía solo Candilejas, y el selector del menú lateral showed Wundeer
+ * repetido. La página respondía "ya estás dentro" sin decir de qué se trata ni
+ * dejar elegir. Eso es justo lo que hace inservible una portada: se entra a ciegas.
+ *
+ * Ahora hace las dos cosas que una portada tiene que hacer:
+ *
+ * 1. Explicar qué es esto, en una frase y con el flujo a la vista.
+ * 2. Dejar elegir proyecto, con el conteo REAL de cada uno al lado. Si solo
+ *    tienes un cliente, ese queda destacado; si tienes varios, todos se ven.
+ *
+ * No se redirige a un cliente "por defecto": elegir es una decisión de quien
+ * entra, y meterla automática es lo que escondía el otro.
  */
-export default async function Home() {
-  const { projects } = await getProjects();
-  const found = firstProject(projects);
+const FASES = [
+  { icono: 'spark' as const, nombre: 'LA IDEA', texto: 'Se propone con su brief y se decide en equipo.' },
+  { icono: 'pen' as const, nombre: 'EL GUION', texto: 'Se escribe el plan y se aprueba antes de grabar.' },
+  { icono: 'camera' as const, nombre: 'LA PRODUCCIÓN', texto: 'Rodaje, crudo y montaje. Cada archivo con su versión.' },
+  { icono: 'publish' as const, nombre: 'LA SALIDA', texto: 'Se publica, se registra la evidencia y se cierra.' },
+];
 
-  // Sin sesión no se puede saber nada del hub: los proyectos existen, pero
-  // `rr_hub_projects` está detrás del RLS y la anon no lee.
+export default async function Home() {
+  const sesion = await quienEs();
+
+  // MEDIDO 2026-10-03. Sin sesión esta página NO inventa nada ni culpa a la base.
   //
-  // ⚠️ Lo que fallaba el 2026-09-29 y no debe volver: esta página pedía los
-  // proyectos ANTES de mirar si había cookie, así que sin sesión salía un cartel
-  // de "Sin proyectos disponibles" que además culpaba a Supabase. Era mentira en
-  // dos partes: los proyectos sí existen, y la causa no era la conexión. Ahora
-  // lo primero es la sesión; sin ella, al login.
-  if (!found) {
-    const sesion = await getClientesDeLaPersona();
-    if (sesion.abiertos.length === 0) redirect('/login');
-    redirect(`/${sesion.actual ?? sesion.abiertos[0].slug}`);
+  // El fallo del 2026-09-29: la raíz pedía los proyectos ANTES de mirar si había
+  // cookie, así que sin sesión salía "Sin proyectos disponibles" y culpaba a
+  // Supabase. Era mentira en dos partes.
+  //
+  // Y una tentación nueva: contar con `getClientesDeLaPersona` sin sesión da
+  // `abiertos: []`, que haría pintar "todavía no tienes un cliente abierto" a
+  // quien solo no se ha loggedeado todavía. Tampoco es verdad, y esconde la
+  // puerta. Sin sesión se va al login, que es donde se teclea el código.
+  if (!sesion) redirect('/login');
+
+  const { abiertos, cerrados } = await getClientesDeLaPersona();
+  // `sesion.proyecto` es el cliente de la cookie (el código con el que entraste).
+  // La portada NO decide a cuál se entra: el que ya tienes abierto sale
+  // destacado y arriba del todo, con su botón. Cambiar de cliente es otra acción.
+  // MEDIDO 2026-10-03: `quienEs()` devuelve `{email, nombre, proyecto}`. No hay
+  // un campo `sesion.actual`: ese nombre venía de la idea, no de la base, y no
+  // compilaba. Aquí `sesionActual` es el slug del cliente con el que se entró.
+  const sesionActual = sesion.proyecto || null;
+
+  // Con sesión pero sin ningún cliente: se dice aquí, en la propia página, con lo
+  // que sí se sabe. Un rebote a una pantalla que no existe es un 404.
+  if (abiertos.length === 0) {
+    return <main className="grid min-h-screen place-items-center bg-negro px-5 py-20">
+      <div className="w-full max-w-2xl border border-blanco-20 p-8 anim-rise">
+        <p className="eyebrow">[RR CONTENT HUB]</p>
+        <h1 className="mt-4 font-display text-4xl font-bold text-blanco">
+          {cerrados.length > 0 ? 'Todavía no tienes un cliente abierto.' : 'Todavía no hay clientes.'}
+        </h1>
+        <p className="mt-5 text-sm leading-7 text-blanco-60">
+          {cerrados.length > 0
+            ? 'Tu correo está en la lista, pero ninguno de esos clientes tiene código de entrada. Pídeselo a quien administra el hub.'
+            : 'El hub está abierto y la base responde, pero no hay ningún cliente dado de alta. Cuando se cree el primero, aparece aquí.'}
+        </p>
+      </div>
+    </main>;
   }
 
-  const project = found.project;
-  const ideas = project.id ? await getIdeas(project.id) : [];
-  const counts = BOARD_COLUMNS.map((column) => ({
-    ...column,
-    count: ideas.filter((idea) => (column.statuses as readonly string[]).includes(idea.status)).length,
-  }));
-  const waitingClient = ideas.filter((idea) => statusMeta(idea.status as WorkflowStatus).who.toUpperCase().includes('CLIENTE')).length;
+  // MEDIDO 2026-10-03: el conteo se pide por proyecto y en paralelo. Antes solo
+  // se cargaba el primero, así que los demás salían sin cifra y no había forma de
+  // saber si estaban vacíos o solo no se miraban. `abiertos` ya trae el `id` del
+  // proyecto: no hace falta una consulta extra por cliente solo para esto.
+  const conConteo = await Promise.all(
+    abiertos.map(async (cliente) => ({ cliente, ideas: await getIdeas(cliente.id) })),
+  );
+  // El que ya tienes abierto va primero. No se elige por la persona: se ordena
+  // para que no tenga que buscarlo. La decisión sigue siendo suya.
+  conConteo.sort((a, b) => Number(b.cliente.slug === sesionActual) - Number(a.cliente.slug === sesionActual));
+
+  const totalPiezas = conConteo.reduce((a, x) => a + x.ideas.length, 0);
+  const esperando = conConteo.reduce(
+    (a, x) => a + x.ideas.filter((i) => statusMeta(i.status as WorkflowStatus).who.toUpperCase().includes('CLIENTE')).length,
+    0,
+  );
 
   return <main className="min-h-screen bg-negro">
-    <div className="mx-auto max-w-6xl px-5 py-16 md:px-10 md:py-24">
-      <p className="eyebrow anim-rise">[RR CONTENT HUB · {project.client_name ?? 'RR ALIADOS'}]</p>
-      <h1 className="display-title anim-rise mt-4" style={{ animationDelay: '80ms' }}>El trabajo de contenido, visible.</h1>
-      <p className="mt-7 max-w-2xl text-base leading-8 text-blanco-60 anim-rise" style={{ animationDelay: '160ms' }}>
-        Aquí vive cada pieza de contenido desde la idea hasta su publicación: quién la tiene, qué falta y qué sigue.
-        Nada de hilos sueltos ni de preguntar &quot;¿en qué va eso?&quot;.
-      </p>
+    <div className="mx-auto max-w-6xl px-5 py-14 md:px-10 md:py-20">
 
-      <section aria-label="Resumen de la operación" className="anim-rise mt-12 border border-blanco-20" style={{ animationDelay: '240ms' }}>
-        <div className="flex flex-wrap items-end justify-between gap-4 border-b border-blanco-10 bg-blanco-05 px-6 py-5">
-          <div>
-            <p className="mono-label text-blanco-50">[PROYECTO ACTIVO · {(found.role ?? 'owner').toUpperCase()}]</p>
-            <h2 className="mt-2 font-display text-4xl font-bold text-blanco md:text-5xl">{project.name}</h2>
-            <p className="mt-2 font-mono text-[10px] text-blanco-60">
-              {ideas.length} PIEZAS EN EL HUB{waitingClient ? ` · ${waitingClient} ESPERANDO AL CLIENTE` : ''}
-            </p>
-          </div>
-          <Link href={`/${project.slug}`} className="btn-brutal inline-flex items-center gap-2">ABRIR EL MAPA <Icon name="arrow" size={14} /></Link>
-        </div>
-        <ol className="grid gap-px bg-blanco-10 sm:grid-cols-2 lg:grid-cols-4">
-          {counts.map((column, index) => <li key={column.key} className="bg-negro p-5">
-            <p className="mono-label text-blanco-50">{String(index + 1).padStart(2, '0')} · {column.label}</p>
-            <p className="mt-3 font-display text-4xl font-bold text-blanco">{column.count}</p>
-            <p className="mt-2 font-mono text-[10px] leading-5 text-blanco-60">{column.plain}</p>
-            <span className="mt-4 block h-1 w-full bg-blanco-10">
-              <span className="block h-1 bg-blanco-40" style={{ width: ideas.length ? `max(6%, ${Math.round((column.count / ideas.length) * 100)}%)` : '0%' }} />
+      {/* Qué es esto. Primero, antes de cualquier cifra: quien abre el link no
+          sabe si está mirando un tablero, un CRM o un calendario. */}
+      <header className="anim-rise">
+        <p className="eyebrow">[RR ALIADOS · CONTENIDO]</p>
+        <h1 className="display-title anim-rise mt-4" style={{ animationDelay: '80ms' }}>
+          Aquí vive cada pieza de contenido.
+        </h1>
+        <p className="mt-6 max-w-3xl text-base leading-8 text-blanco-70 anim-rise" style={{ animationDelay: '160ms' }}>
+          Un solo lugar donde una idea de Wundeer o de Candilejas deja de ser un mensaje suelto
+          y se vuelve un trabajo con dueño, fecha y estado. Se entra con el código del
+          cliente y tu nombre: sin correos ni contraseñas.
+        </p>
+        <p className="mt-5 font-mono text-[11px] leading-6 text-blanco-50 anim-rise" style={{ animationDelay: '200ms' }}>
+          {abiertos.length === 1
+            ? `1 cliente abierto · ${totalPiezas} piezas en total`
+            : `${abiertos.length} clientes abiertos · ${totalPiezas} piezas en total${esperando ? ` · ${esperando} esperando al cliente` : ''}`}
+        </p>
+      </header>
+
+      {/* El flujo. Cuatro pasos, en una línea: esto es lo que hace el hub y no
+          hace falta entrar para entenderlo. */}
+      <ol className="mt-10 grid gap-px border border-blanco-20 bg-blanco-10 sm:grid-cols-2 lg:grid-cols-4 anim-rise"
+        style={{ animationDelay: '260ms' }}>
+        {FASES.map((fase, i) => <li key={fase.nombre} className="bg-negro p-5">
+          <div className="flex items-center gap-3">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center border border-blanco-20 text-blanco-60">
+              <Icon name={fase.icono} size={14} />
             </span>
-          </li>)}
-        </ol>
+            <p className="mono-label text-blanco-70">{String(i + 1).padStart(2, '0')} · {fase.nombre}</p>
+          </div>
+          <p className="mt-3 font-mono text-[10px] leading-5 text-blanco-60">{fase.texto}</p>
+        </li>)}
+      </ol>
+
+      {/* Elegir cliente. El corazón de la portada. Cada tarjeta trae su conteo
+          real, para que se sepa qué hay antes de abrir. */}
+      <section aria-label="Elige un cliente" className="mt-12 anim-rise" style={{ animationDelay: '320ms' }}>
+        <div className="flex flex-wrap items-end justify-between gap-4 border-b border-blanco-20 pb-4">
+          <h2 className="font-display text-3xl font-bold text-blanco md:text-4xl">
+            {abiertos.length === 1 ? 'Tu cliente' : 'Elige por dónde empezar'}
+          </h2>
+          <p className="font-mono text-[10px] text-blanco-50">
+            {abiertos.length === 1 ? 'SOLO TIENES UNO ABIERTO' : `${abiertos.length} PARA ABRIR`}
+          </p>
+        </div>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          {conConteo.map(({ cliente, ideas }, indice) => {
+            const esActual = cliente.slug === sesionActual;
+            const counts = BOARD_COLUMNS.map((c) => ({
+              ...c,
+              n: ideas.filter((i) => (c.statuses as readonly string[]).includes(i.status)).length,
+            }));
+            const enVotacion = ideas.filter((i) => i.status === 'voting').length;
+            const masGrande = Math.max(...counts.map((c) => c.n), 1);
+
+            return <Link
+              key={cliente.slug}
+              href={`/${cliente.slug}`}
+              className="group relative flex flex-col border border-blanco-20 bg-blanco-05 p-6 transition-colors duration-300 hover:border-fucsia hover:bg-blanco-10 md:p-8"
+              style={{ animationDelay: `${indice * 100}ms` }}
+            >
+              {esActual && (
+                <span className="absolute right-5 top-5 border border-fucsia px-2 py-0.5 font-mono text-[9px] text-blanco-80">
+                  AQUÍ ESTÁS
+                </span>
+              )}
+              <div className="flex items-center gap-4">
+                <span aria-hidden="true" className="h-9 w-9 shrink-0 border border-blanco-40"
+                  style={cliente.brand_primary_color ? { backgroundColor: cliente.brand_primary_color } : undefined} />
+                <div className="min-w-0">
+                  <p className="mono-label text-blanco-50">[{cliente.rol.toUpperCase()}]</p>
+                  <h3 className="mt-1 font-display text-3xl font-bold text-blanco md:text-4xl">{cliente.name}</h3>
+                </div>
+              </div>
+
+              {cliente.description && (
+                <p className="mt-4 font-mono text-[10px] leading-5 text-blanco-60">{cliente.description}</p>
+              )}
+
+              <div className="mt-6 flex items-end gap-6">
+                <p>
+                  <span className="block font-display text-5xl font-bold text-blanco">{ideas.length}</span>
+                  <span className="font-mono text-[10px] text-blanco-50">PIEZAS</span>
+                </p>
+                {enVotacion > 0 && (
+                  <p>
+                    <span className="block font-display text-3xl font-bold text-mostaza">{enVotacion}</span>
+                    <span className="font-mono text-[10px] text-blanco-50">POR VOTAR</span>
+                  </p>
+                )}
+              </div>
+
+              <ol className="mt-5 space-y-1.5">
+                {counts.filter((c) => c.n > 0).map((c) => (
+                  <li key={c.key} className="grid grid-cols-[minmax(0,8rem)_1fr_2rem] items-center gap-3">
+                    <span className="truncate font-mono text-[10px] text-blanco-60">{c.label}</span>
+                    <span aria-hidden="true" className="block h-1.5 bg-blanco-10">
+                      <span className="block h-1.5 bg-blanco-70 transition-[width] duration-700"
+                        style={{ width: `${Math.max(4, Math.round((c.n / masGrande) * 100))}%` }} />
+                    </span>
+                    <span className="text-right font-mono text-[10px] tabular-nums text-blanco">{c.n}</span>
+                  </li>
+                ))}
+              </ol>
+
+              <span className="mt-6 inline-flex items-center gap-2 font-mono text-[11px] text-blanco-70 transition-colors group-hover:text-blanco">
+                ABRIR EL TABLERO <Icon name="arrow" size={14} />
+              </span>
+            </Link>;
+          })}
+        </div>
+
+        {cerrados.length > 0 && (
+          <div className="mt-6 border border-blanco-10 p-5">
+            <p className="mono-label text-blanco-40">SIN ACCESO · {cerrados.length}</p>
+            <ul className="mt-3 space-y-2">
+              {cerrados.map((c) => (
+                <li key={c.slug} className="flex items-center gap-3 font-mono text-[10px] text-blanco-50">
+                  <Icon name="lock" size={12} />
+                  <span>{c.name}</span>
+                  <span className="text-blanco-40">
+                    {c.motivo === 'sin-codigo' ? 'sin código de entrada' : 'tu correo no tiene acceso'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </section>
 
-      <div className="anim-rise mt-10 grid gap-px bg-blanco-10 sm:grid-cols-2" style={{ animationDelay: '320ms' }}>
-        <Link href={`/${project.slug}`} className="group flex items-start gap-4 bg-negro p-6 transition-colors hover:bg-blanco-05">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-blanco-20 text-blanco-40"><Icon name="map" size={18} /></span>
-          <span>
-            <strong className="block font-display text-xl font-bold text-blanco group-hover:text-blanco-90">Tablero de trabajo</strong>
-            <small className="mt-1 block font-mono text-[10px] leading-5 text-blanco-60">El flujo completo, la guía paso a paso y la siguiente acción de cada pieza.</small>
-          </span>
+      <p className="mt-12 border-t border-blanco-10 pt-6 font-mono text-[10px] leading-6 text-blanco-50">
+        La auditoría es la vista de solo lectura: contadores por fase y trazabilidad de cada
+        decisión. {' '}
+        <Link href={abiertos.length === 1 ? `/audit/${abiertos[0].slug}` : `/${abiertos[0].slug}/metricas`}
+          className="text-blanco-70 underline underline-offset-4 hover:text-blanco">
+          {abiertos.length === 1 ? 'ABRE LA AUDITORÍA' : 'MIRA LAS MÉTRICAS DEL BANCO'}
         </Link>
-        <Link href={`/audit/${project.slug}`} className="group flex items-start gap-4 bg-negro p-6 transition-colors hover:bg-blanco-05">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-blanco-20 text-blanco-40"><Icon name="eye" size={18} /></span>
-          <span>
-            <strong className="block font-display text-xl font-bold text-blanco group-hover:text-blanco-90">Auditoría · solo lectura</strong>
-            <small className="mt-1 block font-mono text-[10px] leading-5 text-blanco-60">Contadores por fase, estado y trazabilidad. Se ve todo, no se edita nada.</small>
-          </span>
-        </Link>
-      </div>
-
-      <p className="mt-10 font-mono text-[10px] leading-5 text-blanco-50">
-        El link directo también funciona: cada proyecto vive en <span className="text-blanco-50">/{project.slug}</span>
+        . También puedes ir directo: cada cliente vive en <span className="text-blanco-60">/wundeer</span>,{' '}
+        <span className="text-blanco-60">/candilejas</span>.
       </p>
     </div>
   </main>;
