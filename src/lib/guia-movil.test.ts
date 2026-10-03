@@ -98,4 +98,16 @@ describe('la guía cabe y se puede cerrar en un teléfono', () => {
     expect(c).toMatch(/text-\[11px\] tracking-\[0\.1em\]/);
     expect(c).toMatch(/text-\[15px\] leading-7/);
   });
+
+  it('el popup de escritorio se ajusta al mensaje, no a media pantalla', () => {
+    const c = leer('src/components/guided-tour.tsx');
+    // MEDIDO 2026-10-03 a 1440x900: 544x434, el 48% de la altura, para 170
+    // caracteres. Santiago: «el contenedor del popup del mensaje esta muy
+    // grande, asegurate que solo rodee el mensaje».
+    expect(c).toMatch(/left-1\/2 w-fit max-w-\[min\(34rem/);
+    // un width fijo de 34rem es exactamente lo que se quitó
+    expect(c).not.toMatch(/left-1\/2 w-\[min\(34rem/);
+    // el tope sigue estando, para el caso de un texto largo
+    expect(c).toMatch(/max-h-\[calc\(100dvh-2rem\)\]/);
+  });
 });

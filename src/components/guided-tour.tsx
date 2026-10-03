@@ -305,7 +305,13 @@ export function GuidedTour() {
             className={`anim-pop fixed flex flex-col border border-blanco-30 bg-negro outline-none ${
               movil
                 ? 'inset-x-3 top-3 max-h-[calc(100dvh-6.5rem)] rounded-none'
-                : 'left-1/2 w-[min(34rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] -translate-x-1/2 overflow-y-auto p-5'
+                /* MEDIDO 2026-10-03 a 1440x900: el popup daba 544x434, el 48% de
+                   la altura de la pantalla, para un texto de tres líneas y 170
+                   caracteres. Lo que se pide es que RODEE EL MENSAJE, no que
+                   ocupe media pantalla. `w-fit` + `max-w` deja que la caja tenga
+                   el ancho del texto más largo y nada más; el `max-h` sigue
+                   guarding casos de un texto largo en una pantalla chica. */
+                : 'left-1/2 w-fit max-w-[min(34rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] -translate-x-1/2 overflow-y-auto p-5'
             }`}
             /*
              * MEDIDO 2026-10-01: esto estaba anclado con
