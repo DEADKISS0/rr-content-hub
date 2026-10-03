@@ -122,7 +122,11 @@ export function SelectorPerfil({
         onClick={() => setAbierto((v) => !v)}
         aria-expanded={abierto}
         aria-haspopup="listbox"
-        className={`inline-flex items-center gap-2 border px-2 py-1.5 font-mono text-[10px] transition-colors ${
+        /* MEDIDO 2026-10-03 en 320 y 390 px: medía 174x29 px. Con un dedo no se
+           pincha, y es el control con el que se elige con quién se vota. Mínimo
+           táctil de 44 px, y la etiqueta de 10 px sube a 11 px para que se lea
+           en un teléfono. */
+        className={`inline-flex min-h-[44px] items-center gap-2 border px-3 font-mono text-[11px] transition-colors ${
           elegido
             ? 'border-orquidea-50 text-orquidea hover:border-orquidea'
             : 'border-mostaza-40 text-mostaza hover:border-mostaza'
@@ -152,7 +156,7 @@ export function SelectorPerfil({
                     role="option"
                     aria-selected={activo}
                     onClick={() => { guardarPerfil(p); setAbierto(false); }}
-                    className={`flex w-full items-center gap-2 px-3 py-2 text-left font-mono text-[11px] transition-colors ${
+                    className={`flex min-h-[44px] w-full items-center gap-2 px-3 py-2 text-left font-mono text-[12px] transition-colors ${
                       activo ? 'bg-orquidea-10 text-orquidea' : 'text-blanco-80 hover:bg-blanco-05'
                     }`}
                   >
@@ -168,7 +172,7 @@ export function SelectorPerfil({
               <button
                 type="button"
                 onClick={() => guardarPerfil(null)}
-                className="w-full px-2 py-1 font-mono text-[10px] text-blanco-50 hover:text-blanco-80"
+                className="flex min-h-[44px] w-full items-center justify-center px-2 font-mono text-[11px] text-blanco-50 hover:text-blanco-80"
               >
                 OLVIDAR ESTE PERFIL
               </button>
@@ -191,7 +195,7 @@ export function SelectorPerfil({
           Ahora el aviso solo aparece cuando NO hay perfil. Si hay, lo que urge es
           poder cambiarlo: para eso está el desplegable, y para eso `CAMBiar`. */}
       {!elegido && (
-        <p className="mt-1 font-mono text-[10px] leading-4 text-mostaza">
+        <p className="mt-1 font-mono text-[11px] leading-4 text-mostaza">
           Elige tu perfil antes de votar. El voto necesita un nombre del equipo.
         </p>
       )}

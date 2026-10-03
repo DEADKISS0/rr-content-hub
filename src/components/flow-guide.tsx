@@ -60,7 +60,7 @@ export function FlowGuide({
           type="button"
           onClick={() => setOpen((value) => !value)}
           aria-expanded={open}
-          className="inline-flex items-center gap-1.5 border border-blanco-20 px-2.5 py-1.5 font-mono text-xs text-blanco-60 transition-colors hover:border-blanco-40 hover:text-blanco"
+          className="inline-flex min-h-[44px] items-center gap-1.5 border border-blanco-20 px-2.5 py-1.5 font-mono text-xs text-blanco-60 transition-colors hover:border-blanco-40 hover:text-blanco"
         >
           <Icon name={open ? 'close' : 'eye'} size={13} />
           {open ? 'OCULTAR LA EXPLICACIÓN' : '¿QUÉ SIGNIFICA ESTO?'}

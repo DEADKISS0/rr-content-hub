@@ -109,7 +109,7 @@ export function ProjectDashboard({ project, projectSlug, ideas, role }: { projec
                 ? 'Estas piezas están en manos del cliente. Si no se mueven, no es un fallo del hub: es una decisión que no ha llegado.'
                 : 'Ninguna pieza depende hoy de una aprobación externa.'}
             </p>
-            <Link href={`/${projectSlug}/aprobaciones`} className="mt-5 inline-flex items-center gap-2 font-mono text-xs text-blanco-60 underline hover:text-blanco">
+            <Link href={`/${projectSlug}/aprobaciones`} className="mt-5 inline-flex min-h-[44px] items-center gap-2 font-mono text-xs text-blanco-60 underline hover:text-blanco">
               VER DECISIONES <Icon name="arrow" size={13} />
             </Link>
             {/* El equipo tiene su propia cuenta y su propia frase. Antes solo

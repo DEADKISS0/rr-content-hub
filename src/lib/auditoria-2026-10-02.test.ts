@@ -107,8 +107,19 @@ describe('los dos botones flotantes de la esquina no se pisan', () => {
     // Ambos eran `sm:bottom-4 sm:right-4` con `z-40`. Sin z distinto gana el
     // último en el DOM, y `InstalarApp` se monta después de los hijos: el
     // instalador tapaba "¿CÓMO SE USA?".
+    // MEDIDO 2026-10-03: el botón se llamaba buscando `fixed bottom-0`, que era
+    // la clase que tenía cuando en móvil cruzaba la pantalla entera. Al cambiarlo
+    // a una esquina el aserto dejó de encontrar el botón y devolvía cadena vacía:
+    // un test que pasa por no mirar nada.
+    //
+    // Ahora se busca el ELEMENTO (desde su `<button` hasta `¿CÓMO SE USA?`) y se
+    // leen sus clases. Lo que este test vigila sigue siendo lo mismo: que la guía
+    // quede por encima del instalador en escritorio.
     const guia = leer('src/components/guided-tour.tsx');
-    const linea = guia.match(/className="fixed bottom-0[^"]*"/)?.[0] ?? '';
+    const antes = guia.slice(0, guia.indexOf('¿CÓMO SE USA?'));
+    const elemento = antes.slice(antes.lastIndexOf('<button'));
+    const linea = elemento.match(/className="([^"]*)"/)?.[1] ?? '';
+    expect(linea, 'no se encontró la clase del botón de la guía').not.toBe('');
     expect(linea).toMatch(/sm:bottom-20/);
   });
 

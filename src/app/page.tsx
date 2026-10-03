@@ -248,7 +248,9 @@ export default async function Home() {
         La auditoría es la vista de solo lectura: contadores por fase y trazabilidad de cada
         decisión. {' '}
         <Link href={abiertos.length === 1 ? `/audit/${abiertos[0].slug}` : `/${abiertos[0].slug}/metricas`}
-          className="text-blanco-70 underline underline-offset-4 hover:text-blanco">
+          /* MEDIDO 2026-10-03 a 390 px: este enlace medía 184x11 px. Once de
+             alto: con un dedo no se abre, y es el enlace que lleva a las métricas. */
+          className="inline-flex min-h-[44px] items-center text-blanco-70 underline underline-offset-4 hover:text-blanco">
           {abiertos.length === 1 ? 'ABRE LA AUDITORÍA' : 'MIRA LAS MÉTRICAS DEL BANCO'}
         </Link>
         . También puedes ir directo: cada cliente vive en <span className="text-blanco-60">/wundeer</span>,{' '}
