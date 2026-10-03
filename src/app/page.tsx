@@ -92,7 +92,13 @@ export default async function Home() {
   );
 
   return <main className="min-h-screen bg-negro">
-    <div className="mx-auto max-w-6xl px-5 py-14 md:px-10 md:py-20">
+    {/* MEDIDO 2026-10-03. Los botones flotantes (`INSTALAR EL HUB` y la guía)
+        ocupan la esquina inferior derecha, unos 5rem. Con una portada larga, el
+        contenido bajaba hasta underneath y el flotante tapaba texto: MEDIDO en el
+        navegador, "04 · LA SALIDA" estaba en y=511 y el botón en y=515.
+        Este `pb` deja aire para que el final de la página nunca quede debajo de
+        la esquina. No es decoración: es lo que hace legible la última fila. */}
+    <div className="mx-auto max-w-6xl px-5 py-14 pb-32 md:px-10 md:pt-20 md:pb-36">
 
       {/* Qué es esto. Primero, antes de cualquier cifra: quien abre el link no
           sabe si está mirando un tablero, un CRM o un calendario. */}
