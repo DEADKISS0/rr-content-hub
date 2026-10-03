@@ -260,6 +260,7 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
               comentariosIniciales={comentarios}
               assetsIniciales={assets}
               timelineInicial={timeline}
+              equipo={equipo}
             />
           </div>
         </section>

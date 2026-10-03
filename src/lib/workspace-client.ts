@@ -120,11 +120,29 @@ export async function postWorkspaceAction(
   }
   return payload;
 }
-export async function addComment(input: { ideaId: string; body: string; roleLabel: string }): Promise<{ error?: string }> {
+export async function addComment(input: {
+  ideaId: string;
+  body: string;
+  roleLabel: string;
+  /**
+   * El perfil con el que se comenta. MEDIDO 2026-10-03: sin esto el comentario
+   * exigía sesión y respondía «Entra con el código de tu cliente». Va en
+   * `authorProfile`, no en un campo de autor libre: el servidor lo comprueba
+   * contra `rr_hub_profiles` y usa el nombre real de esa fila.
+   */
+  authorProfile?: string;
+}): Promise<{ error?: string }> {
   // `roleLabel` used to be written straight into the row, so the browser chose
   // how a comment was attributed — anyone could post as "Owner". The server
   // ignores it and uses the caller's real role from rr_hub_access.
-  const response = await postWorkspaceAction('comment', { ideaId: input.ideaId, body: input.body });
+  //
+  // MEDIDO 2026-10-03: lo mismo con el nombre. Antes `author_label` salía del
+  // correo de la SESIÓN; ahora sale del perfil comprobado en la base.
+  const response = await postWorkspaceAction('comment', {
+    ideaId: input.ideaId,
+    body: input.body,
+    ...(input.authorProfile ? { authorProfile: input.authorProfile } : {}),
+  });
   return response ?? {};
 }
 

@@ -186,3 +186,90 @@ describe('el selector de clientes prometía puertas que no abrían', () => {
     expect(leer('src/app/api/subir/route.ts')).toContain('sesion.proyecto');
   });
 });
+
+describe('el hilo de comentarios se usa sin sesion', () => {
+  it('el autor sale del perfil elegido, no de la sesion', () => {
+    // MEDIDO 2026-10-03. Publicar en el hilo respondia «Entra con el codigo de tu
+    // cliente»: el comentario era la parte del hub que mas se usa sin ser
+    // cliente, y era la unica que exigia sesion. MEDIDO en produccion: el boton
+    // se activaba, se pulsaba y no se publicaba nada.
+    const cliente = leer('src/lib/workspace-client.ts');
+    expect(cliente).toMatch(/authorProfile/);
+
+    const ruta = leer('src/app/api/workspace/[action]/route.ts');
+    expect(ruta).toContain('body.authorProfile');
+  });
+
+  it('el perfil se comprueba en la base, y sin perfil se explica', () => {
+    // Acotado al bloque de `comment`. Hay otro `identidad` en la ruta de `vote`
+    // (el perfil de quien vota), y un aserto sobre el archivo entero loaba con
+    // el del voto: quitar el del comentario dejaba el test verde sin comprobar
+    // nada. Dos caminos, mismo nombre de variable, un solo aserto: no sirve.
+    const ruta = leer('src/app/api/workspace/[action]/route.ts');
+    const bloque = ruta.slice(ruta.indexOf("action === 'comment'"));
+    expect(bloque).toMatch(/const identidad = perfil \|\| email/);
+    expect(bloque).toMatch(/ilike\('email', identidad\)/);
+    expect(bloque).toMatch(/Elige con qué perfil/);
+  });
+
+  it('el rol sale de la idea, no del slug que dice quien llama', () => {
+    // MEDIDO: con la puerta por codigo `ctx.proyecto` es el cliente con el que
+    // se entro, que no tiene por que ser el dueno de la idea. Consultar la fila
+    // de acceso con ese slug daria el rol de otro cliente.
+    const ruta = leer('src/app/api/workspace/[action]/route.ts');
+    const bloque = ruta.slice(ruta.indexOf("action === 'comment'"));
+    expect(bloque).toContain("from('rr_hub_ideas').select('project_id')");
+  });
+
+  it('el refresco del hilo funciona sin sesion', () => {
+    // MEDIDO 2026-10-03. Este endpoint devolvia 401 sin sesion, y con el el
+    // `refresh()` del hilo se quedaba sin hacer nada: se publicaba un
+    // comentario, la respuesta decia "Comentario publicado" y la lista NO
+    // cambiaba. Publicar y no verse.
+    const pieza = leer('src/app/api/workspace/pieza/route.ts');
+    expect(pieza).not.toMatch(/if \(!sesion\)[\s\S]{0,120}status: 401/);
+    // Con sesion, el cruce con el cliente de la cookie se mantiene.
+    expect(pieza).toMatch(/if \(sesion && proyectoSlug !== sesion\.proyecto\)/);
+    // Y la idea tiene que existir: si no hay slug, no hay pieza.
+    expect(pieza).toMatch(/if \(!proyectoSlug\)/);
+  });
+
+  it('el selector de perfil esta pegado al campo de comentario', () => {
+    // Un selector escondido en otro menu es la razon por la que el hilo no se
+    // usaba: habia que ir a buscarlo antes de poder comentar.
+    const comp = leer('src/components/collaboration-enhanced.tsx');
+    expect(comp).toContain('SelectorPerfil');
+    expect(comp).toMatch(/!puedeComentar\)/);
+  });
+});
+
+
+describe('abrir comment y vote sin sesion no abre el resto', () => {
+  it('el owner en modo abierto solo vale para comment y vote', () => {
+    // MEDIDO 2026-10-03. `ctx.abierto` daba `owner` a quien llama, y eso era
+    // inocuo solo porque `abierto` era SIEMPRE false. Al abrir comment y vote sin
+    // sesion, un `owner` de verdad habria dado a cualquiera que abriera la URL
+    // `transition`, `borrar`, `script` y `update`: mover, borrar y reescribir
+    // cualquier pieza de cualquier cliente.
+    //
+    // Este test existe para que ese `owner` no vuelva a ampliarse por accidente.
+    const ruta = leer('src/app/api/workspace/[action]/route.ts');
+    expect(ruta).toMatch(/ABIERTAS_EN_EQUIPO = new Set\(\['comment', 'vote'\]\)/);
+    expect(ruta).toMatch(/ABIERTAS_EN_EQUIPO\.has\(action\) \? 'owner' : null/);
+  });
+
+  it('las dos acciones del equipo son las unicas que no exigen sesion', () => {
+    const ruta = leer('src/app/api/workspace/[action]/route.ts');
+    expect(ruta).toMatch(/ABIERTAS_SIN_SESION = new Set\(\['comment', 'vote'\]\)/);
+    // Y una accion de escritura que no este en la lista NO puede colarse.
+    for (const accion of ['transition', 'borrar', 'script', 'update', 'asset']) {
+      expect(ruta, accion).not.toMatch(new RegExp(`ABIERTAS_SIN_SESION[^\]]*'${accion}'`));
+    }
+  });
+
+  it('sin perfil del equipo, comentar y votar siguen rechazados', () => {
+    // Abrir la puerta no es abrir el turno: el perfil se comprueba en la base.
+    const ruta = leer('src/app/api/workspace/[action]/route.ts');
+    expect(ruta.match(/is_team_member/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+  });
+});
