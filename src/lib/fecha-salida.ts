@@ -45,6 +45,29 @@ function diaLocal(iso: string): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+/**
+ * MEDIDO 2026-10-03: el día de HOY en la zona del cliente, no la del servidor.
+ * `America/Bogota` está escrito a propósito en vez de dejar que lo ponga el
+ * runtime: es el cliente el que tiene que decir qué día es, no la máquina que
+ * sirve la página.
+ */
+function diaDeBogota(): Date {
+  // Medianoche en Bogotá, construida en la zona local del runtime y leída
+  // como fecha de calendario. Se usa `Date.UTC` para que el constructor no
+  // aplique el desplazamiento del servidor a un día que ya viene desplazado.
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Bogota', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const get = (t: string) => Number(partes.find((p) => p.type === t)?.value);
+  return new Date(Date.UTC(get('year'), get('month') - 1, get('day'), 12, 0, 0));
+}
+
+/** Días de calendario entre dos fechas, sin que la hora del día los mueva. */
+function diasDeCalendario(a: Date, b: Date): number {
+  const dia = (d: Date) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.round((dia(a) - dia(b)) / 86_400_000);
+}
+
 /** `2026-10-02T00:00:00.000Z` → `vie 2 oct`. Inválido o vacío → `null`. */
 export function fechaEs(iso: string | null | undefined): string | null {
   if (!iso) return null;
@@ -72,12 +95,19 @@ export function cuantoPara(iso: string | null | undefined): { texto: string; ven
   const d = diaLocal(iso);
   if (!d) return null;
 
-  const hoy = new Date();
-  // Las dos fechas a medianoche local: comparar 00:00 con la hora actual hace
-  // que "hoy" se lea como "en 0 días" o, peor, como vencido.
+  // MEDIDO 2026-10-03: `setHours(0,0,0,0)` usa la zona del SERVIDOR, no la de
+  // la persona. En Vercel (UTC) eso está mal desde las 19:00 en Colombia: a las
+  // 21:41 de un jueves, "hoy" salía como "mañana" y una salida programada para
+  // el día siguiente decía "hoy". El CI lo cazó primero con dos fallos en UTC,
+  // y esos dos fallos son la mismaykıl cosa que ve el equipo de noche.
+  //
+  // El arreglo es comparar DÍA-CÍA en la zona del cliente, no INSTANTE-INSTANTE.
+  // Las dos fechas se pasan a `YYYY-MM-DD` de Bogotá y se restan como fechas de
+  // calendario. Sin la zona fija, un día de DST o un cambio de hora mueva el
+  // resultado un día entero.
   d.setHours(0, 0, 0, 0);
-  hoy.setHours(0, 0, 0, 0);
-  const dias = Math.round((d.getTime() - hoy.getTime()) / 86_400_000);
+  const hoy = diaDeBogota();
+  const dias = diasDeCalendario(d, hoy);
   if (dias < 0) return { texto: `hace ${Math.abs(dias)} día${Math.abs(dias) === 1 ? '' : 's'}`, vencido: true };
   if (dias === 0) return { texto: 'hoy', vencido: false };
   if (dias === 1) return { texto: 'mañana', vencido: false };

@@ -82,8 +82,17 @@ function readAside(): boolean {
  * mismo botón que un `owner` y al pulsarlo recibe un 401. Con `puedeCrear` se
  * muestra, pero directo al login, sin el falso intento.
  */
-function useSesion(emailServidor?: string) {
+function useSesion(emailServidor?: string, nombreServidor?: string) {
   const [correo, setCorreo] = useState<string | null>(emailServidor ?? null);
+  // MEDIDO 2026-10-01, Santiago: "solo necesito que cuando él entre aparezca el
+  // nombre de él en el contenido". El servidor YA mandaba el nombre:
+  // `/api/quien-soy` responde `{email, nombre, proyecto, id}` y con la sesión de
+  // Nicolás devuelve "Nicolás David Río Vargas". El shell solo leía `email` y
+  // se olvidaba de `nombre`, así que en toda la app solo se veía el correo.
+  //
+  // No es un dato inventado ni una copyrighted: es el nombre que la persona
+  // eligió en la puerta, y el servidor ya lo tenía.
+  const [nombre, setNombre] = useState<string | null>(nombreServidor ?? null);
   const router = useRouter();
 
   useEffect(() => {
@@ -97,6 +106,7 @@ function useSesion(emailServidor?: string) {
       .then((cuerpo) => {
         if (!vivo) return;
         setCorreo(cuerpo?.email ?? null);
+        setNombre(cuerpo?.nombre ?? null);
       })
       .catch(() => {
         if (vivo) setCorreo(null);
@@ -110,7 +120,7 @@ function useSesion(emailServidor?: string) {
     router.refresh();
   }
 
-  return { correo, cerrarSesion };
+  return { correo, nombre, cerrarSesion };
 }
 
 /**
@@ -125,13 +135,13 @@ type ListaDeClientes = {
   actual: string | null;
 };
 
-export function WorkspaceShell({ children, project, role, email, puedeEscribir = true, clientes }: { children: React.ReactNode; project: { slug: string; name: string; client_name: string }; role: string; email?: string; puedeEscribir?: boolean; clientes?: ListaDeClientes }) {
+export function WorkspaceShell({ children, project, role, email, nombre, puedeEscribir = true, clientes }: { children: React.ReactNode; project: { slug: string; name: string; client_name: string }; role: string; email?: string; nombre?: string; puedeEscribir?: boolean; clientes?: ListaDeClientes }) {
   const params = useParams<{ projectSlug: string }>();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const collapsed = useSyncExternalStore(subscribeAside, readAside, () => false);
   const slug = params.projectSlug;
-  const sesion = useSesion(email);
+  const sesion = useSesion(email, nombre);
 
   function toggleCollapsed() {
     try {
@@ -256,13 +266,16 @@ export function WorkspaceShell({ children, project, role, email, puedeEscribir =
                 <details className="relative">
                   <summary className="inline-flex cursor-pointer list-none items-center gap-2 border border-blanco-20 px-2 py-1.5 font-mono text-[10px] text-blanco-70 hover:border-blanco-40">
                     <span className="inline-block h-4 w-4 border border-blanco-40 text-center leading-4 text-blanco-80">
-                      {sesion.correo.slice(0, 1).toUpperCase()}
+                      {(sesion.nombre ?? sesion.correo).slice(0, 1).toUpperCase()}
                     </span>
-                    <span className="hidden max-w-32 truncate sm:inline">{sesion.correo}</span>
+                    {/* El nombre, no el correo. MEDIDO 2026-10-01: el servidor ya
+                        lo mandaba y la pantalla no lo pintaba. El correo queda en
+                        el `title`, que es donde se consulta si hace falta. */}
+                    <span title={sesion.correo} className="hidden max-w-32 truncate sm:inline">{sesion.nombre ?? sesion.correo}</span>
                   </summary>
                   <div className="absolute right-0 z-30 mt-1 w-64 border border-blanco-20 bg-negro p-3">
                     <p className="font-mono text-[10px] leading-5 text-blanco-60">
-                      <span className="block text-blanco-80">{sesion.correo}</span>
+                      <span className="block text-blanco-80">{sesion.nombre ?? sesion.correo}</span>
                       Rol en {project.name}: <span className="text-orquidea">{role.replace('_', ' ')}</span>
                     </p>
                     <div className="mt-3 flex flex-col gap-1">

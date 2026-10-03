@@ -137,7 +137,7 @@ export function InstalarApp() {
       <button
         type="button"
         onClick={() => window.location.reload()}
-        className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 border border-mostaza bg-negro px-4 py-2.5 font-mono text-[11px] tracking-wider text-mostaza"
+        className="fixed bottom-14 right-4 z-40 border border-mostaza bg-negro px-4 py-2.5 font-mono text-[11px] tracking-wider text-mostaza sm:right-6"
       >
         HAY VERSIÓN NUEVA · TOCA PARA ACTUALIZAR
       </button>
@@ -148,7 +148,7 @@ export function InstalarApp() {
   // que un texto que dice que hacer.
   if (esIOS && !cerradoIOS) {
     return (
-      <div className="fixed bottom-4 left-1/2 z-50 w-[min(92vw,26rem)] -translate-x-1/2 border border-blanco-20 bg-negro px-4 py-3">
+      <div className="fixed bottom-14 right-4 z-40 w-[min(92vw,26rem)] border border-blanco-20 bg-negro px-4 py-3 sm:right-6">
         <p className="font-mono text-[10px] tracking-widest text-mostaza">// INSTALAR EN EL IPHONE</p>
         <p className="mt-1.5 text-xs leading-5 text-blanco-70">
           Toca <Icon name="link" size={12} className="inline align-[-2px]" /> <strong className="text-blanco">Compartir</strong> y luego{' '}
@@ -176,7 +176,13 @@ export function InstalarApp() {
         // No se guarda: el evento se gasto y no hay segunda vuelta.
         if (eleccion.outcome === 'dismissed') setInvitacion(null);
       }}
-      className="btn-brutal fixed bottom-4 left-1/2 z-50 -translate-x-1/2"
+      // MEDIDO 2026-10-01, Santiago: «no esta funcionando muy bien el tema de
+      // el como se usa». La causa real: este boton era `fixed bottom-4 left-1/2
+      // -translate-x-1/2`, osea CENTRADO ABAJO. Medido en el navegador: el
+      // boton ENTRAR vivia en y=533 y este en y=515, ambos de 46px de alto, uno
+      // encima del otro. El texto «ENTRAR» quedaba tapado y la persona no podia
+      // pulsar el centro del boton. Ahora va a una esquina y no tapa nada.
+      className="btn-brutal fixed bottom-4 right-4 z-40 sm:right-6"
     >
       <Icon name="upload" size={13} className="inline align-[-2px]" /> INSTALAR EL HUB
     </button>

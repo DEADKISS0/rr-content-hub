@@ -224,10 +224,16 @@ export function GuidedTour() {
 
           En escritorio sigue siendo el botón flotante de la esquina: ahí hay
           sitio de sobra y nunca estorba. */}
+      {/* MEDIDO 2026-10-02 (auditoria del frontend): este boton y el
+          `INSTALAR EL HUB` comparten `sm:bottom-4 sm:right-4` con el mismo
+          `z-40`. Sin z distinto gana el ultimo en el DOM, y `InstalarApp` se
+          monta DESPUES de los hijos en `layout.tsx`: el instalador tapaba la
+          guia. Aqui la guia sube a `sm:bottom-20` y quedan apilados sin
+          solaparse. */}
       <button
         type="button"
         onClick={() => setPaso(0)}
-        className="fixed bottom-0 left-0 right-0 z-40 flex h-12 w-full items-center justify-center gap-2 border-t border-blanco-20 bg-negro font-mono text-xs text-blanco-70 transition-colors hover:bg-blanco-10 hover:text-blanco sm:bottom-4 sm:left-auto sm:right-4 sm:h-auto sm:w-auto sm:border sm:px-3 sm:py-2"
+        className="fixed bottom-0 left-0 right-0 z-40 flex h-12 w-full items-center justify-center gap-2 border-t border-blanco-20 bg-negro font-mono text-xs text-blanco-70 transition-colors hover:bg-blanco-10 hover:text-blanco sm:bottom-4 sm:left-auto sm:right-4 sm:h-auto sm:w-auto sm:border sm:px-3 sm:py-2 sm:bottom-20"
         aria-label="Abrir la guía: te explica cada botón"
         title="¿Cómo se usa?"
       >

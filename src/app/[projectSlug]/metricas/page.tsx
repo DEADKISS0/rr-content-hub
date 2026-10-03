@@ -1,7 +1,9 @@
-import { getIdeas, getProject } from '@/lib/data';
+import { getIdeas, getProject, getVotosDeVarias, getVotosDeCambio } from '@/lib/data';
 import { notFound } from 'next/navigation';
 import { QueueSection } from '@/components/queue-section';
-import { QUEUES, inQueue } from '@/lib/queues';
+import { GraficasBanco } from '@/components/graficas-banco';
+import { todasLasGraficas } from '@/lib/graficas';
+import { inQueue } from '@/lib/queues';
 
 /**
  * This page used to be a byte-for-byte copy of `publicaciones` with different
@@ -11,7 +13,16 @@ import { QUEUES, inQueue } from '@/lib/queues';
 export default async function Metrics({ params }: { params: Promise<{ projectSlug: string }> }) {
   const { projectSlug } = await params;
   const { project } = await getProject(projectSlug); if (!project) notFound();
-  const ideas = (await getIdeas(project.id)).filter((idea) => inQueue(idea.status, 'publicaciones'));
+  const todasLasIdeas = await getIdeas(project.id);
+  const ideas = todasLasIdeas.filter((idea) => inQueue(idea.status, 'publicaciones'));
+
+  // MEDIDO 2026-10-03: estas cuatro líneas son la razón de que esta pantalla
+  // dejara de verse vacía. `publicaciones` está en CERO (0 piezas `published`
+  // de 61), y la página solo miraba esa cola. El banco entero sí tiene fases,
+  // aristas y votos, y eso es lo que ahora se grafica arriba del todo.
+  const votos = await getVotosDeVarias(todasLasIdeas.map((i) => i.id));
+  const cambiosPedidos = await getVotosDeCambio(project.id);
+  const graficas = todasLasGraficas(todasLasIdeas, votos, cambiosPedidos);
 
   const published = ideas.filter((i) => i.status === 'published');
   const organic = published.filter((i) => i.content_type === 'organic');
@@ -24,6 +35,7 @@ export default async function Metrics({ params }: { params: Promise<{ projectSlu
   const top = [...byPillar.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
 
   return <>
+    <GraficasBanco graficas={graficas} />
     <QueueSection
       title="MÉTRICAS"
       eyebrow={`${project.name} · PERFORMANCE_LOOP`}

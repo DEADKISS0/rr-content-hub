@@ -11,6 +11,10 @@ export type BoardFilters = {
   phase: string;
   act: string;
   view: BoardView;
+  /** MEDIDO 2026-10-02: la arista (category). Existía en la idea y no se podía
+   *  filtrar por ella. Sin esto, agrupar el banco por arista —que es lo que
+   *  pide la simulación— obligaba a abrir la base a mano. */
+  category: string;
 };
 
 /**
@@ -38,6 +42,7 @@ export function BoardControls({
   total,
   shown,
   waiting,
+  aristas = [],
   sticky = true,
 }: {
   filters: BoardFilters;
@@ -45,9 +50,12 @@ export function BoardControls({
   total: number;
   shown: number;
   waiting: number;
+  /** Lista de aristas con su conteo, medida del banco real. */
+  aristas?: { valor: string; n: number }[];
   sticky?: boolean;
 }) {
-  const dirty = filters.query !== '' || filters.phase !== 'all' || filters.act !== 'all';
+  const dirty = filters.query !== '' || filters.phase !== 'all' || filters.act !== 'all'
+    || filters.category !== 'all';
   const activeGroup = filters.act === 'all'
     ? 'TODOS'
     : ACT_GROUPS.find((group) => group.key === filters.act)?.label ?? filters.act.toUpperCase();
@@ -149,6 +157,44 @@ export function BoardControls({
                   );
                 })}
               </div>
+
+              {/* MEDIDO 2026-10-02: la arista (category) era un dato que ya
+                  venía en cada idea y no se podía filtrar. Con el banco
+                  normalizado a 12 aristas, esta fila es lo que permite ver
+                  "cuántas ideas de FIT tengo" sin abrir la base. */}
+              {aristas.length > 0 && (
+                <div className="mt-3 border-t border-blanco-10 pt-3">
+                  <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.08em] text-blanco-40">
+                    ARISTA DEL CONTENIDO
+                  </p>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onChange({ category: 'all' })}
+                      aria-pressed={filters.category === 'all'}
+                      className={`border px-2.5 py-1.5 font-mono text-xs uppercase tracking-[0.06em] transition-colors ${filters.category === 'all' ? 'border-orquidea bg-orquidea text-blanco' : 'border-blanco-20 text-blanco-60 hover:border-blanco hover:text-blanco'}`}
+                    >
+                      TODAS
+                    </button>
+                    {aristas.map((arista) => {
+                      const activa = filters.category === arista.valor;
+                      return (
+                        <button
+                          key={arista.valor}
+                          type="button"
+                          onClick={() => onChange({ category: activa ? 'all' : arista.valor })}
+                          aria-pressed={activa}
+                          title={`${arista.n} ${arista.n === 1 ? 'pieza' : 'piezas'}`}
+                          className={`border px-2.5 py-1.5 font-mono text-xs uppercase tracking-[0.06em] transition-colors ${activa ? 'border-orquidea bg-orquidea text-blanco' : 'border-blanco-20 text-blanco-60 hover:border-blanco hover:text-blanco'}`}
+                        >
+                          {arista.valor}
+                          <span className={activa ? 'text-blanco-70' : 'text-blanco-40'}> · {arista.n}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </details>
 

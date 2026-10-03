@@ -15,6 +15,27 @@
      "apagado" al compararlo con el blanco de los titulares. A 0.62 da 7.70:1:
      mismo color perceived, mucho más aire. Medido con la fórmula WCAG real
      sobre #070001, no estimado a ojo. */
+  /* MEDIDO 2026-10-02 (auditoria del frontend): 20 clases se usaban en el
+     codigo y NO existian aqui, asi que Tailwind no generaba ninguna regla y
+     el estilo se perdia en silencio — sin error de build. Las que mas dano
+     hacen son `border-blanco-25` en los botones A FAVOR / EN CONTRA
+     (quedaban sin borde y se leian como texto plano) y `text-blanco-25` / `text-blanco-40`
+     en el contador "FALTAN 2 DE 3", que es operacion, no decoracion.
+
+     Los valores salen de la misma escala que ya estaba (incrementos de .05 sobre
+     un blanco #fffff3 al 100%), interpolando donde faltaba el escalon.
+     `blanco-40` queda donde estaba: subirlo romperia el contraste que ya se
+     midio y documento arriba. */
+  --color-blanco-15: rgba(255,255,243,.15);
+  --color-blanco-25: rgba(255,255,243,.25);
+  --color-blanco-90: rgba(255,255,243,.9);
+  --color-mostaza-05: rgba(222,209,22,.05);
+  --color-mostaza-10: rgba(222,209,22,.10);
+  --color-mostaza-40: rgba(222,209,22,.40);
+  --color-mostaza-60: rgba(222,209,22,.60);
+  --color-orquidea-10: rgba(151,61,143,.10);
+  --color-orquidea-40: rgba(151,61,143,.40);
+  --color-orquidea-50: rgba(151,61,143,.50);
   --color-blanco-50: rgba(255,255,243,.62);
   --color-blanco-60: rgba(255,255,243,.6);
   --color-blanco-70: rgba(255,255,243,.78);

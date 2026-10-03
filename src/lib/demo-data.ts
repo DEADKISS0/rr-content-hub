@@ -20,6 +20,14 @@ export type Idea = {
    * `''` no lo distingue de una fecha que vino rota.
    */
   due_at?: string | null;
+  /**
+   * MEDIDO 2026-10-01: `rr_hub_ideas.ad_id` existe desde siempre y el alta la
+   * llena (`api/workspace/[action]/route.ts:1088`), pero `getIdea` no la pedía:
+   * la relación con el anuncio se perdía antes de llegar a la pantalla. Sin ella
+   * no hay forma de saber que una idea viene de un anuncio concreto, ni de
+   * traerle su miniatura.
+   */
+  ad_id?: string | null;
   published_url?: string | null;
   reference_url?: string;
   camera: string;

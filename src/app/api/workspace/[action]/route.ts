@@ -118,7 +118,7 @@ async function context(request: NextRequest) {
   // nada aquí porque ya no hay identidad de Supabase que comparar; lo que
   // autoriza es el guard de cada mutación, que corre con estos mismos datos.
   return {
-    supabase: service, service, userId: perfil.id, email: sesion.email, abierto: false,
+    supabase: service, service, userId: perfil.id, email: sesion.email, proyecto: sesion.proyecto, abierto: false,
     // Lo que el servidor LEYO de la peticion, no lo que el navegador pidio. La
     // cabecera se lee aqui, una vez, y de aqui sale el `origen`: ningun
     // `body.origen` se consulta en ningun sitio.
@@ -158,6 +158,12 @@ type Ctx = {
   service: SupabaseClient;
   userId: string | null;
   email: string | null;
+  /**
+   * Slug del cliente con el que entraste, ej. 'wundeer'. MEDIDO 2026-10-03:
+   * faltaba aquí y por eso `asset` no podía comprobar que una idea fuera del
+   * cliente de quien llama — el bypass está documentado en la acción.
+   */
+  proyecto: string | null;
   /** Modo abierto: no hay sesión que comprobar y el rol no se consulta. */
   abierto: boolean;
   /** Las cabeceras REALES de la petición, leídas en el servidor. */
@@ -862,6 +868,28 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === 'asset') {
+    // MEDIDO 2026-10-03: esta accion NUNCA miro a que cliente pertenece la
+    // idea. `roleForIdea` (arriba, linea 201) devuelve el rol de quien llama
+    // para ESA idea, asi que el unico filtro real era el path. Reproducido en
+    // produccion: con la sesion de Wundeer se registro un asset dentro de una
+    // idea de Candilejas y la API respondio `{"success":true}`. Sin esto, con
+    // el codigo de Wundeer se cuelgan archivos en la carpeta de Candilejas,
+    // igual que ya hacia `/api/subir` con su propio chequeo.
+    //
+    // El rol no alcanza: tener rol `creator` en Wundeer dice que puedes operar
+    // en Wundeer, no que puedas escribir en el banco de Candilejas.
+    if (!ctx.abierto && ctx.proyecto) {
+      const { data: ideaConProyecto } = await supabase
+        .from('rr_hub_ideas')
+        .select('project:rr_hub_projects!inner(slug)')
+        .eq('id', ideaId)
+        .maybeSingle();
+      const slugIdea = (ideaConProyecto?.project as { slug?: string } | undefined)?.slug;
+      if (slugIdea && slugIdea !== ctx.proyecto) {
+        return error('Esa idea no es de tu cliente.', 403);
+      }
+    }
+
     // The object itself was uploaded by the browser with the session token, so
     // RLS on storage.objects decided whether that was allowed. The service
     // client only writes the metadata row, after checking the path belongs to

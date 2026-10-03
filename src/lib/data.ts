@@ -77,6 +77,19 @@ function mapIdea(row: RawIdea) {
     creator: 'RR ALIADOS',
     created_at: row.created_at as string,
     /**
+     * MEDIDO 2026-10-02 (auditoria del backend): `mapIdea` reconstruia el objeto
+     * campo por campo y se dejaba estos tres, que ya venian en la consulta.
+     * Consecuencias medidas, no supuestas:
+     *   - sin `updated_at`, `daysSince(idea.updated_at ?? idea.created_at)` caia
+     *     siempre a `created_at`: una pieza tocada hoy podia mostrar "14 DIAS SIN
+     *     MOVERSE". Es lo que se ve en la tarjeta del tablero y en la cola.
+     *   - sin `created_by`, el responsable de la pieza salia siempre vacio.
+     *   - sin `ad_id`, la miniatura del anuncio de Facebook nunca cargaba.
+     */
+    updated_at: (row.updated_at as string) ?? null,
+    created_by: (row.created_by as string) ?? null,
+    ad_id: (row.ad_id as string) ?? null,
+    /**
      * MEDIDO 2026-10-01: la fecha de salida se guardaba y no llegaba a la
      * pantalla. Dos motivos encadenados, y los dos había que arreglarlos:
      *
@@ -294,7 +307,7 @@ export async function getIdeas(projectId: string) {
 
   const { data } = await supabase
     .from('rr_hub_ideas')
-    .select('id, code, title, description, objective, content_type, category, origen, status, priority, created_at, due_at, published_url, reference_urls, camera_brief, talent_brief, edit_brief, script_content')
+    .select('id, code, title, description, objective, content_type, category, origen, status, priority, created_at, updated_at, due_at, published_url, reference_urls, camera_brief, talent_brief, edit_brief, script_content, created_by, ad_id')
     .eq('project_id', projectId)
     // Las ideas archivadas desaparecen del tablero, pero NO se borran. Siguen en
     // la tabla con sus votos y sus comentarios, y se pueden volver a desarchivar.
@@ -465,6 +478,35 @@ export async function getVotos(ideaId: string): Promise<ConteoVotos> {
 }
 
 /**
+ * La miniatura del anuncio de una idea, si la tiene.
+ *
+ * MEDIDO 2026-10-01: Facebook no sirve la biblioteca de anuncios embebida
+ * (marco vacío, comprobado en el navegador) y exige sesión para abrir el
+ * anuncio, así que la app no puede capturar la imagen al vuelo. Lo único
+ * honesto es la miniatura GUARDADA en `rr_hub_ad_library.cover_url`.
+ *
+ * Se busca por `ad_id` —la relación real— y no por la URL: dos ideas pueden
+ * apuntar al mismo anuncio, y la URL se puede haber pegado a mano sin quedar
+ * ligada. Con la relación, la ficha sabe de qué anuncio es.
+ *
+ * Devuelve `null` cuando no hay anuncio o no tiene miniatura. No inventa un
+ * placeholder con el logo de RR: una imagen que no es el anuncio es peor que
+ * un aviso honesto.
+ */
+export async function getCoverDelAnuncio(adId: string | null | undefined): Promise<string | null> {
+  if (!adId) return null;
+  const supabase = await createServiceClient() ?? await createClient();
+  if (!supabase) return null;
+  const { data } = await supabase
+    .from('rr_hub_ad_library')
+    .select('cover_url')
+    .eq('id', adId)
+    .maybeSingle();
+  const url = (data?.cover_url as string | null) ?? null;
+  return url && url.trim() ? url.trim() : null;
+}
+
+/**
  * El conteo de votos de TODAS las ideas de golpe.
  *
  * MEDIDO 2026-10-01: con el botón de voto en la tarjeta del tablero (PR de
@@ -502,6 +544,37 @@ export async function getVotosDeVarias(
     else if (voto.decision === 'no') fila.enContra += 1;
   }
   return conteo;
+}
+
+/**
+ * MEDIDO 2026-10-03: cuántos votos pidieron un cambio, por proyecto.
+ *
+ * `getVotosDeVarias` solo mira `yes` y `no`, así que una idea con un "cambiar
+ * esto" salía con el MISMO conteo que una que nadie ha tocado. El decision
+ * `change` existe en la base (MEDIDO: 1 voto) y es el único que frena una
+ * pieza, pero ningún lector lo contaba. Se agrega su conteo aparte; la
+ * función de las gráficas lo usa para la barra de fricción.
+ */
+export async function getVotosDeCambio(projectId: string): Promise<number> {
+  const supabase = await createServiceClient() ?? await createClient();
+  if (!supabase) return 0;
+  // MEDIDO 2026-10-03: `rr_hub_votes` NO tiene columna `project_id`. Solo tiene
+  // `idea_id`, así que el proyecto se resuelve cruzando por la idea. Filtrar por
+  // `project_id` devolvía error y la función respondía 0 siempre.
+  const { data: ideas } = await supabase
+    .from('rr_hub_ideas')
+    .select('id')
+    .eq('project_id', projectId);
+  const ids = (ideas ?? []).map((i) => i.id as string);
+  if (!ids.length) return 0;
+
+  const { data, error } = await supabase
+    .from('rr_hub_votes')
+    .select('id')
+    .eq('decision', 'change')
+    .in('idea_id', ids);
+  if (error) return 0;
+  return data?.length ?? 0;
 }
 
 /**
@@ -698,7 +771,7 @@ export async function getComentarios(ideaId: string) {
   if (!supabase) return [];
   const { data } = await supabase
     .from('rr_hub_comments')
-    .select('id, body, author_label, resolved, created_at')
+    .select('id, body, author_label, resolved_at, created_at')
     .eq('idea_id', ideaId)
     .order('created_at', { ascending: true });
   // Se devuelve con la forma que el componente ya espera (`text`, `author`,
@@ -711,7 +784,7 @@ export async function getComentarios(ideaId: string) {
     author: (c.author_label as string) ?? 'RR ALIADOS',
     role: 'colaboracion',
     createdAt: (c.created_at as string) ?? '',
-    resolved: Boolean(c.resolved),
+    resolved: Boolean(c.resolved_at),
   }));
 }
 

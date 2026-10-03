@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { getIdea, getProject, getProfileName, getVotos, getPresencia, getComentarios, getAssets, getTimeline } from '@/lib/data';
+import { getIdea, getProject, getProfileName, getVotos, getPresencia, getComentarios, getAssets, getTimeline, getCoverDelAnuncio } from '@/lib/data';
 import { rolEnProyecto } from '@/lib/project-guard';
 import { StatusBadge, STATUS_ICON } from '@/components/status-badge';
 import { IdeaActions } from '@/components/idea-actions';
@@ -38,6 +38,10 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
   // ofrecía una transición real, ni con la puerta encendida.
   const { rol } = await rolEnProyecto(project.id);
   const idea: any = await getIdea(project.id, ideaId); if (!idea) notFound();
+  // MEDIDO 2026-10-01: la miniatura del anuncio de Facebook no se puede embeber
+  // ni capturar al vuelo (la biblioteca pide sesión). Lo que sí se puede es la
+  // que ya está guardada en la biblioteca de anuncios.
+  const coverAnuncio = await getCoverDelAnuncio(idea.ad_id);
 
   // El conteo de votos se lee en el servidor, junto con la idea. Solo van los
   // NÚMEROS: el token del votante nunca sale del navegador que lo generó, así que
@@ -179,7 +183,7 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
       <section className="mb-8 anim-rise">
         {raw ? (
           <div data-guia="brief">
-            <ReferenceWithBrief refs={referencias} url={raw} title={idea.title} brief={{ intention: idea.objective, camera: idea.camera, talent: idea.talent, edit: idea.edit }} />
+            <ReferenceWithBrief refs={referencias} url={raw} title={idea.title} coverUrl={coverAnuncio} brief={{ intention: idea.objective, camera: idea.camera, talent: idea.talent, edit: idea.edit }} />
           </div>
         ) : idea.cover_asset ? (
           /* Sin referencia la ficha no puede quedar con un hueco vacío: la
