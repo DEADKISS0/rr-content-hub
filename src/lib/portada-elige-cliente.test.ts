@@ -89,3 +89,23 @@ describe('sin sesion no inventa nada', () => {
     expect(portada).toMatch(/Todavía no hay clientes|Todavía no tienes un cliente abierto/);
   });
 });
+
+
+describe('los botones flotantes no tapan el final de la portada', () => {
+  it('la pagina deja aire abajo para la esquina inferior derecha', () => {
+    // MEDIDO 2026-10-03 en el navegador: `INSTALAR EL HUB` en y=515 y la casilla
+    // "04 · LA SALIDA" en y=511, solapados. La visión de pantalla lo leyó como
+    // "04 · LA SAL...": el título de la última fase quedaba cortado.
+    //
+    // La causa no es el botón, que hace lo que debe, sino que la portada grew
+    // hasta el borde inferior y el flotante vive ahí. El arreglo es espacio: la
+    // página reserva el pie. Sin esto vuelve a pasar en cuanto la portada crece.
+    expect(codigo).toMatch(/pb-3\d/);
+  });
+
+  it('el aire esta en el contenedor, no solo en el ultimo parrafo', () => {
+    // Ponerlo solo en el cierre no sirve: el problema es a media pagina, donde la
+    // rejilla de cuatro fases llega hasta abajo. Tiene que ser el contenedor.
+    expect(codigo).toMatch(/max-w-6xl[^"]*pb-3\d/);
+  });
+});
