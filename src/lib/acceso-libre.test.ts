@@ -95,4 +95,52 @@ describe('la puerta del hub se queda abierta', () => {
   it('la portada no rebota a una pantalla de acceso', () => {
     expect(codigo('src/app/page.tsx')).not.toMatch(/redirect\(/);
   });
+  it('sin sesion el rol es REAL y no el mas alto', () => {
+    // El fallo que este test caza, medido: `role={access?.role_in_project ?? 'owner'}`
+    // daba el rol mas alto a quien no habia entrado. La pagina se abria y ensenaba
+    // los botones de escribir; el guard los rechazaba al pulsarlos.
+    //
+    // Se comprueba contra la LISTA REAL de roles, no contra una constante del
+    // propio codigo: si el rol por defecto fuera uno inventado, `tsc` no lo
+    // detectaria si el tipo fuera `string`, y la pantalla compararia contra
+    // strings que la base nunca tiene.
+    const pagina = codigo('src/app/[projectSlug]/page.tsx');
+    expect(pagina).not.toMatch(/role_in_project\s*\?\?\s*'owner'/);
+    expect(pagina).not.toMatch(/role_in_project\s*\?\?\s*"owner"/);
+
+    const ROLES_REALES = [
+      'owner', 'creator', 'camera', 'model', 'editor',
+      'publisher', 'media_buyer', 'client_approver', 'client_viewer',
+    ];
+    const porDefecto = pagina.match(/role_in_project\s*\?\?\s*'([a-z_]+)'/);
+    expect(porDefecto, 'no hay un rol por defecto en la pagina').not.toBeNull();
+    expect(ROLES_REALES).toContain(porDefecto![1]);
+    // Y no puede ser el mas alto: sin sesion no hay fila de acceso.
+    expect(porDefecto![1]).not.toBe('owner');
+  });
+
+  it('sin sesion el cliente se abre y la escritura no', () => {
+    // La mitad de arriba que se abrio es la de LECTURA. Esta es la de escritura:
+    // `getProject` devuelve `access: null` sin sesion, y eso es lo que leen el
+    // dashboard para pintar botones y el guard de cada mutacion para decidir.
+    const datos = codigo('src/lib/data.ts');
+
+    // OJO: el corte empieza en `getProject`, NO en el primer `if (!sesion)` del
+    // archivo. `getProjects` y `quienEs` tienen el suyo mas arriba, y anclar el
+    // corte al primero hacia que este test mirara la funcion equivocada: se
+    // ponia en verde con la escritura de `getProject` abierta de par en par.
+    // Un test que pasa mientras lo que dice vigilar esta roto.
+    const inicio = datos.indexOf('export async function getProject');
+    expect(inicio, 'no se encuentra getProject en lib/data.ts').toBeGreaterThan(-1);
+    const cuerpo = datos.slice(inicio);
+    const ramaSinSesion = cuerpo.slice(
+      cuerpo.indexOf('if (!sesion)'),
+      cuerpo.indexOf('if (!clienteEsVisible')
+    );
+    expect(ramaSinSesion.length, 'getProject no tiene la rama sin sesion').toBeGreaterThan(0);
+    expect(ramaSinSesion).toMatch(/access: null/);
+    // Y `clienteEsVisible` sigue mandando para quien tiene sesion: abrir la puerta
+    // no abre tambien el anyadir un quinto cliente.
+    expect(datos).toMatch(/clienteEsVisible\(slug, sesion\.proyecto\)/);
+  });
 });

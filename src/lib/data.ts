@@ -165,12 +165,34 @@ export async function getCurrentUser() {
 export async function getProject(slug: string) {
   if (!isVisibleProject(slug)) return { project: null, access: null, supabase: null };
 
-  // Y tiene que ser el cliente del código con el que se entró. Sin esta línea,
-  // entrar con 1111 y escribir `/candilejas` a mano abriría el otro cliente: la
-  // URL decidiría a qué proyecto se entra, y la cookie solo comprobaría que hay
-  // alguna. La cookie manda porque el código es lo que se tecleó.
+  // SIN PUERTA (2026-10-02). Antes estas cuatro líneas exigían que el slug fuera
+  // el del código con el que se entró, y sin cookie devolvían null. Con la puerta
+  // abierta eso convertía cada cliente en un 404 para quien llegaba sin sesión:
+  // la portada cargaba y el primer enlace llevaba a la nada.
+  //
+  // Ahora el slug lo decide la URL, que es lo único que queda. `isVisibleProject`
+  // de arriba sigue mandando: un slug que no es cliente sigue siendo un 404.
+  //
+  // LO QUE NO SE ABRE: `access` sigue siendo null sin sesión, y con él la
+  // escritura. `access` es lo que leen `ProjectDashboard` para pintar los botones
+  // y lo que comprueba el guard de cada mutación (`rr_hub_access`). Ver sin
+  // sesión, escribir sin fila de acceso: son dos cosas y siguen separadas.
   const sesion = await quienEs();
-  if (!sesion || !clienteEsVisible(slug, sesion.proyecto)) {
+  if (!sesion) {
+    const sinSesion = await createServiceClient() ?? await createClient();
+    if (!sinSesion) return { project: null, access: null, supabase: null };
+    const { data: proyecto } = await sinSesion
+      .from('rr_hub_projects')
+      .select('*')
+      .eq('slug', slug)
+      .maybeSingle();
+    // `access: null` a proposito: sin sesion no hay fila que consultara y nadie
+    // puede escribir. La lectura si va entera.
+    return { project: proyecto ?? null, access: null, supabase: sinSesion };
+  }
+
+  // Con sesion, el cliente tiene que ser uno de los que la persona puede ver.
+  if (!clienteEsVisible(slug, sesion.proyecto)) {
     return { project: null, access: null, supabase: null };
   }
   const supabase = await createServiceClient() ?? await createClient();

@@ -28,5 +28,23 @@ export default async function ProjectDashboardPage({ params }: { params: Promise
     enContra: conteos[idea.id]?.enContra ?? 0,
   }));
 
-  return <ProjectDashboard project={project} projectSlug={projectSlug} ideas={conVotos} role={access?.role_in_project ?? 'owner'} />;
+    // SIN SESION, EL ROL ES LECTOR, NO `owner` (2026-10-02).
+  //
+  // Antes: `access?.role_in_project ?? 'owner'`. Sin sesion `access` es null y el
+  // `?? 'owner'` le regalaba el rol mas alto a quien no habia entrado: la pagina
+  // se abria y ensegnaba los botones de escribir. La escritura la rechazaba el
+  // guard, o sea que el boton existia y al pulsarlo salia un 401.
+  //
+  // Ahora el valor por defecto es `client_viewer`, que es un rol REAL: hay 22
+  // filas con ese valor en `rr_hub_access` y esta en el CHECK de la columna. Se
+  // eligio ese y no uno inventado (`lector` no existe en el enum) para que la
+  // pantalla no tenga que inventarse un rol que la base no reconoce.
+  //
+  // Sin fila de acceso no hay ninguno, y no se regala el mas alto: la pantalla
+  // enseña lo que se puede ver y no ofrece lo que la base va a negar. Es la misma
+  // regla que en el mega-dashboard, donde el proxy y la RLS ya no dejan pasar
+  // escrituras y la interfaz no las anuncia.
+  const rol = access?.role_in_project ?? 'client_viewer';
+
+  return <ProjectDashboard project={project} projectSlug={projectSlug} ideas={conVotos} role={rol} />;
 }
