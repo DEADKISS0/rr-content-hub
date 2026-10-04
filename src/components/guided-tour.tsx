@@ -407,12 +407,20 @@ export function GuidedTour() {
                       24 rem  panel 426 px  3 lineas
 
                   28 rem es donde el texto sigue en dos lineas y la caja deja de
-                  medir lo que media el padre. El `100%` final manda en movil,
-                  que es lo correcto ahi: ahi si se quiere la pantalla entera. */}
+                  medir lo que media el padre.
+
+                  Y va como `max-w`, no como `width`. MEDIDO: con
+                  `width: min(28rem, 100%)` el panel daba 769 px — el `width`
+                  compite con el `flex-1` de la columna y el padre lo estiraba—;
+                  con `max-w: 28rem` da 490. La diferencia entre las dos es que
+                  `width` es una orden y `max-w` es un tope.
+
+                  En movil manda el `w-full`, que es lo correcto ahi: ahi si se
+                  quiere la pantalla entera. */}
               <div className={
                 movil
                   ? 'min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1'
-                  : 'min-w-0 w-[min(28rem,100%)]'
+                  : 'min-w-0 max-w-[28rem]'
               }>
                 <p className="font-mono text-[11px] tracking-[0.1em] text-blanco-60 sm:text-xs sm:text-blanco-50">
                   PASO {paso! + 1} DE {pasos.length}
@@ -423,7 +431,16 @@ export function GuidedTour() {
                 <p className="mt-3 text-[15px] leading-7 text-blanco-80 sm:text-lg sm:leading-8">{pasos[paso!].texto}</p>
               </div>
 
-              <div className={`flex flex-wrap items-center gap-3 ${
+              {/* MEDIDO 2026-10-04 a 1440x900: con el tope de lectura puesto, el
+                  texto baja a 448 px pero el panel se queda en 633. Lo que lo
+                  estiraba era ESTA fila: un `flex` con el ancho del padre, y el
+                  padre —la columna con `flex-1`— hereda el ancho del panel. Los
+                  botones miden 147 y 73 px de verdad, pero la fila medía 591.
+
+                  `w-fit` en la fila: mide lo que ocupan los botones y nada mas.
+                  El `flex-wrap` se queda, porque en un ancho chico los botones
+                  se pasan a dos lineas. */}
+              <div className={`flex w-fit flex-wrap items-center gap-3 ${
                 movil
                   ? 'shrink-0 border-t border-blanco-20 bg-negro pt-3 pb-1'
                   : 'mt-5'
