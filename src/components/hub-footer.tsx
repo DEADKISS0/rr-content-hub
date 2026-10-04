@@ -34,9 +34,14 @@ export function HubFooter({ slug, projectName }: { slug: string; projectName: st
        `fixed` no se va con la pagina, asi que quien tiene que ceder espacio es
        quien esta debajo.
 
-       96 px de abajo = 44 del boton + 16 de aire + breathing. En escritorio el
-       boton sube a `sm:bottom-20` y el pie vuelve a `md:pb-8`. */
-    <footer className="mt-16 border-t border-blanco-20 bg-negro px-4 pb-24 pt-8 sm:px-5 md:px-10 md:pb-8">
+       Y el segundo flotante, «INSTALAR EL HUB», es `fixed bottom-4 right-4`
+       con un panel de `min(92vw, 26rem)` cuando se abre: se come los TRES
+       enlaces del pie, no dos. Por eso `pb-32` (128 px), que cubre el boton mas
+       alto de los dos mas el aire.
+
+       En escritorio los dos flotantes se separan (`sm:bottom-4` el instalar y
+       `sm:bottom-20` la guia) y el pie vuelve a `md:pb-8`. */
+    <footer className="mt-16 border-t border-blanco-20 bg-negro px-4 pb-32 pt-8 sm:px-5 md:px-10 md:pb-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Image
