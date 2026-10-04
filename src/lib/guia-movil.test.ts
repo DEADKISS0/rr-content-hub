@@ -133,4 +133,33 @@ describe('la guía cabe y se puede cerrar en un teléfono', () => {
     expect(style?.[0]).toMatch(/caja\.top \+ caja\.height \+ 24/);
     expect(style?.[0]).toMatch(/window\.innerHeight \/ 2/);
   });
+
+  it('ningun comentario se pinta en pantalla dentro del popup', () => {
+    /* PASO 2026-10-03, y estuvo en produccion: un asterisco doble SIN las
+       llaves, entre dos etiquetas JSX, es TEXTO SUELTO. El tour abria
+       mostrando el comentario entero -cuatro parrafos de «MEDIDO 2026-10-03 a
+       1440x900»- en vez del mensaje, y el popup daba 544x406 con el texto
+       empezando por el asterisco.
+
+       Lo que rompe no es cualquier asterisco doble: es uno que cae donde JSX
+       espera una etiqueta o texto, o sea despues de un cierre `>` o de un
+       cierre de expresion `}` que NO sea el de una interpolacion. Un comentario
+       en posicion de atributo -despues de otra linea de atributos del mismo
+       elemento- si es valido, y hay varios asi a proposito.
+
+       Este aserto se queda con el caso que se rompio: el comentario que
+       empieza justo despues de que se cierra la etiqueta del panel. */
+    const c = leer('src/components/guided-tour.tsx');
+    const trasCerrarEtiqueta = /(^|\n)\s*>/;
+    const sueltos: string[] = [];
+    // cada bloque que empieza tras un cierre de etiqueta y NO lleva llave
+    for (const m of c.matchAll(/\/\*[\s\S]*?\*\//g)) {
+      const antes = c.slice(0, m.index);
+      const ultimo = antes.trimEnd();
+      if (!ultimo.endsWith('>')) continue;   // solo dentro del JSX
+      if (ultimo.endsWith('{/*')) continue;  // la forma valida
+      sueltos.push('linea ' + (antes.split('\n').length));
+    }
+    expect(sueltos).toEqual([]);
+  });
 });
