@@ -52,24 +52,71 @@ export type EstadoPerfiles = {
  * —y es justo el caso que este selector existe para—. Es `localStorage`, que es
  * síncrono y no necesita estado.
  */
+let cachePerfil: PerfilVotante | null | undefined;
+
+/**
+ * El perfil elegido, o null. IDENTIDAD ESTABLE.
+ *
+ * MEDIDO 2026-10-04 en 390 px: elegir un perfil dejaba la PANTALLA EN BLANCO con
+ * `React error #185` — «maximum update depth exceeded».
+ *
+ * La causa es esta función. Antes construía `{ email, nombre }` en cada llamada,
+ * así que dos llamadas seguidas devolvían dos objetos DISTINTOS con el mismo
+ * contenido. `useSyncExternalStore` compara el valor anterior con el nuevo por
+ * identidad (`Object.is`), no por contenido: le decían «cambió» cada vez, y
+ * volvía a renderizar. Y como el render volvía a leer, otra vez distinto, otra
+ * vez… hasta que React tira la pantalla.
+ *
+ * Por qué no se veía antes: con `null` devolvía SIEMPRE `null`, y `Object.is(null,
+ * null)` es `true`. El bucle solo arranca cuando hay un perfil de verdad
+ * guardado, o sea, cuando alguien elige a quién es. MEDIDO: en un navegador
+ * limpio el bug está dormido; en cuanto se elige perfil, la pantalla muere.
+ *
+ * La comparación por contenido era la deuda de verdad: `nombre ?? email` puede
+ * cambiar sin que cambie el email, y con cache a ciegas eso no se vería nunca.
+ * Por eso se comparan los dos campos y solo se reconstruye si alguno cambió.
+ */
 export function perfilElegido(): PerfilVotante | null {
   if (typeof window === 'undefined') return null;
+  let leido: PerfilVotante | null;
   try {
     const crudo = window.localStorage.getItem(LLAVE_PERFIL);
-    if (!crudo) return null;
-    const dato = JSON.parse(crudo) as PerfilVotante;
-    if (!dato?.email) return null;
-    return { email: dato.email, nombre: dato.nombre ?? dato.email };
+    if (!crudo) leido = null;
+    else {
+      const dato = JSON.parse(crudo) as PerfilVotante;
+      leido = dato?.email ? { email: dato.email, nombre: dato.nombre ?? dato.email } : null;
+    }
   } catch {
     // Un `localStorage` corrupto (a mano, o de una versión anterior del esquema)
     // no puede dejar la pantalla sin pintar. Se trata como "no elegido".
-    return null;
+    leido = null;
   }
+  // Misma persona: se devuelve el MISMO objeto. Es lo que hace que
+  // `useSyncExternalStore` vea que no cambió nada.
+  if (cachePerfil === undefined) {
+    cachePerfil = leido;
+  } else if (cachePerfil === null || leido === null) {
+    if (cachePerfil !== leido) cachePerfil = leido;
+  } else if (cachePerfil.email !== leido.email || cachePerfil.nombre !== leido.nombre) {
+    cachePerfil = leido;
+  }
+  return cachePerfil;
+}
+
+/** Vacía la cache. La usan los tests; la app no lo necesita. */
+export function olvidarCachePerfil(): void {
+  cachePerfil = undefined;
 }
 
 /** Guarda el perfil elegido. Un null lo borra: es "vuelvo a no haber elegido". */
 export function guardarPerfil(perfil: PerfilVotante | null): void {
   if (typeof window === 'undefined') return;
+  // La cache de `perfilElegido()` compara contra `localStorage` en cada llamada,
+  // asi que un cambio de perfil se detecta SOLO, sin ayuda. Vaciarla aqui es
+  // defensa en profundidad: deja el cache sin estado justo antes de escribir, y
+  // hace obvio que guardar y leer son el mismo par. Si mañana la comparacion se
+  // vuelve identity-only, este vaciado sigue siendo la red.
+  olvidarCachePerfil();
   if (!perfil) {
     window.localStorage.removeItem(LLAVE_PERFIL);
     avisarCambioPerfil();
