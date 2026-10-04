@@ -311,7 +311,7 @@ export function GuidedTour() {
                    ocupe media pantalla. `w-fit` + `max-w` deja que la caja tenga
                    el ancho del texto más largo y nada más; el `max-h` sigue
                    guarding casos de un texto largo en una pantalla chica. */
-                : 'left-1/2 w-fit max-w-[min(34rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] -translate-x-1/2 overflow-y-auto p-5'
+                : 'left-1/2 inline-block w-fit max-w-[min(34rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] -translate-x-1/2 overflow-y-auto p-5'
             }`}
             /*
              * MEDIDO 2026-10-01: esto estaba anclado con
@@ -355,7 +355,20 @@ export function GuidedTour() {
                 hijo flexible no baja de su alto de contenido y el padre se
                 desborda en lugar de dejar que el hijo se encoja. */}
             <div className={`flex min-h-0 flex-1 flex-col ${movil ? 'overflow-hidden' : ''}`}>
-              <div className={movil ? 'min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1' : ''}>
+              /* MEDIDO 2026-10-03 a 1440x900, con `w-fit` ya puesto. El ancho
+                 seguía en 544 px: un bloque normal ocupa todo el ancho de su
+                 padre, así que `w-fit` no tenía nada que encoger — el padre lo
+                 declaraba 544 y el texto se estiraba a 502.
+
+                 MEDIDO con `width: min-content`: el texto de este paso necesita
+                 98 px. De los 502 que tenía. `inline-block` + `w-full` deja que
+                 la caja mida lo que mide su contenido en vez de heredarlo, y en
+                 móvil conserva el ancho completo. */
+              <div className={
+                movil
+                  ? 'min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1'
+                  : 'inline-block w-full'
+              }>
                 <p className="font-mono text-[11px] tracking-[0.1em] text-blanco-60 sm:text-xs sm:text-blanco-50">
                   PASO {paso! + 1} DE {pasos.length}
                 </p>
