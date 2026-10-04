@@ -327,10 +327,9 @@ export function GuidedTour() {
                 /* MEDIDO 2026-10-03 a 1440x900: el popup daba 544x434, el 48% de
                    la altura de la pantalla, para un texto de tres líneas y 170
                    caracteres. Lo que se pide es que RODEE EL MENSAJE, no que
-                   ocupe media pantalla. `w-fit` + `max-w` deja que la caja tenga
-                   el ancho del texto más largo y nada más; el `max-h` sigue
-                   guarding casos de un texto largo en una pantalla chica. */
-                : 'inline-block left-1/2 w-fit max-w-[min(34rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] -translate-x-1/2 overflow-y-auto p-5'
+                   ocupe media pantalla. El ancho de lectura lo pone la zona
+                   del texto, dos niveles más abajo. */
+                : 'inline-block left-1/2 w-fit max-h-[calc(100dvh-2rem)] -translate-x-1/2 overflow-y-auto p-5'
             }`}
             /*
              * MEDIDO 2026-10-01: esto estaba anclado con
@@ -388,10 +387,32 @@ export function GuidedTour() {
                   etiquetas JSX, un asterisco doble SIN las llaves es texto
                   suelto: sale pintado en pantalla dentro del tour. Pasó, y se
                   vio el comentario entero en el popup de todos los usuarios. */}
+              {/* MEDIDO 2026-10-04 con Playwright en Chromium, quitando un hijo
+                  cada vez del popup ya desplegado:
+
+                      sin el <p> del cuerpo    panel  236 px
+                      sin el <h2>              panel  667 px
+
+                  El ancho no lo fijaba el padre: lo fijaba el parrafo, cuyo
+                  `min-content` son 625 px. Y `fit-content` no podia servir, porque
+                  es el ancho del contenido PARTIDO para que quepa en el espacio
+                  disponible — y ese espacio se lo daba el padre. Circular.
+
+                  Lo que funciona es un tope de ancho de LECTURA. MEDIDO todo el
+                  rango:
+
+                      38 rem  panel 792 px  2 lineas
+                      32 rem  panel 554 px  2 lineas
+                      28 rem  panel 490 px  2 lineas   <- este
+                      24 rem  panel 426 px  3 lineas
+
+                  28 rem es donde el texto sigue en dos lineas y la caja deja de
+                  medir lo que media el padre. El `100%` final manda en movil,
+                  que es lo correcto ahi: ahi si se quiere la pantalla entera. */}
               <div className={
                 movil
                   ? 'min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1'
-                  : 'inline-block w-full'
+                  : 'min-w-0 w-[min(28rem,100%)]'
               }>
                 <p className="font-mono text-[11px] tracking-[0.1em] text-blanco-60 sm:text-xs sm:text-blanco-50">
                   PASO {paso! + 1} DE {pasos.length}
