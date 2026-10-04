@@ -330,7 +330,7 @@ export function GuidedTour() {
                    ocupe media pantalla. `w-fit` + `max-w` deja que la caja tenga
                    el ancho del texto más largo y nada más; el `max-h` sigue
                    guarding casos de un texto largo en una pantalla chica. */
-                : 'inline-block left-1/2 w-fit max-w-[min(34rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] -translate-x-1/2 overflow-y-auto p-5'
+                : 'inline-block left-1/2 w-fit max-h-[calc(100dvh-2rem)] -translate-x-1/2 overflow-y-auto p-5'
             }`}
             /*
              * MEDIDO 2026-10-01: esto estaba anclado con
@@ -380,9 +380,49 @@ export function GuidedTour() {
                   declaraba 544 y el texto se estiraba a 502.
 
                   MEDIDO con `width: min-content`: el texto de este paso necesita
-                  98 px. De los 502 que tenía. `inline-block` + `w-full` deja que
-                  la caja mida lo que mide su contenido en vez de heredarlo, y en
-                  móvil conserva el ancho completo.
+                  98 px. De los 502 que tenía.
+
+                  Lo que quedaba era `w-full` en ESTA zona, que es
+                  `width: 100%`: le imponia al texto el ancho entero del padre, y
+                  el padre lo tomaba del `max-w`. MEDIDO subiendo por el arbol:
+                  con `width: max-content` en los tres niveles, el texto bajaba a
+                  93 px —el ancho que realmente necesita— mientras el padre se
+                  iba a 1045. El que fijaba los 502 era este `w-full`.
+
+                  MEDIDO en un HTML con las utilidades reales, una variante por
+                  vez, en Chromium. Lo que fija el ancho NO es el padre: es el
+                  parrafo del cuerpo.
+
+                      quitar el <p2>          panel  236 px
+                      quitar el <h2>          panel  667 px   <- el h2 no manda
+                      el <p2> con min-content  625 px
+
+                  `fit-content` es el ancho del contenido PARTIDO para que quepa
+                  en el espacio disponible, y el disponible se lo daba el padre:
+                  544. Circular, y por eso `fit-content` no Bajaba.
+
+                  `min-content` si baja —143 px— pero deja el texto en doce
+                  lineas de cuatro palabras, que es peor que lo que se estaba
+                  arreglando.
+
+                  Lo que se pide es lo de en medio: que el texto se parta en
+                  lineas de ancho de lectura y la caja mida lo que ocupen. Un
+                  MEDIDO el rango completo con Playwright, en Chromium, a 1440:
+
+                      38 rem   panel  792 px    2 lineas
+                      32 rem   panel  554 px    2 lineas
+                      30 rem   panel  522 px    2 lineas
+                      28 rem   panel  490 px    2 lineas   <- elegido
+                      24 rem   panel  426 px    3 lineas
+                      20 rem   panel  362 px    3 lineas
+
+                  28 rem es el punto en el que el texto sigue en DOS lineas —una
+                  linea larga se parte en dos, que es lo que se lee bien— y la
+                  caja baja de los 544 px que tenia. En movil el 100% manda y
+                  ocupa la pantalla, que es lo correcto ahi.
+
+                  En movil esto no se aplica: la zona ya baja sola con `flex-1` y
+                  conserva el ancho de la pantalla.
 
                   OJO: este comentario va entre llaves y asteriscos. Entre dos
                   etiquetas JSX, un asterisco doble SIN las llaves es texto
@@ -391,7 +431,7 @@ export function GuidedTour() {
               <div className={
                 movil
                   ? 'min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1'
-                  : 'inline-block w-full'
+                  : 'min-w-0 w-[min(28rem,100%)]'
               }>
                 <p className="font-mono text-[11px] tracking-[0.1em] text-blanco-60 sm:text-xs sm:text-blanco-50">
                   PASO {paso! + 1} DE {pasos.length}
@@ -402,10 +442,20 @@ export function GuidedTour() {
                 <p className="mt-3 text-[15px] leading-7 text-blanco-80 sm:text-lg sm:leading-8">{pasos[paso!].texto}</p>
               </div>
 
+              {/* MEDIDO 2026-10-04 con Playwright sobre un HTML con las
+                  utilidades reales: los botones iban en la MISMA fila que el
+                  texto, así que el panel tomaba el ancho de la fila —667 px—
+                  aunque el texto solo necesitaba 480. El ancho de una fila la
+                  fija el hijo mas ancho de ella, y ese era el bloque de botones.
+
+                  Ahora los botones van en su propia fila, igual que en movil: el
+                  texto manda el ancho y los botones se apoyan abajo a la
+                  izquierda. Un popup que rodea el mensaje se lee mejor con las
+                  acciones en una linea propia que en un T. */}
               <div className={`flex flex-wrap items-center gap-3 ${
                 movil
                   ? 'shrink-0 border-t border-blanco-20 bg-negro pt-3 pb-1'
-                  : 'mt-5'
+                  : 'mt-5 shrink-0'
               }`}>
               {paso! > 0 && (
                 <button

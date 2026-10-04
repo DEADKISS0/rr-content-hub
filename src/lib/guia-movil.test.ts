@@ -101,38 +101,45 @@ describe('la guía cabe y se puede cerrar en un teléfono', () => {
 
   it('el popup de escritorio se ajusta al mensaje, no a media pantalla', () => {
     const c = leer('src/components/guided-tour.tsx');
-    /* MEDIDO 2026-10-03 a 1440x900, y tres veces mas. La caja daba 544x434 —
-       el 48% de la altura de la pantalla — para tres lineas de texto. Santiago:
+    /* MEDIDO 2026-10-03 a 1440x900, y cinco veces mas. La caja daba 544x434: el
+       48% de la altura de la pantalla, para tres lineas de texto. Santiago:
        «el contenedor del popup del mensaje esta muy grande, asegurate que solo
        rodee el mensaje».
 
-       Los cuatro intentos, todos medidos en produccion antes del siguiente:
+       Los intentos, todos medidos en produccion con Playwright antes del
+       siguiente. Ninguno sirvio solo:
 
        1. `w-[min(34rem,...)]` -> `w-fit`: bajo el alto, no el ancho.
        2. `bottom: 16` fuera del style: 434 -> 238 px de alto. Ancho igual.
-       3. `inline-block` en el panel: el comentario se pinto en pantalla (#31) y
-          el ancho seguia en 544.
-       4. `flex` en las clases BASE: ganaba al `inline-block` del ternario, y
-          MEDIDO en el CSSOM el elemento computaba `display: flex` llevando
-          `inline-flex` en la clase: en Tailwind manda el ORDEN de las reglas
-          en la hoja de estilos, no el orden del className.
+       3. `inline-block` en el panel: se pinto un comentario en pantalla (#31).
+       4. `flex` fuera de las clases base: correcto, pero el ancho seguia igual
+          porque MEDIDO en el CSSOM el elemento computaba `display: flex`
+          llevando `inline-flex` en la clase: en Tailwind manda el ORDEN de las
+          reglas de la hoja, no el del className.
+       5. `w-fit`/`fit-content` en la zona del texto: circular. `fit-content`
+          es el ancho del contenido PARTIDO para que quepa en el espacio
+          disponible, y el disponible se lo daba el padre. 544 px otra vez.
+       6. `min-content`: si baja a 143 px, pero deja el texto en doce lineas
+          de cuatro palabras. Peor que lo que se estaba arreglando.
 
-       Ahora el panel no tiene ninguna clase de display de flex —la columna la
-       pone el hijo unico, que es donde estan `flex-1` y `shrink-0`— asi que
-       `inline-block` no compite con nada y mide lo que mide su contenido. */
-    expect(c).toMatch(/inline-block inset-x-3 top-3 max-h-\[calc\(100dvh-6\.5rem\)\]/);
-    expect(c).toMatch(/: 'inline-block left-1\/2 w-fit max-w-\[min\(34rem/);
-    /* Ni una clase de display de flex en el panel: es lo que ganaba antes.
-           Se lee SIN comentarios, porque los comentarios de este archivo explican
-           el fallo y mencionan `flex flex-col` de todas formas. Un aserto que lee
-           el comentario midiendo el comentario. */
-        const panel = c.slice(c.indexOf('anim-pop'), c.indexOf('style={movil'))
-          .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-        expect(panel).not.toMatch(/(^|[\s'`])flex(-col)?([\s'`]|$)/);
-        expect(panel).toContain('inline-block');
-    // y el texto tiene que poder encogerse en vez de heredar el ancho del padre
-    expect(c).toMatch(/'inline-block w-full'/);
-    // el tope sigue estando, para el caso de un texto largo
+       El ancho NO lo fijaba el padre: lo fijaba el parrafo del cuerpo, cuyo
+       `min-content` son 625 px. MEDIDO quitando cada hijo: sin <p> el panel
+       baja a 236; sin <h2> sigue en 667.
+
+       Lo que funciona es un tope de ancho de LECTURA —28 rem, con el texto en
+       dos lineas— y que el 100% del padre mande en movil. A 1440 eso da 490 px
+       de ancho y 209 de alto. */
+    expect(c).toMatch(/inline-block left-1\/2 w-fit/);
+    // el tope de lectura del texto: sin esto no baja de 544
+    expect(c).toMatch(/w-\[min\(28rem,100%\)\]/);
+    // y ni una clase de display de flex en el panel: es lo que ganaba antes
+    const panel = c.slice(c.indexOf('anim-pop'), c.indexOf('style={movil'))
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    expect(panel).not.toMatch(/(^|[\s'`])flex(-col)?([\s'`]|$)/);
+    expect(panel).toContain('inline-block');
+    // el texto puede encogerse: sin min-w-0 hereda el ancho del padre
+    expect(c).toMatch(/min-w-0 w-\[min\(28rem,100%\)\]/);
+    // el tope de altura sigue, para el caso de un texto largo
     expect(c).toMatch(/max-h-\[calc\(100dvh-2rem\)\]/);
   });
 
