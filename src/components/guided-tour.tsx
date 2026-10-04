@@ -310,19 +310,27 @@ export function GuidedTour() {
                  texto se estiraba dentro. MEDIDO en vivo: `display: block` con
                  `width: 544px` y el texto a 502.
 
-                 El display lo decide cada rama: columna en las dos, porque los
-                 hijos —el texto que se baja y los botones fijos abajo— se
-                 reparten con `flex-1`/`shrink-0`. La diferencia entre movil y
-                 escritorio es el ancho, no el display. */
+                 Y hay un segundo motivo para sacar el `display` de aqui: en
+                 el CSS servido, `.flex` aparece ANTES que `.inline-flex`, asi
+                 que el orden de las reglas —no el del className— decide. MEDIDO
+                 en el CSSOM: el elemento llevaba `inline-flex` en la clase y
+                 computaba `display: flex`. Pelearse con el orden de Tailwind es
+                 perder; la columna la resuelve el HIJO, que es donde estan el
+                 `flex-1` y el `shrink-0`.
+
+                 Asi el panel es `inline-block` en las dos ramas y no hay
+                 competencia con `.flex` —esa clase no existe ya en el panel—.
+                 Mide lo que mide su contenido y nada mas. La columna la pone el
+                 hijo unico, que es donde estan el `flex-1` y el `shrink-0`. */
               movil
-                ? 'flex inset-x-3 top-3 max-h-[calc(100dvh-6.5rem)] rounded-none flex-col'
+                ? 'inline-block inset-x-3 top-3 max-h-[calc(100dvh-6.5rem)] rounded-none'
                 /* MEDIDO 2026-10-03 a 1440x900: el popup daba 544x434, el 48% de
                    la altura de la pantalla, para un texto de tres líneas y 170
                    caracteres. Lo que se pide es que RODEE EL MENSAJE, no que
                    ocupe media pantalla. `w-fit` + `max-w` deja que la caja tenga
                    el ancho del texto más largo y nada más; el `max-h` sigue
                    guarding casos de un texto largo en una pantalla chica. */
-                : 'inline-flex flex-col left-1/2 w-fit max-w-[min(34rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] -translate-x-1/2 overflow-y-auto p-5'
+                : 'inline-block left-1/2 w-fit max-w-[min(34rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] -translate-x-1/2 overflow-y-auto p-5'
             }`}
             /*
              * MEDIDO 2026-10-01: esto estaba anclado con
