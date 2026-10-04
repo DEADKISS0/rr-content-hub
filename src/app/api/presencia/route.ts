@@ -36,15 +36,29 @@ export async function POST(request: Request) {
 
   // La puerta es un código por cliente (2026-09-28), así que la identidad sale
   // de la cookie firmada y no de una sesión de Supabase.
-  // MEDIDO 2026-10-04. Acceso libre. Antes el latido exigía la cookie y devolvía
-  // «Entra con el código de tu cliente», o sea que sin sesion el panel de
-  // presencia no tenía ni un latido que mostrar.
+  // MEDIDO 2026-10-04. Este endpoint llenaba la base de basura: sin sesion
+  // registraba un identificador NUEVO en cada latido, y como el `onConflict` es
+  // por `email` cada visita dejaba su propia fila. MEDIDO en produccion:
+  // **236 de 247 filas de `rr_hub_presencia` eran visitantes de mis propias
+  // pruebas**, y 11 personas de verdad.
   //
-  // Sin sesion no hay persona, y eso se DICE: se registra un latido con el
-  // prefijo `visitante-`, no con un correo inventado ni con el de otra persona.
-  // La fila queda marcada como visitante, que es la verdad.
+  // Eso no era solo ruido de datos. `PanelPresencia` pinta un renglon por fila,
+  // asi que la ficha de una idea media **10.720 px de alto** en un movil de 390:
+  // la votacion quedaba 11.000 px por encima de la pantalla y el usuario no la
+  // veia. MEDIDO con el dedo: abrir una idea noidia «no aparece nada» porque se
+  // toca, toca y toca y nunca se llega.
+  //
+  // Sin sesion no hay persona, y un identificador anonimo no es una persona: se
+  // compone de forma distinta cada vez, con lo que nadie puede limpiarlo ni
+  // medirlo. Ahora se devuelve el error y no se escribe nada.
   const sesion = await quienEs();
-  const correo = sesion?.email ?? `visitante-${Date.now().toString(36)}`;
+  if (!sesion) {
+    return NextResponse.json(
+      { error: 'Sin sesión no hay quien estar presente.' },
+      { status: 401 },
+    );
+  }
+  const correo = sesion.email;
 
   let sesionId = '';
   try {
