@@ -1204,9 +1204,40 @@ async function createIdea(body: Body, ctx: Ctx): Promise<NextResponse> {
   const title = str(body.title, 160);
   if (title.length < 3) return error('El título necesita al menos 3 caracteres.', 400);
   const contentType = body.contentType === 'paid' ? 'paid' : 'organic';
-  const references = Array.isArray(body.referenceUrls)
+  /**
+   * Las referencias de una idea.
+   *
+   * MEDIDO 2026-10-04, Santiago: «deja solo una referencia por video». Antes esto
+   * aceptaba hasta 10 y las ideas guardaban varias. Lo que se ve en produccion:
+   * cuatro ideas con dos referencias, y en dos de ellas la segunda era un anuncio
+   * de Facebook Ads Library que no se puede embeber — sale un marco vacío— así
+   * que la ficha cargaba dos iframes para mostrar medio negro.
+   *
+   * Ahora se guarda UNA: la primera que sea de un origen embebible. Si solo
+   * llega una no embebible (Facebook Ads Library, que no tiene endpoint público
+   * que lo sirva), esa se conserva, porque es la única que alguien eligió y
+   * borrarla dejaría la idea sin referencia del todo.
+   *
+   * Lo que se borra queda en `rr_hub_respaldo_borrado` con el código y el título
+   * de la idea, así que recuperar una referencia es una consulta, no una
+   * reconstrucción.
+   */
+  const EMBEBIBLES = [
+    /instagram\.com\/reel\//i,
+    /instagram\.com\/tv\//i,
+    /instagram\.com\//i,
+    /youtube\.com|youtu\.be/i,
+    /tiktok\.com/i,
+    /drive\.google\.com/i,
+  ];
+  const pedidas = Array.isArray(body.referenceUrls)
     ? body.referenceUrls.map((value) => str(value, 300)).filter((value) => /^https?:\/\//.test(value)).slice(0, 10)
     : [];
+  // Una sola referencia: la primera embebible, o la primera que haya llegado si
+  // ninguna lo es. `||` y no `??` porque `undefined` es lo que devuelve `find`
+  // cuando no encuentra nada.
+  const referencia = pedidas.find((u) => EMBEBIBLES.some((rx) => rx.test(u))) || pedidas[0];
+  const references = referencia ? [referencia] : [];
 
   /**
    * El anuncio de la biblioteca, si se eligió uno al crear la pieza.
