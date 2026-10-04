@@ -49,3 +49,4 @@ __pycache__/
 # test` dejaba cientos de archivos modificados.
 test-results/
 playwright-report/
+.vitest/
