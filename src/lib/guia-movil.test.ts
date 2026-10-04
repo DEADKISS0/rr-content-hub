@@ -109,7 +109,13 @@ describe('la guía cabe y se puede cerrar en un teléfono', () => {
        declaraba 544 px al texto y este se estiraba a 502. MEDIDO con
        `width: min-content`: el texto necesitaba 98. El ancho lo marca el
        contenido con `inline-block`, no el padre. */
-    expect(c).toMatch(/left-1\/2 inline-block w-fit max-w-\[min\(34rem/);
+    /* MEDIDO 2026-10-04. `flex flex-col` estaba en las clases BASE y ganaba
+       al `inline-block` del ternario: en vivo, `display: block` y el panel
+       ocupando los 544 px del `max-w`, con el texto estirado a 502. El
+       display va ahora en cada rama: `inline-flex` en escritorio, `flex` en
+       movil. Las dos siguen en columna, que es lo que reparten
+       `flex-1` con los botones fijos. */
+    expect(c).toMatch(/inline-flex flex-col left-1\/2 w-fit max-w-\[min\(34rem/);
     // un width fijo de 34rem es exactamente lo que se quitó
     expect(c).not.toMatch(/left-1\/2 w-\[min\(34rem/);
     // y el texto tiene que poder encogerse en vez de heredar el ancho del padre

@@ -302,16 +302,27 @@ export function GuidedTour() {
           <div
             ref={tarjeta}
             tabIndex={-1}
-            className={`anim-pop fixed flex flex-col border border-blanco-30 bg-negro outline-none ${
+            className={`anim-pop fixed border border-blanco-30 bg-negro outline-none ${
+              /* MEDIDO 2026-10-04. `flex flex-col` estaba en las clases BASE, y
+                 una clase de la base compite con `inline-block` del ternario: al
+                 calcular el ancho gana la base y el panel seguia siendo
+                 `display: block`, o sea ocupaba todo el `max-w` (544 px) y el
+                 texto se estiraba dentro. MEDIDO en vivo: `display: block` con
+                 `width: 544px` y el texto a 502.
+
+                 El display lo decide cada rama: columna en las dos, porque los
+                 hijos —el texto que se baja y los botones fijos abajo— se
+                 reparten con `flex-1`/`shrink-0`. La diferencia entre movil y
+                 escritorio es el ancho, no el display. */
               movil
-                ? 'inset-x-3 top-3 max-h-[calc(100dvh-6.5rem)] rounded-none'
+                ? 'flex inset-x-3 top-3 max-h-[calc(100dvh-6.5rem)] rounded-none flex-col'
                 /* MEDIDO 2026-10-03 a 1440x900: el popup daba 544x434, el 48% de
                    la altura de la pantalla, para un texto de tres líneas y 170
                    caracteres. Lo que se pide es que RODEE EL MENSAJE, no que
                    ocupe media pantalla. `w-fit` + `max-w` deja que la caja tenga
                    el ancho del texto más largo y nada más; el `max-h` sigue
                    guarding casos de un texto largo en una pantalla chica. */
-                : 'left-1/2 inline-block w-fit max-w-[min(34rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] -translate-x-1/2 overflow-y-auto p-5'
+                : 'inline-flex flex-col left-1/2 w-fit max-w-[min(34rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] -translate-x-1/2 overflow-y-auto p-5'
             }`}
             /*
              * MEDIDO 2026-10-01: esto estaba anclado con
