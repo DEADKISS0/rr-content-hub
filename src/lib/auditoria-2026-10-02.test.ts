@@ -166,6 +166,7 @@ describe('los dos botones flotantes de la esquina no se pisan', () => {
     const ESCALA_PX: Record<string, number> = {
       '0': 0, '1': 4, '2': 8, '3': 12, '4': 16, '5': 20, '6': 24, '8': 32,
       '10': 40, '12': 48, '14': 56, '16': 64, '20': 80, '24': 96,
+      '28': 112, '32': 128, '36': 144,
     };
     const px = (clase: string, sm = false): number | null => {
       const m = clase.match(new RegExp(`${sm ? 'sm:' : ''}bottom-(\\d+)`));
@@ -181,11 +182,19 @@ describe('los dos botones flotantes de la esquina no se pisan', () => {
     expect(guiaPx!).toBeGreaterThan(instaladorPx!);
     expect(guiaPx! - instaladorPx!).toBeGreaterThanOrEqual(44);
 
-    // Y el pie cede el hueco correspondiente: `pb-20` son los mismos 80 px.
+    // MEDIDO 2026-10-04: `pb-20` (80 px) NO bastaba. El boton de la guia esta en
+    // `bottom-20` —80 px del borde— y mide 44 px de alto, asi que ocupa de 80 a
+    // 124. Igualar el `bottom` del boton no sirve: el pie tiene que ultrapassarlo
+    // por su altura.
     const pie = leer('src/components/hub-footer.tsx');
     const pieClase = pie.match(/<footer className="([^"]*)"/)?.[1] ?? '';
-    expect(ESCALA_PX[pieClase.match(/\bpb-(\d+)\b/)?.[1] ?? ''] ?? 0,
-      'el pie no reserva el hueco de los dos flotantes').toBeGreaterThanOrEqual(80);
+    const huecoPie = ESCALA_PX[pieClase.match(/\bpb-(\d+)\b/)?.[1] ?? ''] ?? 0;
+    // 144 px, no 124. MEDIDO: 128 px (pb-32) DEJABA los dos ultimos enlaces
+    // debajo del boton, porque el pie tiene su propio borde de 1 px y el boton
+    // se dibuja encima del area de texto, no del padding. El criterio que funciona
+    // medido es 144, y un umbral que acepta 128 no protege lo que protege.
+    expect(huecoPie, 'el pie no reserva el hueco de los dos flotantes')
+      .toBeGreaterThanOrEqual(144);
 
     expect(linea).toMatch(/sm:right-4/);
     expect(instalador).toMatch(/sm:right-6/);
