@@ -26,7 +26,17 @@ import { Icon } from '@/components/ui/icons';
  * pagina ya en pantalla.
  */
 
-/** Clave del aviso de iPhone en `sessionStorage`. */
+/**
+ * Clave del aviso de iPhone.
+ *
+ * MEDIDO 2026-10-04: estaba en `sessionStorage`, que se borra al cerrar la
+ * pestaña. El panel de iOS son 114 px fijos en la esquina inferior derecha y
+ * MEDIDO con dedo real a 390 px se comia los TRES enlaces del pie y el boton de
+ * la guia. Es decir: un aviso que ya se leyo volvio a estorbar en cada recarga.
+ *
+ * En `localStorage` sale una vez y no vuelve. El boton de «INSTALAR EL HUB»
+ * sigue ahi para quien quiera leerlo otra vez.
+ */
 const CLAVE_IOS = 'rr_instalar_ios_cerrado';
 
 type Instalar = Event & {
@@ -44,7 +54,7 @@ const oyenteIOS = (alCambiar: () => void) => {
   return () => window.removeEventListener('storage', alCambiar);
 };
 const leerIOScerrado = () =>
-  typeof window === 'undefined' ? false : sessionStorage.getItem(CLAVE_IOS) === 'cerrado';
+  typeof window === 'undefined' ? false : localStorage.getItem(CLAVE_IOS) === 'cerrado';
 
 /**
  * "¿Ya estoy en la app?" y "¿esto es un iPhone?" son del ENTORNO, no de la
@@ -156,7 +166,7 @@ export function InstalarApp() {
         </p>
         <button
           type="button"
-          onClick={() => sessionStorage.setItem(CLAVE_IOS, 'cerrado')}
+          onClick={() => localStorage.setItem(CLAVE_IOS, 'cerrado')}
           className="mt-2 text-[11px] text-blanco-40 underline"
         >
           ENTENDIDO
