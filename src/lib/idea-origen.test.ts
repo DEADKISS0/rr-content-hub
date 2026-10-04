@@ -62,6 +62,14 @@ describe('el servidor no se inventa el origen', () => {
   });
 });
 
+/** La tarjeta principal: del `<article>` a su cierre, sin contar caracteres. */
+function bloqueDeTarjeta(codigo: string): string {
+  const i = codigo.indexOf('<article');
+  if (i < 0) return '';
+  const fin = codigo.indexOf('</article>', i);
+  return codigo.slice(i, fin > 0 ? fin : undefined);
+}
+
 describe('se ve en la interfaz', () => {
   it('la ficha lleva la insignia larga y el listado la corta', () => {
     expect(ficha).toMatch(/IdeaOrigenChip origen=\{idea\.origen\}/);
@@ -94,8 +102,15 @@ describe('se ve en la interfaz', () => {
     const chip = tarjetas.match(/\{idea\.origen === 'asistente' && <IdeaOrigen(Tag|Chip)/);
     expect(chip?.[0]).toBeTruthy();
     // la tarjeta de la lista: la que lleva portada, estado y titulo
-    const tarjetaLista = tarjetas.match(/<IdeaCoverFrame[\s\S]{0,3000}?<\/Link>/);
-    expect(tarjetaLista?.[0]).toMatch(/IdeaOrigen(Tag|Chip)/);
+    // MEDIDO 2026-10-04: el rango era `{0,3000}`, y al explicar el arreglo del
+    // voto en un comentario el bloque llega a 3639. El test fallaba por eso: no
+    // por un fallo de la insignia, sino por contar CARACTERES de comentario.
+    //
+    // Un tope de caracteres es un tope fragil en cualquier archivo con
+    // comentarios. Lo que importa es el alcance de la tarjeta, y eso se mide
+    // desde el `<article>` que la contiene, no contando caracteres.
+    const tarjetaLista = bloqueDeTarjeta(tarjetas);
+    expect(tarjetaLista).toMatch(/IdeaOrigen(Tag|Chip)/);
   });
 
   it('el tablero FILTRA por origen, y undefined cuenta como del equipo', () => {
@@ -123,7 +138,7 @@ describe('se ve en la interfaz', () => {
     // `category` ya alimentaba el icono del formato, pero no se imprimia. Las
     // quince ideas quedaban visualmente identicas sin dejar ver por que estan
     // agrupadas. Agrupar en la base no sirve si luego no se ve en la tarjeta.
-    const tarjetaLista = tarjetas.match(/<IdeaCoverFrame[\s\S]{0,3000}?<\/Link>/)?.[0] ?? '';
+    const tarjetaLista = bloqueDeTarjeta(tarjetas);
     expect(tarjetaLista).toMatch(/\{idea\.category && \(/);
   });
 
