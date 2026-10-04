@@ -49,9 +49,29 @@ type Instalar = Event & {
  * declara dentro, `useSyncExternalStore` recibe una función nueva en cada render
  * y se resuscribe sin parar.
  */
+const EVENTO_IOS = 'rr_instalar_ios_cerrado_cambio';
+
 const oyenteIOS = (alCambiar: () => void) => {
+  // MEDIDO 2026-10-04: el evento `storage` SOLO se dispara entre pestañas
+  // distintas. Escribir en `localStorage` desde la MISMA pestaña no notifica a
+  // nadie — ni siquiera a quien escribe—, asi que `useSyncExternalStore` se
+  // quedaba con el valor viejo y el boton «ENTENDIDO» no cerraba el panel.
+  //
+  // Se sigue escuchando `storage` para el caso de verdad que sí cubre (otra
+  // pestaña lo cierra) y se añade un evento propio para el caso que no
+  // cubria: esta misma pestaña.
   window.addEventListener('storage', alCambiar);
-  return () => window.removeEventListener('storage', alCambiar);
+  window.addEventListener(EVENTO_IOS, alCambiar);
+  return () => {
+    window.removeEventListener('storage', alCambiar);
+    window.removeEventListener(EVENTO_IOS, alCambiar);
+  };
+};
+
+/** Escribe la preferencia y avisa a ESTA pestaña, que `storage` no avisa. */
+const cerrarAvisoIOS = () => {
+  localStorage.setItem(CLAVE_IOS, 'cerrado');
+  window.dispatchEvent(new Event(EVENTO_IOS));
 };
 const leerIOScerrado = () =>
   typeof window === 'undefined' ? false : localStorage.getItem(CLAVE_IOS) === 'cerrado';
@@ -166,7 +186,7 @@ export function InstalarApp() {
         </p>
         <button
           type="button"
-          onClick={() => localStorage.setItem(CLAVE_IOS, 'cerrado')}
+          onClick={cerrarAvisoIOS}
           className="mt-2 text-[11px] text-blanco-40 underline"
         >
           ENTENDIDO
