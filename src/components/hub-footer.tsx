@@ -47,7 +47,7 @@ export function HubFooter({ slug, projectName }: { slug: string; projectName: st
 
        En escritorio los dos flotantes se separan (`sm:bottom-4` el instalar y
        `sm:bottom-20` la guia) y el margen vuelve a `md:mb-8`. */
-    <footer className="mt-16 mb-28 border-t border-blanco-20 bg-negro px-4 pt-8 sm:px-5 md:mb-8 md:px-10">
+    <footer className="mt-16 border-t border-blanco-20 bg-negro px-4 py-8 sm:px-5 md:px-10">
       <div className="mx-auto flex max-w-7xl flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Image
