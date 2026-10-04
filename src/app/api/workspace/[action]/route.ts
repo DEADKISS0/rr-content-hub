@@ -518,8 +518,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // MEDIDO 2026-10-04: `project_id` se pide aquí porque más abajo se comprueba
+    // el acceso del cliente a ESTE proyecto. Antes solo se pedía `status` y la
+    // idea no traía el proyecto, así que no había contra qué comprobar nada.
     const { data: idea, error: ideaError } = await supabase
-      .from('rr_hub_ideas').select('status').eq('id', ideaId).maybeSingle();
+      .from('rr_hub_ideas').select('status, project_id').eq('id', ideaId).maybeSingle();
     if (ideaError) return error(ideaError.message, 500);
     if (!idea) return error('La idea no existe.', 404);
 
@@ -570,11 +573,38 @@ export async function POST(request: NextRequest) {
     if (!enEquipo) {
       return error('Ese correo no está en la lista del equipo.', 403);
     }
-    if (!enEquipo.is_team_member) {
-      return error('Tu cuenta existe pero no eres del equipo. Pídeselo a quien administra el hub.', 403);
-    }
     if (!enEquipo.is_active) {
       return error('Tu fila está desactivada, así que por ahora no cuentan tus votos.', 403);
+    }
+
+    // MEDIDO 2026-10-04, Santiago: «crea dos perfiles para el cliente para que se
+    // puedan reconocer como tal y votar». El bloqueo de `is_team_member` impedía
+    // justo eso: el cliente ve el tablero, puede opinar sobre lo que le
+    // muestran, y el servidor le decía que no era del equipo.
+    //
+    // Ahora hay DOS clases de quien puede votar, y las dos se comprueban contra
+    // la base, nunca contra el cuerpo de la petición:
+    //
+    // 1. El EQUIPO: `is_team_member = true`. Vota en cualquier cliente.
+    // 2. El CLIENTE: `is_team_member = false` pero con fila en `rr_hub_access`
+    //    para ESTE proyecto. Vota solo aquí.
+    //
+    // Lo que sigue igual: se busca la fila por correo, una fila desactivada no
+    // vota, y el correo que se guarda es el de la BASE, nunca el que vino en el
+    // cuerpo. Escribir el de otra persona sigue sin votar en su nombre.
+    if (!enEquipo.is_team_member) {
+      const { data: acceso } = await service
+        .from('rr_hub_access')
+        .select('role_in_project')
+        .eq('user_id', enEquipo.id)
+        .eq('project_id', idea.project_id)
+        .maybeSingle();
+      if (!acceso) {
+        return error(
+          'Tu cuenta existe pero no tienes acceso a este cliente. Pídeselo a quien administra el hub.',
+          403,
+        );
+      }
     }
     const votanteEmail: string = enEquipo.email;
 
@@ -1244,7 +1274,12 @@ async function createIdea(body: Body, ctx: Ctx): Promise<NextResponse> {
       content_type: contentType,
       category: str(body.category, 80) || 'Sin categoría',
       origen,
-      status: 'draft', priority: 'normal',
+      // MEDIDO 2026-10-04, Santiago: «que apenas se suba una idea, se abra la
+      // votación directa. Que sea como el primer estado posible, que ya no haya
+      // un estado anterior sino ese sea el primero». Nace en `voting`, no en
+      // `draft`: una idea nueva no espera a que alguien la mueva a mano para que
+      // alguien opine sobre ella.
+      status: 'voting', priority: 'normal',
       camera_brief: str(body.cameraBrief, 4000),
       talent_brief: str(body.talentBrief, 4000),
       edit_brief: str(body.editBrief, 4000),
@@ -1255,8 +1290,8 @@ async function createIdea(body: Body, ctx: Ctx): Promise<NextResponse> {
 
     if (!insertError && idea) {
       await service.from('rr_hub_events').insert({
-        idea_id: idea.id, to_status: 'draft',
-        comment: 'Idea creada con referencia, brief automático y guion inicial.',
+        idea_id: idea.id, to_status: 'voting',
+        comment: 'Idea creada y abierta a votación en el mismo momento: no hay un estado previo que nadie mire.',
         actor_label: `${email ?? 'sin sesión'} · ${ROLE_LABEL[creatorRole]}`,
       });
       return NextResponse.json({ success: true, id: idea.id });
