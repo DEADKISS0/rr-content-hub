@@ -37,12 +37,18 @@ export const dynamic = 'force-dynamic';
 type Fila = { role_in_project: string; is_team_member: boolean; is_active: boolean };
 
 export async function POST(request: NextRequest) {
+  // MEDIDO 2026-10-04. Acceso libre: sin sesion no hay cookie que cambiar, y el
+  // cambio de cliente del selector ES la cookie. MEDIDO en produccion: el boton
+  // «Cambiar de cliente» existia, y al pulsarlo sin sesion devolvia 401 con un
+  // mensaje que hablaba de un codigo que ya no hay.
+  //
+  // No se ha Inventado un atajo sin cookie. Lo que se hace es responder 200 con
+  // `rol: null`, que es lo que ya devuelve el no-op de «volver al mismo cliente»:
+  // el selector queda quieto, no se pone rojo, y el visitante navega por la URL
+  // del cliente, que es como se entra desde la portada.
   const sesion = await quienEs();
   if (!sesion) {
-    return NextResponse.json(
-      { error: 'Entra con el código de tu cliente para poder cambiar.' },
-      { status: 401 },
-    );
+    return NextResponse.json({ success: true, proyecto: null, rol: null });
   }
 
   const cuerpo = (await request.json().catch(() => null)) as { proyecto?: string } | null;
@@ -59,6 +65,15 @@ export async function POST(request: NextRequest) {
   // pregunta ya no es "qué nombres tiene el código escritos" sino "qué clientes
   // existen", y eso lo responde la base.
   if (!(await clienteExiste(destino))) {
+    return NextResponse.json({ error: 'Ese cliente no existe.' }, { status: 404 });
+  }
+
+  // MEDIDO 2026-10-04. Boga y Satiro existen pero no se ven: `clienteExiste`
+  // responderia que si, y el selector PODRIA cambiar a un cliente que la portada
+  // no muestra. Un cliente escondido en la lista y abierto por la URL no esta
+  // escondido. Se comprueba aqui, en el servidor, que es donde se decide.
+  const visibles = (process.env.HUB_CATALOGO_VISIBLE ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (visibles.length > 0 && !visibles.includes(destino)) {
     return NextResponse.json({ error: 'Ese cliente no existe.' }, { status: 404 });
   }
 

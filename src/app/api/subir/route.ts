@@ -31,10 +31,14 @@ const MAX_BYTES = 100 * 1024 * 1024;
 const TIPOS = new Set<string>(TIPOS_DE_IMAGEN);
 
 export async function POST(request: NextRequest) {
+  // MEDIDO 2026-10-04. Acceso libre («100% libre», Santiago). Esta era la
+  // ÚLTIMA escritura que exigía la puerta: todo lo demás ya estaba abierto desde
+  // el 2026-10-03, y con esto subir un archivo sin sesión devolvía 401 con un
+  // mensaje que hablaba de un código que ya no existe.
+  //
+  // Se quita el requisito, no la comprobación. Abajo sigue estando que el cliente
+  // exista, que sea del catálogo visible, y que la idea sea real.
   const sesion = await quienEs();
-  if (!sesion) {
-    return NextResponse.json({ error: 'Entra con el código de tu cliente para subir archivos.' }, { status: 401 });
-  }
 
   const service = await createServiceClient();
   if (!service) {
@@ -62,10 +66,16 @@ export async function POST(request: NextRequest) {
   // nula: manda null, no el default.
   const versionLabel = (typeof cuerpo.versionLabel === 'string' ? cuerpo.versionLabel : '').trim().slice(0, 60) || 'v1';
 
-  // El cliente tiene que ser EL de la cookie. Sin esto, con el código de
-  // Wundeer se podría colgar un archivo dentro de la carpeta de Candilejas.
-  if (!projectSlug || projectSlug !== sesion.proyecto) {
-    return NextResponse.json({ error: 'Ese cliente no es el tuyo.' }, { status: 403 });
+  // MEDIDO 2026-10-04. Antes el cliente tenía que ser EL de la cookie, que con
+  // puerta por código impedía colgar un archivo de Wundeer dentro de la carpeta
+  // de Candilejas. Sin sesión ya no hay contra qué comparar, así que lo que
+  // protege ahora es el CATÁLOGO: solo se sube a clientes visibles.
+  if (!projectSlug) {
+    return NextResponse.json({ error: 'Falta el cliente.' }, { status: 400 });
+  }
+  const visibles = (process.env.HUB_CATALOGO_VISIBLE ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (visibles.length > 0 && !visibles.includes(projectSlug)) {
+    return NextResponse.json({ error: 'Ese cliente no existe.' }, { status: 404 });
   }
   if (!ideaId) return NextResponse.json({ error: 'Falta la idea.' }, { status: 400 });
 
@@ -95,19 +105,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Eso no es una imagen, aunque se le diga que lo es.' }, { status: 400 });
   }
 
-  // El id sale de la cookie, no del cuerpo. Antes venía en la ruta que armaba
-  // el cliente, o sea que la ruta era su palabra.
-  const { data: perfil } = await service
-    .from('rr_hub_profiles')
-    .select('id')
-    .ilike('email', sesion.email)
-    .maybeSingle();
-  if (!perfil) {
-    return NextResponse.json({ error: 'No reconocemos tu correo en la lista del equipo.' }, { status: 403 });
-  }
+  // MEDIDO 2026-10-04. El id del que sube sale de la fila de perfil del servidor,
+  // NO del cuerpo — eso no se toca. Lo que cambia es de dónde se busca: antes
+  // solo de la cookie, y sin cookie no habia subida.
+  //
+  // Tres casos, y ninguno inventa un id:
+  //   1. hay sesion y hay perfil  -> el id real de esa persona
+  //   2. hay sesion sin perfil    -> el propio correo, marcado, para que la fila
+  //                                 diga quien subio y no un uuid de mas
+  //   3. no hay sesion           -> `sin-sesion`, igual de marcado
+  const { data: perfil } = sesion
+    ? await service
+        .from('rr_hub_profiles')
+        .select('id')
+        .ilike('email', sesion.email)
+        .maybeSingle()
+    : { data: null };
+  // El prefijo de la ruta lo arma el servidor, nunca el cliente: el `fileName`
+  // del cuerpo sobrevive solo por el saneo de una linea mas abajo.
+  const quienSube = perfil?.id
+    ?? (sesion ? `correo-${sesion.email.replace(/[^a-z0-9]/gi, '-').slice(0, 40)}` : 'sin-sesion');
 
   const nombre = saneaNombre(cuerpo.fileName);
-  const ruta = `${projectSlug}/${ideaId}/${stage}/${perfil.id}-${Date.now()}-${nombre}`;
+  const ruta = `${projectSlug}/${ideaId}/${stage}/${quienSube}-${Date.now()}-${nombre}`;
 
   const { error } = await service.storage
     .from(BUCKET)
@@ -126,7 +146,15 @@ export async function POST(request: NextRequest) {
     file_name: nombre,
     mime_type: declarado,
     version_label: versionLabel,
-    uploaded_by: perfil.id,
+    // MEDIDO 2026-10-04. `uploaded_by` tiene FK a `auth.users(id)`. MEDIDO en
+    // `scripts/subir-portada.py`: poner ahi un uuid inventado seria MENTIR sobre
+    // quien subio el archivo, y la FK no dejaria INSERTarlo de todos modos.
+    //
+    // Aqui la subida la puede hacer cualquiera, sin sesion y sin fila de perfil,
+    // asi que `null` es la respuesta honesta: el archivo existe y se sabe que
+    // no hay persona que reclamar. La RUTA si lleva el prefijo `quienSube`, que
+    // si se guardo, para que quede rastro sin inventar identidad.
+    uploaded_by: perfil?.id ?? null,
   } as never);
   if (errorFila) {
     // El archivo ya está en el bucket pero sin su fila. Se avisa en serio en

@@ -76,9 +76,21 @@ check('el cliente no elige la ruta del archivo', !/const path = `\$\{/.test(stor
 // La ruta de subida tiene que cumplir lo que la de workspace cumplia, y una
 // cosa mas: mirar los bytes, no lo que el navegador declare.
 const subir = fs.readFileSync(path.join(repoRoot, 'src/app/api/subir/route.ts'), 'utf8');
-check('la subida exige la cookie de la puerta', /quienEs\(\)/.test(subir));
-check('la subida ata el archivo a quien entro por la puerta', /ilike\('email', sesion\.email\)/.test(subir));
-check('la subida comprueba que el cliente sea el de la cookie', /projectSlug !== sesion\.proyecto/.test(subir));
+// MEDIDO 2026-10-04. Acceso libre («100% libre», Santiago): ya no hay puerta,
+// asi que exigir la cookie en la subida era dejar la ULTIMA escritura con
+// candado mientras las demas ya estaban libres. MEDIDO en produccion: con sesion
+// todo funcionaba y sin sesion la subida devolvia 401.
+//
+// Lo que NO se afloja: la subida sigue atando el archivo a una persona real
+// cuando la hay, y el `version_label` con default. Se quitan las dos comprobaciones
+// de sesion; las de contenido y de esquema se quedan.
+check('la subida no exige la cookie de la puerta: el acceso es libre',
+  !/if \(!sesion\)/.test(subir) && !/quienEs\(\)[\s\S]{0,120}401/.test(subir));
+check('la subida NO acepta el cliente del cuerpo como verdad absoluta',
+      /HUB_CATALOGO_VISIBLE[\s\S]{0,220}!visibles\.includes\(projectSlug\)/.test(subir));
+// MEDIDO 2026-10-04: `HUB_CATALOGO_VISIBLE` es lo que protege ahora. Un cliente
+// fuera del catalogo no se sube nada a el, aunque la subida sea libre.
+check('la subida respeta el catalogo visible', /HUB_CATALOGO_VISIBLE/.test(subir));
 check('la metadata del asset la escribe el servidor', /rr_hub_assets'\)\.insert/.test(subir));
 check('la subida mira los bytes, no lo que el navegador declara', /firmaDeImagen\(/.test(subir));
 // `version_label` es NOT NULL con default 'v1'. Mandar null explicitamente hace

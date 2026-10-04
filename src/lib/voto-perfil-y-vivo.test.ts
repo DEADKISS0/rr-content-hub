@@ -21,6 +21,8 @@ import { join } from 'node:path';
  */
 
 const raiz = join(__dirname, '..', '..');
+/** El codigo sin comentarios: un aserto que lee comentarios mide al autor, no el bug. */
+const sinComentarios = (c: string) => c.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 const leer = (ruta: string) => readFileSync(join(raiz, ruta), 'utf8');
 
 describe('el perfil de votante se elige, no se deduce', () => {
@@ -168,17 +170,22 @@ describe('el botón que estaba muerto ahora lleva a donde se resuelve', () => {
 });
 
 describe('el selector de clientes prometía puertas que no abrían', () => {
-  it('la lectura no se bloquea por cliente, la escritura sí', () => {
-    // MEDIDO en producción: con la sesión de WUNDEER, /candilejas, /boga y
-    // /satiro devolvían 404, y `/select-project` ofrece los cuatro.
+  it('la lectura no se bloquea por cliente, y la escritura tampoco', () => {
+    // MEDIDO en producción el 2026-10-03: con la sesión de WUNDEER, /candilejas,
+    // /boga y /satiro devolvían 404, y `/select-project` ofrecía los cuatro. Lo
+    // que se quitó entonces fue el guard de LECTURA; el de escritura siguió
+    // exigiendo `access`.
     //
-    // Lo que se quitó es el guard de LECTURA. Lo que se dejó intacto es el de
-    // escritura: `roleForIdea` y `/api/subir` siguen exigiendo `access`.
+    // MEDIDO 2026-10-04: eso ya no es lo que se decidió. Acceso libre, y el
+    // freno pasó a ser el catálogo: Boga y Satiro quedan fuera de
+    // `HUB_CATALOGO_VISIBLE`, así que no se ven NI se escriben, mientras que
+    // Wundeer y Candilejas se abren y se escriben sin sesion.
     const datos = leer('src/lib/data.ts');
     expect(datos).toMatch(/clienteEsVisible\(slug, sesion\.proyecto\)/);
-    const ruta = leer('src/app/api/workspace/[action]/route.ts');
-    expect(ruta).toContain('roleForIdea');
-    expect(leer('src/app/api/subir/route.ts')).toContain('sesion.proyecto');
+    expect(datos).toContain('HUB_CATALOGO_VISIBLE');
+    // La escritura no vuelve a pedir `sesion.proyecto` en la subida: ya no hay
+    // cookie contra la que comparar, y `/api/subir` filtra por catálogo.
+    expect(leer('src/app/api/subir/route.ts')).not.toContain('projectSlug !== sesion.proyecto');
   });
 });
 
@@ -239,36 +246,77 @@ describe('el hilo de comentarios se usa sin sesion', () => {
 });
 
 
-describe('abrir comment y vote sin sesion no abre el resto', () => {
-  it('el owner en modo abierto solo vale para comment y vote', () => {
-    // MEDIDO 2026-10-03. `ctx.abierto` daba `owner` a quien llama, y eso era
-    // inocuo solo porque `abierto` era SIEMPRE false. Al abrir comment y vote sin
-    // sesion, un `owner` de verdad habria dado a cualquiera que abriera la URL
-    // `transition`, `borrar`, `script` y `update`: mover, borrar y reescribir
-    // cualquier pieza de cualquier cliente.
-    //
-    // Este test existe para que ese `owner` no vuelva a ampliarse por accidente.
+/**
+ * MEDIDO 2026-10-04. Santiago: «no pidas nada de acceso, que sea 100% libre» y
+ * «todos los del equipo entran como owner en todo».
+ *
+ * Este bloque antes se llamaba «abrir comment y vote sin sesion no abre el
+ * resto» y sus dos primeros tests exigían exactamente lo contrario:
+ *
+ *   - que `ABIERTAS_SIN_SESION` fuera solo `['comment', 'vote']`
+ *   - que `ABIERTAS_EN_EQUIPO.has(action) ? 'owner' : null` dejara sin rol al
+ *     resto
+ *
+ * Ese recorte se puso a propósito el 2026-10-03, cuando se abrieron las dos
+ * acciones del equipo: dar `owner` a quien abriera la URL significaba que un
+ * desconocido podía aprobar y borrar piezas de Wundeer. Los tests existían para
+ * que ese `owner` no se ampliara por accidente.
+ *
+ * Santiago pidió lo contrario, dos veces y en la misma frase. Así que los tests
+ * ahora protegen el modelo nuevo. Y conviene dejarlo escrito: lo que hace de
+ * freno ya NO es el rol, es el catálogo.
+ */
+describe('acceso libre: toda accion es de owner, el freno es el catalogo', () => {
+  it('el owner en modo abierto ya no se recorta por accion', () => {
     const ruta = leer('src/app/api/workspace/[action]/route.ts');
-    expect(ruta).toMatch(/ABIERTAS_EN_EQUIPO = new Set\(\['comment', 'vote'\]\)/);
-    expect(ruta).toMatch(/ABIERTAS_EN_EQUIPO\.has\(action\) \? 'owner' : null/);
+    // `ctx.abierto` da owner sin condiciones. Las dos listas que lo recortaban se
+    // fueron: no existen ya en el codigo.
+    expect(ruta).toMatch(/const role: RoleKey \| null = ctx\.abierto\s*\?\s*'owner'/);
+    expect(ruta).not.toContain('ABIERTAS_EN_EQUIPO');
+    expect(ruta).not.toContain('ABIERTAS_SIN_SESION');
   });
 
-  it('las dos acciones del equipo son las unicas que no exigen sesion', () => {
-    const ruta = leer('src/app/api/workspace/[action]/route.ts');
-    expect(ruta).toMatch(/ABIERTAS_SIN_SESION = new Set\(\['comment', 'vote'\]\)/);
-    // Y una accion de escritura que no este en la lista NO puede colarse.
-    for (const accion of ['transition', 'borrar', 'script', 'update', 'asset']) {
-      expect(ruta, accion).not.toMatch(new RegExp(`ABIERTAS_SIN_SESION[^\]]*'${accion}'`));
+  it('el 401 que exigia la puerta ya no esta', () => {
+    // Un mensaje que dice «Entra con el codigo de tu cliente» es una instruccion
+    // que ya no se puede seguir: no hay codigo ni puerta. MEDIDO 2026-10-04 en
+    // produccion: era lo que decia al pulsar sin sesion.
+    // MEDIDO: el texto aparece en COMENTARIOS que explican el cambio, y un
+    // aserto que lee comentarios va a reprochar al autor por escribir por qué
+    // cambió la cosa. Se lee el código sin comentarios.
+    const ruta = sinComentarios(leer('src/app/api/workspace/[action]/route.ts'));
+    expect(ruta).not.toMatch(/Entra con el c[oó]digo/);
+    expect(ruta).not.toMatch(/status: 401/);
+  });
+
+  it('lo que sigue escribiendo sin sesion es el CATALOGO, no el rol', () => {
+    // Las dos rutas de escritura comprueban `HUB_CATALOGO_VISIBLE`. Si alguien la
+    // quita, esto falla; si la deja pero cambia el nombre del cliente, tambien.
+    for (const rel of ['src/app/api/subir/route.ts', 'src/app/api/cambiar-cliente/route.ts']) {
+      const c = leer(rel);
+      expect(c, rel).toContain('HUB_CATALOGO_VISIBLE');
+      expect(c, rel).toMatch(/visibles\.includes\(/);
     }
   });
 
-  it('sin perfil del equipo, comentar y votar siguen rechazados', () => {
-    // Abrir la puerta no es abrir el turno: el perfil se comprueba en la base.
+  it('sin perfil del equipo se sigue escribiendo COMO ALGUIEN, no sin nombre', () => {
+    // Abrir la puerta no es abrir el turno a lo bruto: la atribucion sale de la
+    // fila de perfil que el servidor comprueba, o del perfil elegido.
+    // `uploaded_by` va en null cuando no hay quien reclamar, en vez de un uuid
+    // inventado — que ademas la FK a auth.users no dejaria INSERTar.
     const ruta = leer('src/app/api/workspace/[action]/route.ts');
     expect(ruta.match(/is_team_member/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+    expect(leer('src/app/api/subir/route.ts')).toMatch(/uploaded_by: perfil\?\.id \?\? null/);
+  });
+
+  it('el cambio de cliente sin sesion no es un 401: es un no-op', () => {
+    // MEDIDO 2026-10-04: sin sesion no hay cookie que cambiar, y la ruta pedia la
+    // puerta. Devuelve 200 con `proyecto: null`, que es lo que ya devolvia el
+    // no-op de «volver al mismo cliente»: el selector no se pone rojo.
+    const ruta = leer('src/app/api/cambiar-cliente/route.ts');
+    expect(ruta).toMatch(/if \(!sesion\)\s*\{\s*return NextResponse\.json\(\{ success: true, proyecto: null, rol: null \}\)/);
+    expect(ruta).not.toMatch(/Entra con el c[oó]digo/);
   });
 });
-
 
 describe('cambiar de perfil es cambiar un perfil, no irse a otra pantalla', () => {
   it('la barra tiene el selector, no un enlace que se lleva a otro sitio', () => {

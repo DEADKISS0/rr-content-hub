@@ -57,7 +57,11 @@ function unauthorized() {
   // por cliente, y cuando esto salía significaba una de dos cosas que se veían
   // igual desde fuera: que no habías entrado, o que habías entrado y el rol
   // salía vacío. Un 401 que no dice cuál de las dos es no dice nada.
-  return error('Entra con el código de tu cliente y con un correo de la lista.', 401);
+  // MEDIDO 2026-10-04: con acceso libre este camino no se alcanza. El mensaje
+  // se deja coherente con el modelo nuevo en vez de Speaking de una puerta que
+  // ya no hay: «Entra con el codigo de tu cliente» era verdad hasta el
+  // 2026-10-04 y ya no lo es.
+  return error('No se pudo comprobar tu acceso a esa operacion.', 403);
 }
 
 /**
@@ -119,11 +123,25 @@ async function context(request: NextRequest, accion: string) {
    * abren nada que estuviera cerrado — quien no está en la lista del equipo recibe
    * 403 igual que antes.
    */
-  const ABIERTAS_SIN_SESION = new Set(['comment', 'vote']);
-  const accionAbierta = ABIERTAS_SIN_SESION.has(accion);
+  // MEDIDO 2026-10-04. Santiago: «no pidas nada de acceso, que sea 100% libre»
+  // y «todos los del equipo entran como owner en todo».
+  //
+  // Lo que cambia, y es un cambio de MODELO, no un ajuste: `comment` y `vote`
+  // ya se permitian sin sesion desde el 2026-10-03. Ahora es TODA accion, y el
+  // rol pasa a ser `owner` sin condiciones.
+  //
+  // Que queda sin proteccion, y hay que decirlo claro: con esto, cualquier
+  // persona con la URL puede aprobar, mover, editar y borrar ideas de Wundeer y
+  // de Candilejas. No hay lista, no hay codigo y no hay sesion que comprobar. Es
+  // exactamente lo que se pidio, y el unico sitio donde sigue habiendo un limite
+  // es el catalogo: solo se ven los clientes de `HUB_CATALOGO_VISIBLE`.
+  //
+  // Lo que NO se pierde: la trazabilidad. `created_by` y `actor_label` siguen
+  // saliendo de la fila de perfil comprobada por el servidor, o del perfil
+  // elegido en el selector cuando no hay sesion. Entrar libre no significa
+  // escribir sin nombre.
   const sesion = await quienEs();
   if (!sesion) {
-    if (!accionAbierta) return { response: unauthorized() as NextResponse };
     return {
       supabase: service, service, userId: null, email: null,
       proyecto: null, abierto: true, cabeceras: request.headers,
@@ -134,8 +152,11 @@ async function context(request: NextRequest, accion: string) {
     .select('id')
     .ilike('email', sesion.email)
     .maybeSingle();
+  // MEDIDO 2026-10-04: con la sesion valida pero SIN fila en `rr_hub_profiles`
+  // (correo tecleado que no existe en la base), el camino es el mismo que sin
+  // sesion: se sigue como visitante y el rol sale del perfil que elija en el
+  // selector. Antes esto cortaba con 401 para todo menos `comment` y `vote`.
   if (!perfil) {
-    if (!accionAbierta) return { response: unauthorized() as NextResponse };
     return {
       supabase: service, service, userId: null, email: null,
       proyecto: null, abierto: true, cabeceras: request.headers,
@@ -239,13 +260,18 @@ export async function POST(request: NextRequest) {
   // `true` de verdad, y este `owner` habría dado TODO el poder de escritura a
   // cualquiera que abriera la URL: `transition`, `borrar`, `script`, `update`.
   //
-  // El arreglo: `owner` en abierto solo vale para las DOS acciones del equipo,
-  // que vuelven a comprobar el perfil contra `rr_hub_profiles` por su cuenta. Para
-  // cualquier otra acción, abierto NO da ningún rol: se cae al camino normal, que
-  // sin sesión responde 401. Es lo que pasó siempre.
-  const ABIERTAS_EN_EQUIPO = new Set(['comment', 'vote']);
+  // MEDIDO 2026-10-04, el modelo cambió. Antes `owner` en abierto valía SOLO para
+  // `comment` y `vote`, y para el resto caía al camino normal: sin sesión, 401.
+  // Ese recorte lo protects a propósito cuando se abrieron esas dos (2026-10-03),
+  // porque dar `owner` a cualquiera que abriera la URL significaba que un
+  // desconocido podía aprobar y borrar piezas de Wundeer.
+  //
+  // Santiago pidió lo contrario y lo dijo dos veces: «100% libre» y «todos los
+  // del equipo entran como owner en todo». Así que `abierto` da `owner` para
+  // TODA acción. Lo que protege ya no es el rol sino el catálogo: solo son
+  // visibles los clientes de `HUB_CATALOGO_VISIBLE`.
   const role: RoleKey | null = ctx.abierto
-    ? (ABIERTAS_EN_EQUIPO.has(action) ? 'owner' : null)
+    ? 'owner'
     : await roleForIdea(supabase, userId!, email!, ideaId);
   if (!role) return unauthorized();
 

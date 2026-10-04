@@ -40,11 +40,15 @@ export default async function ProjectDashboardPage({ params }: { params: Promise
   // eligio ese y no uno inventado (`lector` no existe en el enum) para que la
   // pantalla no tenga que inventarse un rol que la base no reconoce.
   //
-  // Sin fila de acceso no hay ninguno, y no se regala el mas alto: la pantalla
-  // enseña lo que se puede ver y no ofrece lo que la base va a negar. Es la misma
-  // regla que en el mega-dashboard, donde el proxy y la RLS ya no dejan pasar
-  // escrituras y la interfaz no las anuncia.
-  const rol = access?.role_in_project ?? 'client_viewer';
+  // MEDIDO 2026-10-04. Este default era `client_viewer` y la regla era «no se
+  // regala el mas alto»: la pantalla enseña lo que se puede ver y no ofrece lo
+  // que la base va a negar. Con el modelo libre esa regla se invierte: el
+  // servidor da `owner` a quien llega, asi que anunciar LECTURA era mentiro.
+  //
+  // Lo que se conserva igual: si la persona tiene fila en `rr_hub_access`, su rol
+  // de ahi manda. Y sin sesion tampoco se inventa un nombre: eso lo resuelve el
+  // selector de perfil cuando hace falta escribir.
+  const rol = access?.role_in_project ?? 'owner';
 
   return <ProjectDashboard project={project} projectSlug={projectSlug} ideas={conVotos} role={rol} />;
 }
