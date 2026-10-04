@@ -25,12 +25,26 @@ function codigo(ruta: string): string {
 describe('la ruta que cambia de cliente', () => {
   const ruta = leer('app/api/cambiar-cliente/route.ts');
 
-  it('exige sesión: sin la cookie no cambia nada', () => {
-    // Un endpoint que emite la cookie nueva sin mirar quién llama es una
-    // invitación a volver al modelo anterior, donde el código de un cliente se
-    // podía probar contra otro.
+  it('sin sesion no cambia nada, y no es un 401', () => {
+    // MEDIDO 2026-10-04. Este test exigía `status: 401`, y el 401 decía «Entra
+    // con el código de tu cliente». Santiago: acceso libre, sin codigo.
+    //
+    // Lo que NO se afloja: sin sesion no se EMITE cookie nueva, porque cambiar de
+    // cliente ES cambiar la cookie. Se responde 200 con `proyecto: null`, que es
+    // lo que ya devolvia el no-op de «volver al mismo cliente»: el selector queda
+    // quieto y no se pone rojo.
     expect(ruta).toMatch(/quienEs\(\)/);
-    expect(ruta).toMatch(/status:\s*401/);
+    expect(ruta).toMatch(/if \(!sesion\)\s*\{\s*return NextResponse\.json\(\{ success: true, proyecto: null, rol: null \}\)/);
+    expect(ruta).not.toMatch(/status:\s*401/);
+    expect(ruta).not.toMatch(/Entra con el c[oó]digo/);
+  });
+
+  it('el cliente de destino tiene que estar en el catalogo visible', () => {
+    // MEDIDO 2026-10-04. `clienteExiste` responde que si para Boga y Satiro, asi
+    // que el selector PODIA cambiar a un cliente que la portada no muestra. Un
+    // cliente escondido en la lista y abierto por la URL no esta escondido.
+    expect(ruta).toContain('HUB_CATALOGO_VISIBLE');
+    expect(ruta).toMatch(/visibles\.includes\(destino\)/);
   });
 
   it('NO acepta un código: el correo es lo que decide', () => {
@@ -187,11 +201,15 @@ describe('la lista la da el servidor, no el navegador', () => {
     // decidiendo `rr_hub_access` en el guard.
     const data = leer('lib/data.ts');
     const bloque = data.slice(data.indexOf('export async function getClientesDeLaPersona'));
+    // El bug viejo era `esAdmin || fila` con `rol: esAdmin ? 'owner'`, que veía a
+    // un admin global como owner donde no tenía fila. Eso no vuelve.
     expect(bloque).not.toMatch(/esAdmin/);
-    // El rol sale de la fila cuando existe.
+    // El rol sale de la fila cuando existe, y esa fila manda.
     expect(bloque).toMatch(/rolPorProyecto\.get\(p\.id\)/);
-    // Y sin fila no es el rol mas alto.
-    expect(bloque).not.toMatch(/\?\? 'owner'/);
+    // MEDIDO 2026-10-04: sin fila el default es `owner`, no `client_viewer`.
+    // Acceso libre: el servidor da owner a todo el que llega, asi que el default
+    // de solo lectura describia una puerta que ya no esta.
+    expect(bloque).toMatch(/\?\? 'owner'/);
   });
 
   it('los cerrados salen del catálogo ENTERO, no de la lista corta', () => {

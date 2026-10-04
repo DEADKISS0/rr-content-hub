@@ -104,19 +104,26 @@ describe('la puerta del hub se queda abierta', () => {
     // propio codigo: si el rol por defecto fuera uno inventado, `tsc` no lo
     // detectaria si el tipo fuera `string`, y la pantalla compararia contra
     // strings que la base nunca tiene.
+    // MEDIDO 2026-10-04. Este test exigía que el rol por defecto NO fuera `owner`,
+    // y el motivo estaba escrito: «sin sesion no hay fila de acceso». Santiago
+    // pidio lo contrario dos veces — «100% libre» y «todos los del equipo entran
+    // como owner en todo»— y el servidor ya da owner a todo el que llega.
+    //
+    // El default `client_viewer` mentia: la pantalla decia LECTURA mientras el
+    // servidor permitia aprobar y borrar.
     const pagina = codigo('src/app/[projectSlug]/page.tsx');
-    expect(pagina).not.toMatch(/role_in_project\s*\?\?\s*'owner'/);
-    expect(pagina).not.toMatch(/role_in_project\s*\?\?\s*"owner"/);
-
     const ROLES_REALES = [
       'owner', 'creator', 'camera', 'model', 'editor',
       'publisher', 'media_buyer', 'client_approver', 'client_viewer',
     ];
     const porDefecto = pagina.match(/role_in_project\s*\?\?\s*'([a-z_]+)'/);
     expect(porDefecto, 'no hay un rol por defecto en la pagina').not.toBeNull();
+    // Sigue siendo un rol REAL de la base, no uno inventado para rellenar.
     expect(ROLES_REALES).toContain(porDefecto![1]);
-    // Y no puede ser el mas alto: sin sesion no hay fila de acceso.
-    expect(porDefecto![1]).not.toBe('owner');
+    expect(porDefecto![1]).toBe('owner');
+
+    // Y la fila real de `rr_hub_access` sigue mandando cuando existe.
+    expect(pagina).toMatch(/access\?\.role_in_project/);
   });
 
   it('sin sesion el cliente se abre y la escritura no', () => {
@@ -241,10 +248,29 @@ describe('la puerta del hub se queda abierta', () => {
     const i = c.indexOf('const abiertos =');
     expect(i, 'no existe la linea que arma abiertos').toBeGreaterThan(-1);
     const linea = c.slice(i, c.indexOf(';', i));
-    // Sin filtro por fila de acceso: los que no la tienen abren en lectura.
+    // Sin filtro por fila de acceso: quien llega sin sesion entra igual.
     expect(linea).not.toMatch(/\.filter\(/);
-    // Y el rol por defecto es el de solo lectura, no el mas alto.
-    expect(linea).toMatch(/client_viewer/);
-    expect(linea).not.toMatch(/owner/);
+    // MEDIDO 2026-10-04: el default paso de `client_viewer` a `owner` con el
+    // acceso libre. Lo que filtra ya no es la fila: es `HUB_CATALOGO_VISIBLE`,
+    // que se aplica ANTES de armar esta lista.
+    expect(linea).toMatch(/'owner'/);
+  });
+
+  it('el filtro de clientes es el catalogo, no la fila de acceso', () => {
+    // MEDIDO 2026-10-04. Santiago: «solo quiero que dejes a wundeer y candilejas».
+    // Boga y Satiro tienen 0 piezas y ningun access_code: se veian, se pulsaban y
+    // no abrian nada.
+    //
+    // Ojo al orden: el corte va ANTES de decidir quien queda abierto y quien
+    // cerrado. Si se filtrara despues, la separacion ya estaria decidida y solo
+    // se cortaria la lista.
+    const c = codigo('src/lib/data.ts');
+    const iFiltro = c.indexOf('CATALOGO_VISIBLE.includes(p.slug)');
+    const iAbiertos = c.indexOf('const abiertos =');
+    expect(iFiltro, 'no hay filtro de catalogo').toBeGreaterThan(-1);
+    expect(iAbiertos).toBeGreaterThan(-1);
+    expect(iFiltro).toBeLessThan(iAbiertos);
+    // Y lista vacia = se ven todos, no ninguno.
+    expect(c).toMatch(/CATALOGO_VISIBLE\.length\s*===\s*0\s*\?/);
   });
 });

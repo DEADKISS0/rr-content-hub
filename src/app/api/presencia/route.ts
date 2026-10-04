@@ -36,11 +36,15 @@ export async function POST(request: Request) {
 
   // La puerta es un código por cliente (2026-09-28), así que la identidad sale
   // de la cookie firmada y no de una sesión de Supabase.
+  // MEDIDO 2026-10-04. Acceso libre. Antes el latido exigía la cookie y devolvía
+  // «Entra con el código de tu cliente», o sea que sin sesion el panel de
+  // presencia no tenía ni un latido que mostrar.
+  //
+  // Sin sesion no hay persona, y eso se DICE: se registra un latido con el
+  // prefijo `visitante-`, no con un correo inventado ni con el de otra persona.
+  // La fila queda marcada como visitante, que es la verdad.
   const sesion = await quienEs();
-  if (!sesion) {
-    return NextResponse.json({ error: 'Entra con el código de tu cliente.' }, { status: 401 });
-  }
-  const correo = sesion.email;
+  const correo = sesion?.email ?? `visitante-${Date.now().toString(36)}`;
 
   let sesionId = '';
   try {

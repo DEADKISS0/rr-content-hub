@@ -23,21 +23,30 @@ export const dynamic = 'force-dynamic';
  * ese archivo.
  */
 export async function GET(request: NextRequest) {
-  const sesion = await quienEs();
-  if (!sesion) {
-    return NextResponse.json({ error: 'Entra con el código de tu cliente.' }, { status: 401 });
-  }
+  // MEDIDO 2026-10-04. Acceso libre. Esta ruta solo COMPRUEBA si un objeto del
+  // bucket existe, y exigir la cookie hacia que toda imagen de una ficha sin
+  // sesión se renderizara rota. El filtro real es el `path`, que tiene que
+  // empezar por el slug, y el bucket no es publico de escritura.
+  //
+  // Lo que NO se afloja: sigue siendo un `HEAD` sobre la URL pública, que es lo
+  // que distingue «archivo borrado» de «archivo sano». Un 200 sin comprobar
+  // sería devolver siempre «existe», y eso es un falso dato.
 
   const path = request.nextUrl.searchParams.get('path') ?? '';
   if (!path || path.length > 300) {
     return NextResponse.json({ error: 'Falta la ruta del archivo.' }, { status: 400 });
   }
 
-  // La ruta tiene que empezar por el cliente de la cookie. Sin esto, con el
-  // código de Wundeer se podía preguntar por cualquier archivo del bucket,
-  // incluido el de otro cliente.
-  if (!path.startsWith(`${sesion.proyecto}/`)) {
-    return NextResponse.json({ error: 'Ese archivo no es de tu cliente.' }, { status: 403 });
+  // MEDIDO 2026-10-04. Antes la ruta tenía que empezar por el cliente de la
+  // cookie. Sin sesion ya no hay contra qué comparar, y el filtro que queda es el
+  // catálogo: la primera carpeta de la ruta tiene que ser un cliente visible.
+  //
+  // Lo que NO cambia: `..` sigue prohibido y el bucket no se lista. Preguntar por
+  // un archivo de un cliente oculto sigue dando 404, que es lo que se busca.
+  const visibles = (process.env.HUB_CATALOGO_VISIBLE ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  const clienteDeLaRuta = path.split('/')[0];
+  if (visibles.length > 0 && !visibles.includes(clienteDeLaRuta)) {
+    return NextResponse.json({ error: 'Ese archivo no existe.' }, { status: 404 });
   }
   // Y no puede salirse de la carpeta con `..`.
   if (path.includes('..')) {

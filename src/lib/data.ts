@@ -952,10 +952,38 @@ export async function getClientesDeLaPersona(): Promise<{
     supabase.from('rr_hub_access').select('project_id, role_in_project').eq('user_id', perfilId ?? '__sin_sesion__'),
   ]);
 
-  const proyectos = (catalogo.data ?? []) as {
+  // MEDIDO 2026-10-04. Santiago: «solo quiero que dejes a wundeer y candilejas».
+  //
+  // BOGA y Satiro salían como tarjetas con 0 piezas y sin código de entrada: se
+  // veían, se pulsaban y no abrían nada. Un cliente que no se puede abrir no es
+  // una opción, es un error de pantalla.
+  //
+  // NO se borran. Se apartan del CATÁLOGO VISIBLE, que es distinto de borrarlos:
+  // las ideas, los anuncios y la trazabilidad siguen intactos, y volver a
+  // exponerlos es vaciar la variable. Borrar filas de producción para tapar un
+  // cartel molesto sería cambiar datos para tapar una pantalla.
+  //
+  // La lista se lee del entorno y no se escribe en el código, para que exponer
+  // uno nuevo sea cambiar una variable y no editar un array. Antes existía
+  // `CLIENTES_CONOCIDOS = ['wundeer', 'candilejas']` a mano, y por eso Boga y
+  // Satiro salían con candado: había que abrir el fichero para poder verlos.
+  //
+  // Si la variable no está, se ven todos: fallar hacia «que se vea de más» y
+  // no hacia «que no se vea nada», porque un cliente escondido sin querer deja
+  // de existir para quien debería verlo.
+  const CATALOGO_VISIBLE = (process.env.HUB_CATALOGO_VISIBLE ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const todosLosProyectos = (catalogo.data ?? []) as {
     id: string; slug: string; name: string; client_name: string;
     brand_primary_color: string | null; description: string | null;
   }[];
+  const proyectos = CATALOGO_VISIBLE.length === 0
+    ? todosLosProyectos
+    : todosLosProyectos.filter((p) => CATALOGO_VISIBLE.includes(p.slug));
+
   if (proyectos.length === 0) return vacio;
 
   const rolPorProyecto = new Map<string, string>();
@@ -989,7 +1017,16 @@ export async function getClientesDeLaPersona(): Promise<{
   // hay; si no la hay, es `client_viewer`, el mismo rol que usan los visitantes
   // en el resto del hub. Ver un cliente no es escribir en él: eso lo decide
   // `rr_hub_access` en el guard, que sigue igual.
-  const abiertos = conocidos.map((p) => ({ ...p, rol: rolPorProyecto.get(p.id) ?? 'client_viewer' }));
+  //
+  // MEDIDO 2026-10-04. El valor por defecto era `client_viewer`, de cuando entrar
+  // era con un código y no entrar significaba no poder escribir. Con el modelo
+  // nuevo («100% libre», Santiago) ese valor mentía: el servidor ya da `owner` a
+  // todo el que llega, y la portada seguía announcing LECTURA.
+  //
+  // Lo que se conserva: si la persona TIENE fila en `rr_hub_access`, su rol de
+  // ahí manda y se muestra. Lo que se quita es el 默认 de solo lectura, que ya
+  // no describe lo que pasa.
+  const abiertos = conocidos.map((p) => ({ ...p, rol: rolPorProyecto.get(p.id) ?? 'owner' }));
 
   // Los cerrados salen del catálogo ENTERO, no de `conocidos`. Con la lista
   // corta como fuente, Satiro y Boga no aparecían nunca: un `filter` sobre
