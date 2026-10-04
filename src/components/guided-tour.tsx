@@ -355,15 +355,20 @@ export function GuidedTour() {
                 hijo flexible no baja de su alto de contenido y el padre se
                 desborda en lugar de dejar que el hijo se encoja. */}
             <div className={`flex min-h-0 flex-1 flex-col ${movil ? 'overflow-hidden' : ''}`}>
-              /* MEDIDO 2026-10-03 a 1440x900, con `w-fit` ya puesto. El ancho
-                 seguía en 544 px: un bloque normal ocupa todo el ancho de su
-                 padre, así que `w-fit` no tenía nada que encoger — el padre lo
-                 declaraba 544 y el texto se estiraba a 502.
+              {/* MEDIDO 2026-10-03 a 1440x900, con `w-fit` ya puesto. El ancho
+                  seguía en 544 px: un bloque normal ocupa todo el ancho de su
+                  padre, así que `w-fit` no tenía nada que encoger — el padre lo
+                  declaraba 544 y el texto se estiraba a 502.
 
-                 MEDIDO con `width: min-content`: el texto de este paso necesita
-                 98 px. De los 502 que tenía. `inline-block` + `w-full` deja que
-                 la caja mida lo que mide su contenido en vez de heredarlo, y en
-                 móvil conserva el ancho completo. */
+                  MEDIDO con `width: min-content`: el texto de este paso necesita
+                  98 px. De los 502 que tenía. `inline-block` + `w-full` deja que
+                  la caja mida lo que mide su contenido en vez de heredarlo, y en
+                  móvil conserva el ancho completo.
+
+                  OJO: este comentario va entre llaves y asteriscos. Entre dos
+                  etiquetas JSX, un asterisco doble SIN las llaves es texto
+                  suelto: sale pintado en pantalla dentro del tour. Pasó, y se
+                  vio el comentario entero en el popup de todos los usuarios. */}
               <div className={
                 movil
                   ? 'min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1'
