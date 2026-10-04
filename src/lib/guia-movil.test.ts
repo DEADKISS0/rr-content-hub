@@ -101,23 +101,35 @@ describe('la guía cabe y se puede cerrar en un teléfono', () => {
 
   it('el popup de escritorio se ajusta al mensaje, no a media pantalla', () => {
     const c = leer('src/components/guided-tour.tsx');
-    // MEDIDO 2026-10-03 a 1440x900: 544x434, el 48% de la altura, para 170
-    // caracteres. Santiago: «el contenedor del popup del mensaje esta muy
-    // grande, asegurate que solo rodee el mensaje».
-    /* MEDIDO 2026-10-03 a 1440x900, dos veces. La primera vez `w-fit` no bastó:
-       un bloque normal ocupa TODO el ancho de su padre, así que la caja le
-       declaraba 544 px al texto y este se estiraba a 502. MEDIDO con
-       `width: min-content`: el texto necesitaba 98. El ancho lo marca el
-       contenido con `inline-block`, no el padre. */
-    /* MEDIDO 2026-10-04. `flex flex-col` estaba en las clases BASE y ganaba
-       al `inline-block` del ternario: en vivo, `display: block` y el panel
-       ocupando los 544 px del `max-w`, con el texto estirado a 502. El
-       display va ahora en cada rama: `inline-flex` en escritorio, `flex` en
-       movil. Las dos siguen en columna, que es lo que reparten
-       `flex-1` con los botones fijos. */
-    expect(c).toMatch(/inline-flex flex-col left-1\/2 w-fit max-w-\[min\(34rem/);
-    // un width fijo de 34rem es exactamente lo que se quitó
-    expect(c).not.toMatch(/left-1\/2 w-\[min\(34rem/);
+    /* MEDIDO 2026-10-03 a 1440x900, y tres veces mas. La caja daba 544x434 —
+       el 48% de la altura de la pantalla — para tres lineas de texto. Santiago:
+       «el contenedor del popup del mensaje esta muy grande, asegurate que solo
+       rodee el mensaje».
+
+       Los cuatro intentos, todos medidos en produccion antes del siguiente:
+
+       1. `w-[min(34rem,...)]` -> `w-fit`: bajo el alto, no el ancho.
+       2. `bottom: 16` fuera del style: 434 -> 238 px de alto. Ancho igual.
+       3. `inline-block` en el panel: el comentario se pinto en pantalla (#31) y
+          el ancho seguia en 544.
+       4. `flex` en las clases BASE: ganaba al `inline-block` del ternario, y
+          MEDIDO en el CSSOM el elemento computaba `display: flex` llevando
+          `inline-flex` en la clase: en Tailwind manda el ORDEN de las reglas
+          en la hoja de estilos, no el orden del className.
+
+       Ahora el panel no tiene ninguna clase de display de flex —la columna la
+       pone el hijo unico, que es donde estan `flex-1` y `shrink-0`— asi que
+       `inline-block` no compite con nada y mide lo que mide su contenido. */
+    expect(c).toMatch(/inline-block inset-x-3 top-3 max-h-\[calc\(100dvh-6\.5rem\)\]/);
+    expect(c).toMatch(/: 'inline-block left-1\/2 w-fit max-w-\[min\(34rem/);
+    /* Ni una clase de display de flex en el panel: es lo que ganaba antes.
+           Se lee SIN comentarios, porque los comentarios de este archivo explican
+           el fallo y mencionan `flex flex-col` de todas formas. Un aserto que lee
+           el comentario midiendo el comentario. */
+        const panel = c.slice(c.indexOf('anim-pop'), c.indexOf('style={movil'))
+          .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+        expect(panel).not.toMatch(/(^|[\s'`])flex(-col)?([\s'`]|$)/);
+        expect(panel).toContain('inline-block');
     // y el texto tiene que poder encogerse en vez de heredar el ancho del padre
     expect(c).toMatch(/'inline-block w-full'/);
     // el tope sigue estando, para el caso de un texto largo
