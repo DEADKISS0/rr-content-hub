@@ -40,12 +40,26 @@ export function VoteQuick({
   ideaId,
   slug,
   inicial,
+  contenedorClase,
 }: {
   ideaId: string;
   /** El cliente: hace falta para preguntar por SUS votaciones en vivo. */
   slug: string;
   /** Conteo que llega del servidor, igual que en la ficha. */
   inicial: { aFavor: number; enContra: number };
+  /**
+   * MEDIDO 2026-10-04: la tarjeta del tablero usa `after:inset-0` en el título
+   * para que toda la caja abra la ficha (stretched link). Ese pseudo se estira
+   * a TODA la tarjeta y se come estos botones: con el dedo, `elementFromPoint`
+   * en «A FAVOR» devuelve el `<a>` del título. El voto se ve y no se puede
+   * tocar, en el celular; en escritorio el hover lo disimula.
+   *
+   * Por eso esta prop existe y no se fija aqui: quien decide la posición es la
+   * tarjeta, que es quien tiene el contexto de que hay un pseudo por encima.
+   * Encerrarlo en un `<div>` desde fuera rompía el aserto que garantiza que el
+   * botón solo sale en ideas en votación.
+   */
+  contenedorClase?: string;
 }) {
   /**
    * MEDIDO 2026-10-03. Este botón se quedaba en el número con el que se pintó la
@@ -110,7 +124,7 @@ export function VoteQuick({
   );
 
   return (
-    <div className="mt-3 border-t border-blanco-10 pt-3">
+    <div className={`mt-3 border-t border-blanco-10 pt-3 ${contenedorClase ?? ''}`}>
       <div className="flex items-center justify-between gap-2">
         <span className="font-mono text-[9px] text-blanco-40">
           {faltan > 0 ? `FALTAN ${faltan} DE ${VOTOS_NECESARIOS}` : 'DECIDIDA'}

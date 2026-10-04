@@ -253,7 +253,7 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
                       <article
                         key={idea.id}
                         style={{ ['--delay' as string]: `${cardIndex * 45}ms` }}
-                        className={`idea-card cascade sheen group block border border-l-[3px] bg-negro transition-all duration-200 hover:border-blanco-40 ${tono.borderLeft}`}
+                        className={`idea-card cascade sheen group relative block border border-l-[3px] bg-negro transition-all duration-200 hover:border-blanco-40 ${tono.borderLeft}`}
                       >
                         {/* La portada real mandada sobre la referencia: si la idea
                             tiene un brief que es imagen, se ve; si no, el marco
@@ -282,10 +282,28 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
                               </span>
                             )}
                           </div>
+                          {/* MEDIDO 2026-10-04 en 390 px con dedo real: el
+                              `after:absolute after:inset-0` de este patron es un
+                              *stretched link*: el titulo se estira a toda la
+                              tarjeta. En una tarjeta SIN botones es un Patron
+                              bonito — toda la caja abre la ficha. En una tarjeta
+                              CON BOTONES se come los botones: los 16 «A FAVOR» y
+                              «EN CONTRA» de Wundeer tienen encima el enlace del
+                              titulo de su propia tarjeta, asi que en el celular
+                              no se puede votar. En escritorio el hover lo
+                              disimula; con el dedo no hay hover.
+
+                              La correccion NO es quitar el `after`: sin el, la
+                              tarjeta entera deja de ser pulsable y se pierde
+                              mucho mas de lo que se gana. Es dejar de estirar
+                              SOBRE lo que hay botones: `pointer-events-none` en
+                              el pseudo-elemento, y `relative z-10` en la zona de
+                              voto. El pseudo sigue pintando el hover y el foco,
+                              pero deja pasar el dedo a lo que hay debajo. */}
                           <h4 className="font-display text-base font-bold leading-tight text-blanco group-hover:text-blanco-90">
                             <Link
                               href={`/${projectSlug}/ideas/${idea.id}`}
-                              className="outline-none after:absolute after:inset-0 after:content-[''] hover:underline"
+                              className="outline-none after:pointer-events-none after:absolute after:inset-0 after:content-[''] hover:underline"
                             >
                               {idea.title}
                             </Link>
@@ -300,10 +318,19 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
                               de la ficha. Cero menciones de "votar" en el tablero,
                               en el banco y en aprobaciones. El sistema funcionaba
                               y nadie lo tocaba. */}
+                          {/* MEDIDO 2026-10-04: sin `relative z-10` esta zona
+                              queda DEBAJO del pseudo-elemento del título, que es
+                              `inset-0` sobre toda la tarjeta. Con el dedo,
+                              `elementFromPoint` en el botón devuelve el `<a>`
+                              del título: el voto se puede VER y no se puede
+                              TOCAR. `pointer-events-none` en el pseudo ya deja
+                              pasar el dedo; esto pone los botones por encima
+                              para que además se vean por encima del hover. */}
                           {idea.status === 'voting' && (
                             <VoteQuick
                               ideaId={idea.id}
                               slug={projectSlug}
+                              contenedorClase="relative z-10"
                               inicial={{ aFavor: idea.aFavor ?? 0, enContra: idea.enContra ?? 0 }}
                             />
                           )}
