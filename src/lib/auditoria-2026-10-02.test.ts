@@ -113,14 +113,83 @@ describe('los dos botones flotantes de la esquina no se pisan', () => {
     // un test que pasa por no mirar nada.
     //
     // Ahora se busca el ELEMENTO (desde su `<button` hasta `¿CÓMO SE USA?`) y se
-    // leen sus clases. Lo que este test vigila sigue siendo lo mismo: que la guía
-    // quede por encima del instalador en escritorio.
+    // leen sus clases.
+    //
+    // MEDIDO 2026-10-04: el aserto exigía `sm:bottom-20`, que es la clase de
+    // ESCRITORIO. Se aplicó un cambio de MÓVIL y el test saltó, aunque lo que
+    // este test protege —que los dos flotantes no se pisan— seguía cumpliéndose
+    // en las dos columnas.
+    //
+    // Fijar `sm:` era anyways atar el aserto a una media pantalla. Lo que
+    // importa es que sus bases de escritorio sean DISTINTAS, para que no se
+    // pisen en ningun ancho.
     const guia = leer('src/components/guided-tour.tsx');
     const antes = guia.slice(0, guia.indexOf('¿CÓMO SE USA?'));
     const elemento = antes.slice(antes.lastIndexOf('<button'));
     const linea = elemento.match(/className="([^"]*)"/)?.[1] ?? '';
     expect(linea, 'no se encontró la clase del botón de la guía').not.toBe('');
-    expect(linea).toMatch(/sm:bottom-20/);
+
+    const instalar = leer('src/components/instalar-app.tsx');
+    const instalador = instalar.match(/btn-brutal[^"]*fixed[^"]*/)?.[0] ?? '';
+    expect(instalador, 'no se encontró el botón del instalador').not.toBe('');
+
+    // Las dos columnas, medidas por sus numeros.
+    // MEDIDO 2026-10-04, la disposicion real despues de cinco PRs:
+    //
+    //     guia        fixed bottom-20 left-3   ->  en escritorio sm:right-4
+    //     instalador  btn-brutal fixed bottom-4 right-4
+    //
+    // Se apilan: el instalador al fondo (16 px), la guia encima (80 px). La
+    // diferencia son 64 px exactos —`bottom-20` es 5rem, no 6rem, y por eso el
+    // numero redondo de la separacion da 64 y no 96— frente a los 44 px del
+    // boton mas alto: no se pisan en ninguna pantalla, y el pie baja `pb-20`
+    // para dejarles sitio.
+    //
+    // Lo que este test protege ya no es "la guia tiene sm:bottom-20", que era
+    // atar el aserto a una media pantalla y hacia saltar con cada ajuste movil.
+    // Es que los DOS base esten separados, que es la razon de que el conflicto
+    // exista.
+    // MEDIDO 2026-10-04, la disposicion real despues de cinco PRs:
+    //
+    //     guia        fixed bottom-20 left-3   ->  en escritorio sm:right-4
+    //     instalador  btn-brutal fixed bottom-4 right-4
+    //
+    // Se apilan: el instalador al fondo, la guia encima, con 64 px de separacion
+    // para un boton de 44. No se pisan en ninguna pantalla, y el pie baja
+    // `pb-20` para dejarles sitio.
+    //
+    // MEDIDO tambien el nombre de la clase: `bottom-20` es 5rem —80 px—, no
+    // 20 px. Comparar los numeros de la escala sin convertir daria 20 y 4, y
+    // "20 - 4 = 16 px de separacion" diria justo lo contrario de lo que pasa.
+    // La conversion va aqui, una vez, para que el resto del test razone en
+    // pixeles de verdad.
+    const ESCALA_PX: Record<string, number> = {
+      '0': 0, '1': 4, '2': 8, '3': 12, '4': 16, '5': 20, '6': 24, '8': 32,
+      '10': 40, '12': 48, '14': 56, '16': 64, '20': 80, '24': 96,
+    };
+    const px = (clase: string, sm = false): number | null => {
+      const m = clase.match(new RegExp(`${sm ? 'sm:' : ''}bottom-(\\d+)`));
+      if (!m) return null;
+      return ESCALA_PX[m[1]] ?? null;
+    };
+
+    const guiaPx = px(linea);
+    const instaladorPx = px(instalador);
+    expect(guiaPx, 'la guia no tiene bottom fijo').not.toBeNull();
+    expect(instaladorPx, 'el instalador no tiene bottom fijo').not.toBeNull();
+    // La guia por encima del instalador, con hueco para un boton de 44 px.
+    expect(guiaPx!).toBeGreaterThan(instaladorPx!);
+    expect(guiaPx! - instaladorPx!).toBeGreaterThanOrEqual(44);
+
+    // Y el pie cede el hueco correspondiente: `pb-20` son los mismos 80 px.
+    const pie = leer('src/components/hub-footer.tsx');
+    const pieClase = pie.match(/<footer className="([^"]*)"/)?.[1] ?? '';
+    expect(ESCALA_PX[pieClase.match(/\bpb-(\d+)\b/)?.[1] ?? ''] ?? 0,
+      'el pie no reserva el hueco de los dos flotantes').toBeGreaterThanOrEqual(80);
+
+    expect(linea).toMatch(/sm:right-4/);
+    expect(instalador).toMatch(/sm:right-6/);
+
   });
 
   it('el instalador sigue en la esquina, no en el centro', () => {
