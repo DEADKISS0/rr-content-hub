@@ -104,7 +104,12 @@ async function insertWithCode(
       project_id: input.projectId, code: `${prefix}${next}`, title: input.title,
       description: input.description, objective: input.objective,
       content_type: input.contentType, category: input.category, reference_urls: input.references,
-      status: 'draft', priority: input.priority,
+      // MEDIDO 2026-10-04, Santiago: una idea nace ABIERTA A VOTACIÓN. Antes esta
+      // vía (la API de automatización, la que usa el generador) también nacía en
+      // `draft`, o sea que las ideas que llegaban solas se quedaban sin que nadie
+      // las mirara. Ahora es el mismo punto de partida que la creación manual: la
+      // primera persona que la ve ya puede opinar.
+      status: 'voting', priority: input.priority,
     }).select('id, code, title, status').single();
 
     if (!error) return { data: data as IdeaRow };
@@ -170,7 +175,9 @@ export async function POST(request: NextRequest) {
   });
   if (insertError || !idea) return error(insertError ?? 'No se pudo crear la idea.', 409);
   await setup.supabase.from('rr_hub_events').insert({
-    idea_id: idea.id, to_status: 'draft', comment: 'Idea creada mediante la API de automatización.', actor_label: 'Automatización API',
+    idea_id: idea.id, to_status: 'voting',
+    comment: 'Idea creada mediante la API de automatización y abierta a votación de inmediato.',
+    actor_label: 'Automatización API',
   });
   return NextResponse.json({ success: true, idea }, { status: 201 });
 }

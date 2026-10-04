@@ -33,32 +33,56 @@ import { statusMeta, productionStep, daysSince, type WorkflowStatus } from '@/li
  */
 export default async function IdeaDetail({ params }: { params: Promise<{ projectSlug: string; ideaId: string }> }) {
   const { projectSlug, ideaId } = await params;
+
+  // MEDIDO 2026-10-04 en produccion, con el dedo a 390 px: la ficha tardaba
+  // 1,34 s y el TTFB era de 1,3 a 1,7 s. No era JavaScript: eran nueve viajes a
+  // Supabase en cadena, cada uno abriendo su propia conexion.
+  //
+  // Antes era una escalera de seis `await` uno detras de otro. El orden se
+  // conserva donde hay una dependencia REAL —sin `project.id` no hay idea ni rol—
+  // y todo lo demas sube a `Promise.all`. `getProject` sigue primero porque de
+  // el sale el 404.
   const { project } = await getProject(projectSlug); if (!project) notFound();
-  // El rol lo resuelve el servidor contra `rr_hub_access`; el navegador solo lo
-  // muestra. Sin esto, `IdeaActions` caía a su valor por defecto y ninguna ficha
-  // ofrecía una transición real, ni con la puerta encendida.
-  const { rol } = await rolEnProyecto(project.id);
-  const idea: any = await getIdea(project.id, ideaId); if (!idea) notFound();
-  // MEDIDO 2026-10-01: la miniatura del anuncio de Facebook no se puede embeber
-  // ni capturar al vuelo (la biblioteca pide sesión). Lo que sí se puede es la
-  // que ya está guardada en la biblioteca de anuncios.
-  const coverAnuncio = await getCoverDelAnuncio(idea.ad_id);
 
-  // El conteo de votos se lee en el servidor, junto con la idea. Solo van los
-  // NÚMEROS: el token del votante nunca sale del navegador que lo generó, así que
-  // la página no puede exponer quién votó aunque quiera mostrarlo.
-  const votos = await getVotos(ideaId);
-  const presencia = await getPresencia();
-  // MEDIDO 2026-10-03: el selector de perfil necesita el equipo de `rr_hub_profiles`,
-  // no el de `rr_hub_presencia`, que solo dice quien se ha conectado.
-  const equipo = await getEquipoVotante();
-  // Comentarios, archivos e historial llegan desde aqui, no desde el navegador:
-  // el cliente anon ya no lee esas tablas y llegaban vacios sin dar error.
-  const [comentarios, assets, timeline] = await Promise.all([
-    getComentarios(ideaId), getAssets(ideaId), getTimeline(ideaId),
+  // Estas dos solo necesitan `project.id`. El rol lo resuelve el servidor contra
+  // `rr_hub_access`; el navegador solo lo muestra. Sin esto, `IdeaActions` caia a
+  // su valor por defecto y ninguna ficha ofrecia una transicion real, ni con la
+  // puerta encendida.
+  const [{ rol }, idea]: any = await Promise.all([
+    rolEnProyecto(project.id),
+    getIdea(project.id, ideaId),
   ]);
+  if (!idea) notFound();
 
-  // El responsable se resuelve en el servidor y se pasa como NOMBRE, no como
+  // Lo que sigue son seis consultas que NO se miran entre si. Antes iban en dos
+  // grupos de tres y tres, esperando cada grupo al anterior. Ahora van juntas.
+  //
+  // El conteo de votos solo lleva los NUMEROS: el token del votante nunca sale
+  // del navegador que lo genero, asi que la pagina no puede exponer quien voto
+  // aunque quiera mostrarlo.
+  //
+  // MEDIDO 2026-10-03: el selector de perfil necesita el equipo de
+  // `rr_hub_profiles`, no el de `rr_hub_presencia`, que solo dice quien se ha
+  // conectado.
+  //
+  // Comentarios, archivos e historial llegan desde aqui, no desde el navegador: el
+  // cliente anon ya no lee esas tablas y llegaban vacios sin dar error.
+  //
+  // MEDIDO 2026-10-01: la miniatura del anuncio de Facebook no se puede embeber ni
+  // capturar al vuelo (la biblioteca pide sesion). Lo que si se puede es la que ya
+  // esta guardada en la biblioteca de anuncios.
+  const [votos, presencia, equipo, comentarios, assets, timeline, coverAnuncio] =
+    await Promise.all([
+      getVotos(ideaId),
+      getPresencia(),
+      getEquipoVotante(),
+      getComentarios(ideaId),
+      getAssets(ideaId),
+      getTimeline(ideaId),
+      getCoverDelAnuncio(idea.ad_id),
+    ]);
+
+// El responsable se resuelve en el servidor y se pasa como NOMBRE, no como
   // id: el navegador no necesita saber el uuid de nadie, y `created_by` es la
   // única columna que lo guarda. Si no hay responsable, `null` — y el bloque lo
   // dice, en vez de inventar un nombre.

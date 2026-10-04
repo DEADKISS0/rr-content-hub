@@ -136,12 +136,25 @@ type Transition = { to: WorkflowStatus; label: string; note: string; roles: 'tea
 
 /** A status offers few, explicit moves. Roles decide which ones you actually see. */
 const TRANSITIONS: Partial<Record<WorkflowStatus, Transition[]>> = {
+  // MEDIDO 2026-10-04, Santiago: «quiero que pongas todas las ideas en votación.
+  // Que apenas se suba una idea, se abra la votación directa. Que sea como el
+  // primer estado posible, que ya no haya un estado anterior sino ese sea el
+  // primero».
+  //
+  // Antes `draft` era el primer estado y obligaba a dos pasos —revisión interna y
+  // luego votación— antes de que nadie opinara. Con eso, una idea recién creada
+  // era una fila muerta: nadie la miraba hasta que alguien se acordaba de
+  // moverla a mano.
+  //
+  // Ahora `draft` NO es un estado del flujo: una idea nace en `voting`, que es el
+  // primer estado de verdad. `draft` se conserva en el tipo y en la tabla porque
+  // hay filas viejas con ese valor en la base, y un 404 al abrir una idea
+  // existente sería peor que un estado sobrante. Lo que no puede volver a pasar
+  // es que una idea NUEVA nazca ahí.
+  //
+  // La salida de `voting` hacia revisión interna se queda: sirve para devolver una
+  // idea a valoración cuando el equipo quiere trabajarla más antes de seguir.
   draft: [
-    // Antes `draft` saltaba directo a `pending_approval`: la idea se creaba y de
-    // una vez viajaba al cliente, sin que nadie del equipo la mirara. Ahora
-    // `draft` significa "idea nueva, todavía sin revisar" y el paso obligatorio es
-    // `internal_review`. Es el cambio que pidió Santiago el 2026-09-28: la idea
-    // se revisa y se vota DENTRO de la casa antes de hablar con el cliente.
     { to: 'internal_review', label: 'MIRAR EN REVISIÓN INTERNA', note: 'La idea entra a revisión interna del equipo.', roles: 'team' },
   ],
   internal_review: [

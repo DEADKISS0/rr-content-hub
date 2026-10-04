@@ -29,6 +29,37 @@ import {
 } from '@/lib/perfil-votante';
 import { Icon } from '@/components/ui/icons';
 
+/**
+ * Una opción del desplegable.
+ *
+ * MEDIDO 2026-10-04: estaba escrita dentro del `.map` del equipo y, al añadir el
+ * grupo de clientes, copiarla habría dejado dos versiones que se van a quedar
+ * desiguales con el tiempo. Aquí hay una sola.
+ */
+function fila(
+  p: PerfilVotante,
+  elegido: PerfilVotante | null,
+  cerrar: (v: boolean) => void,
+) {
+  const activo = elegido?.email.toLowerCase() === p.email.toLowerCase();
+  return (
+    <li key={p.email}>
+      <button
+        type="button"
+        role="option"
+        aria-selected={activo}
+        onClick={() => { guardarPerfil(p); cerrar(false); }}
+        className={`flex min-h-[44px] w-full items-center gap-2 px-3 py-2 text-left font-mono text-[12px] transition-colors ${
+          activo ? 'bg-orquidea-10 text-orquidea' : 'text-blanco-80 hover:bg-blanco-05'
+        }`}
+      >
+        <span className="shrink-0">{activo ? '●' : '○'}</span>
+        <span className="truncate">{p.nombre}</span>
+      </button>
+    </li>
+  );
+}
+
 export function SelectorPerfil({
   equipo: equipoDelServidor,
   slug,
@@ -46,16 +77,26 @@ export function SelectorPerfil({
   // por props a todas era ocho sitios que mantener para lo mismo. Aquí se pide una
   // vez y se cachea por cliente en el navegador.
   const [equipoTraido, setEquipoTraido] = useState<PerfilVotante[]>(equipoDelServidor ?? []);
+  // MEDIDO 2026-10-04, Santiago: «crea dos perfiles para el cliente para que se
+  // puedan reconocer como tal y votar». El cliente no es equipo, así que va en su
+  // propia lista y en su propio apartado del desplegable: mezclados con el
+  // equipo, el cliente no sabe cuál es el suyo.
+  const [clientesTraidos, setClientesTraidos] = useState<PerfilVotante[]>([]);
   const [cargando, setCargando] = useState(!equipoDelServidor && pedirEquipo);
   useEffect(() => {
     if (equipoDelServidor || !pedirEquipo) return;
     let vivo = true;
     fetch(`/api/workspace/equipo?proyecto=${encodeURIComponent(slug)}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((d: { equipo?: PerfilVotante[] }) => { if (vivo) { setEquipoTraido(d.equipo ?? []); setCargando(false); } })
+      .then((d: { equipo?: PerfilVotante[]; clientes?: PerfilVotante[] }) => {
+        if (!vivo) return;
+        setEquipoTraido(d.equipo ?? []);
+        setClientesTraidos(d.clientes ?? []);
+        setCargando(false);
+      })
       // Un fallo al pedir la lista NO es motivo para tapar el selector: sin equipo
       // se muestra el texto de que no hay, que es la verdad de ese momento.
-      .catch(() => { if (vivo) { setEquipoTraido([]); setCargando(false); } });
+      .catch(() => { if (vivo) { setEquipoTraido([]); setClientesTraidos([]); setCargando(false); } });
     return () => { vivo = false; };
   }, [equipoDelServidor, pedirEquipo, slug]);
 
@@ -94,7 +135,8 @@ export function SelectorPerfil({
     };
   }, [abierto]);
 
-  const sinEquipo = equipo.length === 0;
+  const todos = [...equipo, ...clientesTraidos];
+  const sinEquipo = todos.length === 0;
 
   // Mientras se pide la lista, no se dice que no hay: se está diciendo lo que no
   // se sabe. MEDIDO 2026-10-03 — un «SIN EQUIPO DE VOTACIÓN CONFIGURADO»
@@ -147,26 +189,21 @@ export function SelectorPerfil({
             el elegido se recuerda en este navegador.
           </p>
           <ul>
-            {equipo.map((p) => {
-              const activo = elegido?.email.toLowerCase() === p.email.toLowerCase();
-              return (
-                <li key={p.email}>
-                  <button
-                    type="button"
-                    role="option"
-                    aria-selected={activo}
-                    onClick={() => { guardarPerfil(p); setAbierto(false); }}
-                    className={`flex min-h-[44px] w-full items-center gap-2 px-3 py-2 text-left font-mono text-[12px] transition-colors ${
-                      activo ? 'bg-orquidea-10 text-orquidea' : 'text-blanco-80 hover:bg-blanco-05'
-                    }`}
-                  >
-                    <span className="shrink-0">{activo ? '●' : '○'}</span>
-                    <span className="truncate">{p.nombre}</span>
-                  </button>
-                </li>
-              );
-            })}
+            {equipo.map((p) => fila(p, elegido, setAbierto))}
           </ul>
+          {clientesTraidos.length > 0 && (
+            <>
+              {/* El cliente se separa del equipo porque EL se busca a si mismo en
+                  esta lista. Mezclados, «Cliente Wundeer 1» caia entre veinte
+                  nombres del equipo y no se encontraba. */}
+              <p className="border-y border-blanco-10 bg-blanco-05 px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-blanco-50">
+                Del cliente
+              </p>
+              <ul>
+                {clientesTraidos.map((p) => fila(p, elegido, setAbierto))}
+              </ul>
+            </>
+          )}
           {elegido && (
             <div className="border-t border-blanco-10 p-2">
               <button
