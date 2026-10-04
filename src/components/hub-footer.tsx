@@ -22,7 +22,21 @@ import Link from 'next/link';
  */
 export function HubFooter({ slug, projectName }: { slug: string; projectName: string }) {
   return (
-    <footer className="mt-16 border-t border-blanco-20 bg-negro px-4 py-8 sm:px-5 md:px-10">
+    /* MEDIDO 2026-10-04 con dedo real a 390 px: el boton flotante de la guia
+       («?COMO SE USA?», `fixed bottom-3 left-3 z-40`, 44 px de alto) se posa
+       ENCIMA de los dos primeros enlaces del pie, «TABLERO» y «BANCO DE IDEAS».
+       Se ven, `getBoundingClientRect` los mide bien, y el dedo no llega:
+       `elementFromPoint` devuelve el boton de la guia.
+
+       Un boton flotante encima de contenido que se puede scrollear no es un bug
+       de posicion: es que el contenido de abajo no sabe que el boton existe. Por
+       eso el hueco se reserva AQUI, en el pie, y no moviendo el boton: al ser
+       `fixed` no se va con la pagina, asi que quien tiene que ceder espacio es
+       quien esta debajo.
+
+       96 px de abajo = 44 del boton + 16 de aire + breathing. En escritorio el
+       boton sube a `sm:bottom-20` y el pie vuelve a `md:pb-8`. */
+    <footer className="mt-16 border-t border-blanco-20 bg-negro px-4 pb-24 pt-8 sm:px-5 md:px-10 md:pb-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Image
