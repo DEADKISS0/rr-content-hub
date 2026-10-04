@@ -24,6 +24,17 @@ import { Icon } from './ui/icons';
 const VENTANA_ONLINE_MS = 5 * 60 * 1000;
 const CADA_CUANTO_MS = 30_000;
 
+/**
+ * Tope de renglones por bloque.
+ *
+ * MEDIDO 2026-10-04: sin tope, `rr_hub_presencia` con 247 filas hacia que la
+ * ficha midiera 10.720 px en un movil de 390 y la votacion quedara inalcanzable.
+ * Este numero es un seguro, no una regla: con el equipo real (21 perfiles) nunca
+ * se llega, y si manana hay 60 personas conectadas a la vez el bloque sigue
+ * siendo usable porque el resto queda plegado.
+ */
+const MAX_RENGLONES = 20;
+
 export type Presencia = {
   email: string;
   nombre: string | null;
@@ -115,6 +126,59 @@ export function PanelPresencia({ equipo }: { equipo: Presencia[] }) {
 
   const conectados = equipo.filter((p) => estadoDe(p, ahora) === 'conectado').length;
 
+  // MEDIDO 2026-10-04 en produccion: este panel pintaba UN renglon por fila y
+  // `rr_hub_presencia` tenia 247 filas —236 de ellas visitantes de pruebas—,
+  // asi que el bloque media **10.720 px de alto** en un movil de 390. La votacion
+  // de la ficha quedava 11.000 px por encima de la pantalla: abrir una idea
+  // «no mostraba nada», porque habia que scrollear un tunel de nombres para
+  // llegar a ella.
+  //
+  // Ahora el panel no crece con la lista: quien esta CONECTADO sale entero, y el
+  // resto queda en un `<details>` que esta CERRADO. Es la misma informacion con
+  // un techo, y lo que se quiere ver («¿a quién le pregunto?») queda arriba sin
+  // scrollear.
+  //
+  // `MAX_RENGLONES` es un tope de seguridad, no una regla de negocio: si mañana
+  // hay 60 personas conectadas a la vez, el bloque sigue siendo usable.
+  const ordenados = [
+    ...equipo.filter((p) => estadoDe(p, ahora) === 'conectado'),
+    ...equipo.filter((p) => estadoDe(p, ahora) !== 'conectado'),
+  ];
+  const enLinea = ordenados.filter((p) => estadoDe(p, ahora) === 'conectado');
+  const elResto = ordenados.slice(enLinea.length);
+  const aMostrar = (lista: Presencia[], tope: number) => lista.slice(0, tope);
+
+  const renglon = (persona: Presencia) => {
+    const estado = estadoDe(persona, ahora);
+    const tono = TONO[estado];
+    return (
+      <li
+        key={persona.email}
+        className="flex flex-wrap items-baseline justify-between gap-2 border-b border-blanco-10 px-4 py-2 last:border-b-0"
+      >
+        <span className="flex items-baseline gap-2">
+          <Icon
+            name={estado === 'conectado' ? 'pin' : 'user'}
+            className={estado === 'conectado' ? 'text-orquidea' : 'text-blanco-30'}
+          />
+          <span className="font-display text-sm text-blanco">
+            {persona.nombre ?? persona.email}
+          </span>
+        </span>
+        <span className="flex items-baseline gap-2">
+          <span className="font-mono text-[10px] text-blanco-40">
+            {desdeCuando(persona.lastSeenAt, ahora)}
+          </span>
+          <span
+            className={`border px-1.5 py-0.5 font-mono text-[10px] tracking-[0.1em] ${tono.clase}`}
+          >
+            {tono.texto}
+          </span>
+        </span>
+      </li>
+    );
+  };
+
   return (
     <section className="border-2 border-blanco-20" aria-label="Quién está del equipo">
       <header className="flex items-center justify-between border-b-2 border-blanco-20 px-4 py-2">
@@ -127,37 +191,20 @@ export function PanelPresencia({ equipo }: { equipo: Presencia[] }) {
       </header>
 
       <ul className="flex flex-col">
-        {equipo.map((persona) => {
-          const estado = estadoDe(persona, ahora);
-          const tono = TONO[estado];
-          return (
-            <li
-              key={persona.email}
-              className="flex flex-wrap items-baseline justify-between gap-2 border-b border-blanco-10 px-4 py-2 last:border-b-0"
-            >
-              <span className="flex items-baseline gap-2">
-                <Icon
-                  name={estado === 'conectado' ? 'pin' : 'user'}
-                  className={estado === 'conectado' ? 'text-orquidea' : 'text-blanco-30'}
-                />
-                <span className="font-display text-sm text-blanco">
-                  {persona.nombre ?? persona.email}
-                </span>
-              </span>
-              <span className="flex items-baseline gap-2">
-                <span className="font-mono text-[10px] text-blanco-40">
-                  {desdeCuando(persona.lastSeenAt, ahora)}
-                </span>
-                <span
-                  className={`border px-1.5 py-0.5 font-mono text-[10px] tracking-[0.1em] ${tono.clase}`}
-                >
-                  {tono.texto}
-                </span>
-              </span>
-            </li>
-          );
-        })}
+        {aMostrar(enLinea, MAX_RENGLONES).map(renglon)}
       </ul>
+
+      {elResto.length > 0 && (
+        <details className="border-t-2 border-blanco-20">
+          <summary className="flex min-h-[44px] cursor-pointer items-center justify-between px-4 font-mono text-[10px] text-blanco-50">
+            <span>// LOS DEMAS ({elResto.length})</span>
+            <Icon name="chevron" size={11} />
+          </summary>
+          <ul className="flex flex-col">
+            {aMostrar(elResto, MAX_RENGLONES).map(renglon)}
+          </ul>
+        </details>
+      )}
     </section>
   );
 }
