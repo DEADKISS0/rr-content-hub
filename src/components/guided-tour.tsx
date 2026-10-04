@@ -263,7 +263,7 @@ export function GuidedTour() {
            barra que cruzaba la pantalla entera en el móvil y tapaba el borde
            inferior de la lista. En un teléfono un botón de ayuda va en su
            esquina, como en escritorio, y ocupa lo que ocupa. */
-        className="fixed bottom-3 left-3 z-40 inline-flex min-h-[44px] items-center justify-center gap-2 border border-blanco-20 bg-negro px-3 font-mono text-xs text-blanco-70 transition-colors hover:bg-blanco-10 hover:text-blanco sm:bottom-20 sm:left-auto sm:right-4 sm:px-3 sm:py-2"
+        className="fixed bottom-20 left-3 z-40 inline-flex min-h-[44px] items-center justify-center gap-2 border border-blanco-20 bg-negro px-3 font-mono text-xs text-blanco-70 transition-colors hover:bg-blanco-10 hover:text-blanco sm:left-auto sm:right-4 sm:px-3 sm:py-2"
         aria-label="Abrir la guía: te explica cada botón"
         title="¿Cómo se usa?"
       >
