@@ -130,8 +130,14 @@ describe('la guía cabe y se puede cerrar en un teléfono', () => {
        Lo fijaba el parrafo, cuyo `min-content` son 625 px por la frase larga.
 
        Lo que funciona es un tope de ancho de LECTURA: 28 rem, con el texto en
-       dos lineas, y el 100% del padre mandando en movil. A 1440 eso da 490 px
-       de ancho y 209 de alto, contra los 544x434 de partida. */
+       dos lineas. A 1440 eso da 490x227, contra los 544x434 de partida.
+
+       Y va como `max-w`, no como `width`. MEDIDO: con
+       `width: min(28rem,100%)` el panel daba 769 px —`width` es una orden y
+       compite con el `flex-1` de la columna—; con `max-w: 28rem` da 490.
+       `max-w` es un tope, `width` es una orden. Y la fila de botones necesita
+       `w-fit`: sin eso medía 591 px, el ancho entero de la columna, con dos
+       botones que ocupan 147 y 73. */
     // el panel: inline-block, sin display de flex que le gane por orden de hoja
     expect(c).toMatch(/: 'inline-block left-1\/2 w-fit max-h-/);
     // y sin el max-w de 34rem, que era el techo que mantenia los 544 px
@@ -141,7 +147,10 @@ describe('la guía cabe y se puede cerrar en un teléfono', () => {
     expect(panel).not.toMatch(/(^|[\s'`])flex(-col)?([\s'`]|$)/);
     expect(panel).toContain('inline-block');
     // el tope de lectura del texto, con min-w-0 para que pueda encogerse
-    expect(c).toMatch(/min-w-0 w-\[min\(28rem,100\%\)\]/);
+    expect(c).toMatch(/min-w-0 max-w-\[28rem\]/);
+    // la fila de botones tambien: sin w-fit media 591 px, el ancho de la
+    // columna, con dos botones que ocupan 147 y 73
+    expect(c).toMatch(/flex w-fit flex-wrap items-center gap-3/);
     // el tope de altura sigue, para el caso de un texto largo
     expect(c).toMatch(/max-h-\[calc\(100dvh-2rem\)\]/);
   });
