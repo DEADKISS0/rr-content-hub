@@ -23,12 +23,31 @@ import { Icon } from './ui/icons';
  */
 const CLAVE = 'rr-hub-guia-v1';
 
-type Paso = { target: string; titulo: string; texto: string };
+type Paso = {
+  target: string;
+  /**
+   * MEDIDO 2026-10-04. En un celular el objetivo de escritorio puede estar
+   * FUERA de la pantalla —la barra lateral vive en `x=-288`, escondida tras un
+   * botón— y entonces el recuadro no tiene a quién posarse. MEDIDO en 390 px: el
+   * paso 1 («Este es el menú») mide el `aside`, da `left=-288`, y el recuadro
+   * no se pinta: la guía se lee sin ninguna marca.
+   *
+   * Con este campo, el paso dice dónde está lo mismo en el celular. Si no
+   * existe, se usa `target` y queda como estaba.
+   */
+  targetMovil?: string;
+  titulo: string;
+  texto: string;
+};
 
 /** El tablero: de lo general a lo particular, en el orden en que se usa. */
 const PASOS_TABLERO: Paso[] = [
   {
     target: 'aside',
+    // MEDIDO 2026-10-04: en 390 px el `aside` está en x=-288, fuera de la
+    // pantalla, así que el recuadro no tenía dónde posarse. En el celular lo que
+    // se ve es el botón que la abre.
+    targetMovil: 'button[aria-label="Menú principal"]',
     titulo: 'Este es el menú',
     texto: 'Está a la izquierda. Cada línea te lleva a una parte del hub. Nada de lo que toques aquí borra información: puedes tocar sin miedo.',
   },
@@ -163,6 +182,23 @@ export function GuidedTour() {
     return () => window.removeEventListener('resize', medir);
   }, []);
 
+  /**
+   * El selector del paso, segun el ancho.
+   *
+   * MEDIDO 2026-10-04: el paso 1 apunta al `aside`, que en 390 px está en
+   * x=-288 —fuera de pantalla, porque la barra vive detrás de un botón—. El
+   * paso se leía sin recuadro. Con `targetMovil` el mismo paso señala el botón,
+   * que es lo que el usuario tiene delante.
+   *
+   * Se prueba el de móvil primero y, si no existe, el de escritorio: así el
+   * paso no se salta en ninguno de los dos.
+   */
+  const selectorDe = useCallback((paso: Paso | undefined): string => {
+    if (!paso) return '';
+    if (movil && paso.targetMovil && document.querySelector(paso.targetMovil)) return paso.targetMovil;
+    return paso.target;
+  }, [movil]);
+
   // La primera visita abre la guía sola. Terminarla o saltarla la marca vista:
   // una guía que vuelve a saltar en cada pantalla deja de ser ayuda y pasa a
   // ser estorbo. El botón flotante siempre está para volver a abrirla.
@@ -179,7 +215,7 @@ export function GuidedTour() {
   }, []);
 
   const medir = useCallback((indice: number) => {
-    const objetivo = document.querySelector(pasos[indice]?.target ?? '');
+    const objetivo = document.querySelector(selectorDe(pasos[indice]));
     if (!objetivo) {
       setCaja(null);
       return false;
@@ -187,7 +223,7 @@ export function GuidedTour() {
     const r = objetivo.getBoundingClientRect();
     setCaja({ top: r.top, left: r.left, width: r.width, height: r.height });
     return true;
-  }, [pasos]);
+  }, [pasos, selectorDe]);
 
   /** ¿Ya se ve entero? Entonces no movemos la página: moverla marea. */
   const yaSeVe = useCallback((objetivo: Element) => {
@@ -203,14 +239,14 @@ export function GuidedTour() {
     if (paso === null) return;
     const t = window.setTimeout(() => {
       let n = paso;
-      while (n < pasos.length && !document.querySelector(pasos[n].target)) n += 1;
+      while (n < pasos.length && !document.querySelector(selectorDe(pasos[n]))) n += 1;
 
       if (n !== paso) {
         setPaso(n < pasos.length ? n : null);
         return;
       }
 
-      const objetivo = document.querySelector(pasos[n].target);
+      const objetivo = document.querySelector(selectorDe(pasos[n]));
       if (!objetivo) return;
       if (!yaSeVe(objetivo)) {
         objetivo.scrollIntoView({ block: 'center', behavior: reducido.current ? 'auto' : 'smooth' });
@@ -221,7 +257,7 @@ export function GuidedTour() {
       tarjeta.current?.focus({ preventScroll: true });
     }, reducido.current ? 0 : 80);
     return () => window.clearTimeout(t);
-  }, [paso, pasos, medir, yaSeVe]);
+  }, [paso, pasos, medir, yaSeVe, selectorDe]);
 
   // El recuadro queda pegado al objetivo si la página se mueve.
   useEffect(() => {

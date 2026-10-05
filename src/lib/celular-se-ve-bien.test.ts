@@ -93,6 +93,26 @@ describe('el hub se ve bien en un celular', () => {
       expect(fuente).toMatch(/visibleEn\(caja\)/);
     });
 
+    // MEDIDO 2026-10-04 en producción, ya desplegado: con el recuadro
+    // devuelto, seguia sin pintarse. La causa era que el paso 1 mide el `aside`,
+    // que en 390 px vive en x=-288 —FUERA de la pantalla, detrás del botón que
+    // la abre—. `visibleEn` hacía bien su trabajo: no pinta un rectángulo sobre
+    // algo que no está. El paso es el que estaba mal, no el que lo dibuja.
+    it('el paso del menú dice dónde está el menú en el celular', () => {
+      expect(fuente).toMatch(/targetMovil\?: string/);
+      expect(fuente).toMatch(/targetMovil: 'button\[aria-label="Menú principal"\]'/);
+    });
+
+    it('el selector del paso se resuelve según el ancho, no siempre el de escritorio', () => {
+      // Un solo lugar decide: si esto se reparte por tres sitios, el próximo que
+      // añada un paso vuelve a medir el `aside` y pierde el recuadro.
+      expect(fuente).toMatch(/const selectorDe = useCallback/);
+      expect(fuente).toMatch(/movil && paso\.targetMovil/);
+      // Y los tres usos pasan por ahí.
+      const usos = (fuente.match(/querySelector\(selectorDe\(/g) ?? []).length;
+      expect(usos).toBeGreaterThanOrEqual(2);
+    });
+
     it('calcula abajo y derecha a mano: el estado no los trae', () => {
       // MEDIDO: con `c.bottom` sobre `undefined`, toda comparación da false y el
       // recuadro NO se pinta nunca. El bug vestido de arreglo.
