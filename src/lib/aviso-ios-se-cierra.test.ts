@@ -56,6 +56,15 @@ describe('el aviso de iPhone se cierra de verdad', () => {
   it('el aviso no se pinta si ya se cerro', () => {
     // La condicion que decide. Si el store no se actualiza, esto nunca es
     // `false` y el panel se queda.
-    expect(instalar).toMatch(/if \(esIOS && !cerradoIOS\)/);
+    //
+    // MEDIDO 2026-10-05: se reescribió la condición como
+    //   `if (esIOS) { if (cerradoIOS) return null; ... }`
+    // para poder distinguir «cerrado» (se oculta) de «nunca se pidió» (también se
+    // oculta, pero por otra razón). El test viejo buscaba la cadena exacta y
+    // fallaba con el código correcto: ataba el test a una forma de escribir, no
+    // a lo que hace. Ahora se comprueba lo que importa: que cerrado sale sin
+    // pintar nada.
+    expect(instalar).toMatch(/if \(cerradoIOS\) return null;/);
+    expect(instalar).toMatch(/if \(esIOS\)/);
   });
 });

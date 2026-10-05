@@ -102,6 +102,14 @@ const oyenteEntorno = (alCambiar: () => void) => {
 };
 const FALSO = () => false;
 
+export function reabrirAvisoDeInstalar() {
+  try { localStorage.removeItem(CLAVE_IOS); } catch { /* da igual */ }
+  // MEDIDO 2026-10-05: quitar la clave no basta — el aviso se lee con
+  // `useSyncExternalStore`, y `storage` no avisa a la pestana que escribe. Sin
+  // este `dispatch`, el botón no hacía nada visible hasta recargar.
+  window.dispatchEvent(new Event(EVENTO_IOS));
+}
+
 export function InstalarApp() {
   const [invitacion, setInvitacion] = useState<Instalar | null>(null);
   const [instaladaAhora, setInstaladaAhora] = useState(false);
@@ -176,7 +184,11 @@ export function InstalarApp() {
 
   // iOS: no hay evento, se le explica el camino. Un boton que no hace nada es peor
   // que un texto que dice que hacer.
-  if (esIOS && !cerradoIOS) {
+  // MEDIDO 2026-10-05: si la persona ya le dio ENTENDIDO, el aviso no vuelve a
+  // salir solo —pero tampoco se queda sin salida: hay un boton para pedirlo de
+  // nuevo. Respetar la decision no es cerrar la puerta con llave.
+  if (esIOS) {
+    if (cerradoIOS) return null;
     return (
       // MEDIDO 2026-10-04 con el dedo: este aviso estaba en `bottom-16` con
       // `w-[min(92vw,26rem)]`, y el botón flotante de la guía vive en `bottom-20`

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { Icon } from './ui/icons';
+import { reabrirAvisoDeInstalar } from './instalar-app';
 
 /**
  * Modo guía.
@@ -330,6 +331,23 @@ export function GuidedTour() {
         <span>¿CÓMO SE USA?</span>
       </button>
 
+      {/*
+        MEDIDO 2026-10-05 (informe del tester): el aviso de instalar se guardaba
+        en `sessionStorage` y voltaba en cada recarga, y la guia se leia como «un
+        cuadro que bloquea la pagina». Con el aviso ahora respetado para siempre,
+        hacia falta una vuelta atras sin obligar a nadie a limpiar el navegador.
+        Este boton es esa vuelta atras, y vive junto al de la guia para no
+        inventar una pantalla nueva.
+      */}
+      <button
+        type="button"
+        onClick={reabrirAvisoDeInstalar}
+        className="fixed bottom-14 right-3 z-40 hidden h-9 items-center border border-blanco-20 bg-negro px-2.5 font-mono text-[10px] text-blanco-60 transition-colors hover:border-blanco-40 hover:text-blanco sm:flex"
+        aria-label="Volver a mostrar el aviso de instalar en el iPhone"
+      >
+        <Icon name="upload" size={12} /> AVISO INSTALAR
+      </button>
+
       {abierto && (
         <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="guia-titulo">
           {/* El recuadro que se posa sobre el botón. La sombra gigante atenúa
@@ -403,7 +421,7 @@ export function GuidedTour() {
                    caracteres. Lo que se pide es que RODEE EL MENSAJE, no que
                    ocupe media pantalla. El ancho de lectura lo pone la zona
                    del texto, dos niveles más abajo. */
-                : 'inline-block left-1/2 w-fit max-h-[calc(100dvh-2rem)] -translate-x-1/2 overflow-y-auto p-5'
+                : 'inline-block left-1/2 w-fit max-h-[calc(100dvh-2rem)] -translate-x-1/2 overflow-y-auto p-5 pt-14 sm:pt-14'
             }`}
             /*
              * MEDIDO 2026-10-01: esto estaba anclado con
@@ -496,6 +514,27 @@ export function GuidedTour() {
                   ? 'min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1'
                   : 'min-w-0 max-w-[28rem]'
               }>
+            {/*
+              MEDIDO 2026-10-05 (informe del tester, PC y móvil): la guía salía
+              como «un cuadro que bloquea la página». Tenia salida —`SALTAR`, Escape
+              y `YA ENTENDÍ`— pero los tres estaban ABAJO, y el paso 1 de 6 mide
+              490x270 en escritorio: en un iPhone el botón de saltar queda por
+              debajo del pliegue de la tarjeta y quien entra no ve que hay salida.
+              El resultado es una pantalla que parece rota y una app bloqueada.
+
+              La salida va arriba, a la derecha, donde el ojo ya está: una X
+              grande. Es la convención que cualquiera reconoce sin instrucción, y
+              no depende de descubrir el texto. Los botones de abajo siguen
+              estando para quien prefiera recorrer la guía entera.
+            */}
+            <button
+              type="button"
+              onClick={cerrar}
+              aria-label="Cerrar la guía"
+              className="absolute right-3 top-3 flex h-11 w-11 shrink-0 items-center justify-center border border-blanco-30 bg-negro text-blanco-70 transition-colors hover:border-blanco-60 hover:text-blanco"
+            >
+              <Icon name="close" size={18} />
+            </button>
                 <p className="font-mono text-[11px] tracking-[0.1em] text-blanco-60 sm:text-xs sm:text-blanco-50">
                   PASO {paso! + 1} DE {pasos.length}
                 </p>
