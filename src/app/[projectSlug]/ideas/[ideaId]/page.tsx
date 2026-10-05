@@ -18,7 +18,8 @@ import { ProductionPipeline } from '@/components/production-pipeline';
 import { ScriptEditor } from '@/components/script-editor';
 import { Chip } from '@/components/ui/chips';
 import { formatOf } from '@/components/ui/cover';
-import { BriefRail, PhaseRail, briefState } from '@/components/ui/meter';
+import { PhaseRail, briefState } from '@/components/ui/meter';
+import { PanelFaltan } from '@/components/panel-faltan';
 import { Icon, type IconName } from '@/components/ui/icons';
 import { statusMeta, productionStep, daysSince, type WorkflowStatus } from '@/lib/flow';
 
@@ -298,21 +299,25 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
             currentName={responsable?.full_name ?? null}
             canAssign={rol === 'owner'}
           />
-          <div className="border border-blanco-20 p-5 anim-rise">
-            <p className="mono-label text-blanco-50">// LO QUE FALTA DE ESTA FICHA</p>
-            <p className="mt-3 font-mono text-[10px] leading-5 text-blanco-60">
-              {missing.length
-                ? `Faltan ${missing.length} de 5 datos. Sin ellos la pieza no está lista para ir al cliente.`
-                : 'Los cinco datos están completos: la pieza puede circular sin preguntas.'}
-            </p>
-            <div className="mt-4"><BriefRail states={states} /></div>
-            {missing.length > 0 && <ul className="mt-4 space-y-2">
-              {missing.map((state) => <li key={state.key} className="flex items-center gap-2 font-mono text-[10px] text-blanco-60">
-                <Icon name={state.icon as IconName} size={11} className="text-blanco-30" />
-                FALTA {state.label}
-              </li>)}
-            </ul>}
-          </div>
+          {/* MEDIDO 2026-10-04, Santiago: «el apartado que dice lo que falta de
+              esta ficha que sea más interactivo o se me salte como en un pop up que
+              son como las cosas que me faltan, para que tenga toda la
+              información».
+
+              Antes eran cinco renglones de texto gris en una caja al final de la
+              columna, y el que leía el nombre de la pieza no los veía nunca.
+              MEDIDO: ese bloque estaba en y=5817 con una página de 6423 px — al
+              final de todo, a 6 scrolls de donde empieza la ficha.
+
+              Ahora es un botón en la cabecera, y al tocarlo salta un panel con los
+              cinco datos: los que faltan marcados en mostaza y los que ya están
+              con el valor que tienen. Un «lo que falta» que solo dice qué falta
+              obliga a ir a buscarlo; uno que además dice qué hay ya, sirve para
+              decidir sin moverse.
+
+              El botón no se aparece cuando no falta nada: en ese caso la pieza
+              está lista y no hay nada que abrir. */}
+          <PanelFaltan states={states} missing={missing} />
 
           {/* LA PORTADA VA AQUÍ, EN LA COLUMNA DE AL LADO Y ABAJO DE TODO.
               Santiago, 2026-09-30: "cuando uno abre una idea aparece primero como
