@@ -200,6 +200,7 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
         open={dirty || todasAbiertas}
         onToggle={(e) => setTodasAbiertas((e.currentTarget as HTMLDetailsElement).open)}
         className="group/todas border border-blanco-20"
+        data-tablero-ideas="si"
       >
         <summary className="inline-flex w-full cursor-pointer list-none items-center gap-2 px-4 py-3 font-mono text-sm text-blanco-60 transition-colors hover:bg-blanco-05 hover:text-blanco">
           <Icon name="chevron" size={13} className="transition-transform group-open/todas:rotate-180" />
@@ -303,7 +304,7 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
                           <h4 className="font-display text-base font-bold leading-tight text-blanco group-hover:text-blanco-90">
                             <Link
                               href={`/${projectSlug}/ideas/${idea.id}`}
-                              className="outline-none after:pointer-events-none after:absolute after:inset-0 after:content-[''] hover:underline"
+                              className="outline-none after:absolute after:inset-0 after:content-[''] hover:underline"
                             >
                               {idea.title}
                             </Link>

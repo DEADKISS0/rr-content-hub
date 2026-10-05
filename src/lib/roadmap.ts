@@ -10,7 +10,7 @@
  *
  * Y un cambio de fondo en la cadencia: **una sola sesión de graduación al mes,
  * no una por semana**. Antes el planGenerating 22 semanas con cinco piezas
- * cada una, 110 piezas, y ninguna جلسة tenía fecha de cierre real. Ahora cada
+ * cada una, 110 piezas, y ninguna sesion tenia fecha de cierre real. Ahora cada
  * mes tiene UNA sesión y un cierre, y el emphasis de octubre es la pauta
  * publicitaria, que es lo que hay que producir.
  *
@@ -70,7 +70,7 @@ const WEEK_DAY_NAMES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'v
 
 /**
  * Arranque del plan. Es un parámetro, no un `new Date(...)` dentro de la
- * генера: un literal de fecha en un módulo se evalúa en build y cada deploy
+ * generica: un literal de fecha en un modulo se evalua en build y cada deploy
  * re-databa el plan entero sin que nadie lo notara.
  */
 export const ROADMAP_START_ISO = '2026-10-01';

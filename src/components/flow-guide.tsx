@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { statusMeta, STATUS_META, VOTOS_NECESARIOS, allowedTransitions, type WorkflowStatus } from '@/lib/flow';
 import { BOARD_COLUMNS } from '@/lib/queues';
 import { Icon, type IconName } from './ui/icons';
@@ -44,6 +44,29 @@ export function FlowGuide({
     count: ideas.filter((idea) => (item.statuses as readonly string[]).includes(idea.status)).length,
   }));
   const total = Math.max(1, ideas.length);
+
+  /**
+   * MEDIDO 2026-10-04, Santiago: «en el apartado de piezas si le doy en ideas,
+   * que me haga el scroll automático hacia abajo donde despliega las ideas».
+   *
+   * MEDIDO antes de arreglar: el botón PASO 01 está en y=1682 y el tablero que
+   * se despliega queda en y=2766 — 1.084 px más abajo, fuera de una pantalla de
+   * 844 px. Tocarlo cambiaba el filtro y no se veía nada cambiar: el tablero
+   * seguía por debajo y el botón parecía no funcionar.
+   *
+   * `requestAnimationFrame` porque el tablero se pinta después del clic: con el
+   * desplazamiento en el mismo tick se mide la posición vieja y el tablero
+   * sigue abajo. Es el mismo motivo por el que el botón «parecía no hacer nada».
+   */
+  const irAlTablero = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    requestAnimationFrame(() => {
+      document.querySelector('[data-tablero-ideas]')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+  }, []);
   // El conteo global salió de aquí a propósito: las cuatro tarjetas de paso ya
   // dicen cuántas piezas hay en cada uno y la barra de control dice el total
   // filtrado. Repetirlo en tres lugares era parte del ruido.
@@ -75,7 +98,13 @@ export function FlowGuide({
             <li key={item.key} className="bg-negro">
               <button
                 type="button"
-                onClick={() => onPhase(active ? 'all' : item.key)}
+                onClick={() => {
+                  onPhase(active ? 'all' : item.key);
+                  // MEDIDO 2026-10-04: el paso 01 filtra el tablero, que queda
+                  // 1.084 px más abajo. Sin esto el botón «no hace nada» porque
+                  // el cambio ocurre fuera de la pantalla.
+                  if (!active) irAlTablero();
+                }}
                 aria-pressed={active}
                 title={`${item.label} · ${item.plain}`}
                 className={`step-card group flex h-full w-full flex-col gap-2 p-4 text-left transition-all ${active ? 'bg-blanco-10' : 'hover:bg-blanco-05'}`}

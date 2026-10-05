@@ -21,7 +21,21 @@ export function ContentTypeTabs({
   ];
 
   return (
-    <nav aria-label="Tipo de contenido" className="flex gap-1">
+    // MEDIDO 2026-10-04, Santiago: «no es responsive a celular».
+    //
+    // El `nav` era `flex gap-1` sin envolver. Las tres pestañas con `px-4` dan
+    // 402 px de ancho: MEDIDO en producción, el botón «PAUTA 21» llegaba a
+    // x=402 con un viewport de 390, y a x=402 con uno de 320. Se salía por la
+    // derecha en ambos.
+    //
+    // Se deja de envolver a propósito: envolver parte el filtro en dos renglones
+    // y lo que se busca es un filtro de tres palabras, no un párrafo. Con
+    // `overflow-x-auto` las tres siguen en una línea y si no caben se deslizan,
+    // que en un teléfono es lo natural.
+    <nav
+      aria-label="Tipo de contenido"
+      className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
       {tabs.map((tab) => {
         const active = value === tab.key;
         return (
@@ -30,7 +44,7 @@ export function ContentTypeTabs({
             onClick={() => onChange(tab.key)}
             aria-current={active ? 'page' : undefined}
             className={`
-              group inline-flex items-center gap-2 px-4 py-2.5 font-mono text-xs tracking-wider uppercase
+              group inline-flex shrink-0 items-center gap-2 px-3 py-2.5 font-mono text-xs tracking-wider uppercase sm:px-4
               border transition-all duration-150
               ${active
                 ? 'bg-blanco text-negro border-blanco font-bold'

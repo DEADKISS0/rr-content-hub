@@ -132,6 +132,29 @@ export function GuidedTour() {
    * pantalla completa con el texto en una zona que se baja y los botones FIJOS
    * abajo, siempre visibles. Que es como funciona un tutorial en un teléfono.
    */
+  /**
+   * Si el objetivo tiene algo que ver en pantalla.
+   *
+   * MEDIDO 2026-10-04: sin esto, el recuadro se pinta sobre una zona vacía cuando
+   * el paso habla de un botón que está fuera del viewport. Un rectángulo flotando
+   * en el negro no señala nada: hace creer que el botón está ahí.
+   *
+   * Con un margen de 20 px: si el botón asoma aunque sea un borde, el recuadro se
+   * pega a esa esquina y sí orienta.
+   */
+  const visibleEn = useCallback((c: { top: number; left: number; width: number; height: number }): boolean => {
+    if (typeof window === 'undefined') return false;
+    // El estado guarda las cuatro aristas del origen, no `bottom`/`right`, así que
+    // se calculan aquí. MEDIDO: con `c.bottom` sobre `undefined` toda comparación
+    // da `false` y el recuadro NO se pinta nunca — el mismo bug, por otra vía.
+    const abajo = c.top + c.height;
+    const derecha = c.left + c.width;
+    return c.top < window.innerHeight - 20
+      && abajo > 20
+      && c.left < window.innerWidth - 8
+      && derecha > 8;
+  }, []);
+
   const [movil, setMovil] = useState(false);
   useEffect(() => {
     const medir = () => setMovil(window.innerWidth < 768);
@@ -281,23 +304,38 @@ export function GuidedTour() {
               usuario queda encerrado en la guía. Por eso el overlay tampoco
               cierra al hacer clic fuera — cerrarlo sería un descuido. Lo que
               se puede es saltar, con Escape o el botón. */}
-              {/* MEDIDO 2026-10-03: en móvil el recuadro se descarta. El objetivo se
-             orce outside y el panel ocupa casi toda la pantalla; un borde de
-              300 px pegado a un elemento que no se ve solo añade ruido. */}
-          {caja && !movil && (
+              {/* MEDIDO 2026-10-04. El recuadro AMARILLO es la seña de «este es
+              el botón del que habla este paso», y en móvil no se pintaba: la
+              condición era `caja && !movil`. MEDIDO: en 390 px salía `false`, o
+              sea que se leían los pasos sin ninguna marca sobre el botón.
+
+              Se quitó el 2026-10-03 con un motivo real: en móvil el panel es una
+              hoja casi a pantalla completa y el objetivo queda fuera de vista, así
+              que un borde de 300 px pegado a algo que no se ve es ruido. Eso
+              sigue siendo cierto, y por eso la sombra gigante no vuelve a móvil:
+              el recuadro regresa sin ella.
+
+              Y se acota a lo que se ve: si el objetivo queda fuera del viewport no
+              se pinta un rectángulo flotando en el vacío, porque eso no señala el
+              botón — hace creer que está ahí. */}
+          {caja && visibleEn(caja) && (
             <div
               aria-hidden="true"
+              data-guia-recuadro="si"
               className="pointer-events-none fixed border-2 border-mostaza"
               style={{
-                top: Math.max(4, caja.top - 6),
-                left: Math.max(4, caja.left - 6),
+                top: Math.max(4, Math.min(caja.top - 6, window.innerHeight - 20)),
+                left: Math.max(4, Math.min(caja.left - 6, window.innerWidth - 12)),
                 width: Math.min(caja.width + 12, window.innerWidth - 8),
-                height: caja.height + 12,
-                boxShadow: '0 0 0 9999px rgba(7,0,1,0.45)',
+                height: Math.min(caja.height + 12, window.innerHeight - 8),
+                // La sombra gigante solo en escritorio: se come los clics de la
+                // pantalla entera, y en un panel de móvil el recuadro ya está
+                // encima de una hoja atenuada.
+                boxShadow: movil ? 'none' : '0 0 0 9999px rgba(7,0,1,0.45)',
               }}
             />
           )}
-          {(movil || !caja) && <div aria-hidden="true" className="pointer-events-none fixed inset-0 bg-negro/45" />}
+          {!movil && !caja && <div aria-hidden="true" className="pointer-events-none fixed inset-0 bg-negro/45" />}
 
           <div
             ref={tarjeta}

@@ -9,7 +9,7 @@ import { clienteExiste } from '@/lib/projects';
  *
  * Por qué existe: cada código abre un solo cliente, así que la forma de pasar de
  * Wundeer a Candilejas era cerrar sesión y teclear el otro código. Con tres o
- * cuatro clientes eso es un peaje por cada salto, y quien lo教育厅aba se quedaba
+ * cuatro clientes eso es un peaje por cada salto, y quien lo tecleaba se quedaba
  * en el primero.
  *
  * ⚠️ La decisión —"cambio de cliente" sin volver a teclear el código— es de

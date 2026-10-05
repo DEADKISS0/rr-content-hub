@@ -29,7 +29,7 @@ describe('la ficha de la idea muestra la portada', () => {
   it('la muestra NO va arriba del texto, sino aparte y etiquetada', () => {
     // ESTE TEST PEDIA LO CONTRARIO HASTA HACE UN MOMENTO, y por eso hay que
     // contarlo. Pedía la portada "grande y arriba del texto, no al final", por
-    //的理由 de que quien abría la idea leía tres párrafos antes de ver de qué
+    // La razon de que quien abria la idea leía tres párrafos antes de ver de qué
     // iba.
     //
     // Santiago lo revirtió el 2026-09-30: "cuando uno abre una idea aparece

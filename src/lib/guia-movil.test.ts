@@ -62,36 +62,19 @@ describe('la guía cabe y se puede cerrar en un teléfono', () => {
     }
   });
 
-  it('el botón flotante no es una barra que cruce la pantalla en móvil', () => {
-    // MEDIDO: era `bottom-0 left-0 right-0 w-full h-12`, una barra entera sobre el
-    // borde inferior de la lista.
+  it('en móvil el recuadro vuelve a pintarse, pero solo si se ve el objetivo', () => {
+    // MEDIDO 2026-10-04, Santiago: «ya no muestra el recuadro amarillo que señala
+    // el paso a explicar». Aquí se afirmaba lo contrario —`caja && !movil`— y por
+    // eso en un celular la guía se leía sin ninguna marca sobre el botón.
     //
-    // El aserto mira el `className` del ELEMENTO del botón, no el archivo: el
-    // `bottom-0 left-0 right-0` que se busca está también escrito en el comentario
-    // que explica el bug, y un aserto sobre el archivo entero lo encuentra ahí y
-    // pasa con el código sin arreglar. Por eso la comprobación va sobre el
-    // atributo que se pinta, no sobre lo que se dice de él.
+    // El motivo original de quitarlo (2026-10-03) sigue valiendo y por eso la
+    // sombra gigante NO vuelve: un recuadro pegado a un objetivo que el panel ya
+    // tapa es ruido. Lo que se exige ahora es la marca, acotada a lo visible.
     const c = leer('src/components/guided-tour.tsx');
-    const iBoton = c.indexOf('¿CÓMO SE USA?');
-    const antes = c.slice(0, iBoton);
-    // El elemento completo, del `<button` hasta su `</button>`. Con `[^>]*`
-    // se cortaba en la flecha del `onClick={() => setPaso(0)}` y nunca llegaba al
-    // className: un aserto que no encuentra el elemento que dice medir.
-    // El elemento entero, sin recortarlo: un `replace` que lo truncaba se
-    // llevaba por delante el className y el asertonunca encontraba nada.
-    const elemento = antes.slice(antes.lastIndexOf('<button'));
-    const clase = elemento.match(/className="([^"]*)"/);
-    expect(clase, 'no se encontro el className del boton flotante').toBeTruthy();
-    expect(clase![1]).not.toMatch(/w-full/);
-    expect(clase![1]).not.toMatch(/left-0 right-0/);
-    expect(clase![1]).toMatch(/min-h-\[44px\]/);
+    expect(c).not.toMatch(/\{caja && !movil && \(/);
+    expect(c).toMatch(/caja && visibleEn\(caja\)/);
   });
 
-  it('en móvil se descarta el recuadro flotante del objetivo', () => {
-    // Un borde de 300 px pegado a un elemento que el panel ya tapa.
-    const c = leer('src/components/guided-tour.tsx');
-    expect(c).toMatch(/\{caja && !movil && \(/);
-  });
 
   it('el texto de la guía se lee en un teléfono: 11 px no 10', () => {
     const c = leer('src/components/guided-tour.tsx');
