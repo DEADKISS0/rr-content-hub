@@ -1024,7 +1024,7 @@ export async function getClientesDeLaPersona(): Promise<{
   // todo el que llega, y la portada seguía announcing LECTURA.
   //
   // Lo que se conserva: si la persona TIENE fila en `rr_hub_access`, su rol de
-  // ahí manda y se muestra. Lo que se quita es el 默认 de solo lectura, que ya
+  // ahí manda y se muestra. Lo que se quita es el default de solo lectura, que ya
   // no describe lo que pasa.
   const abiertos = conocidos.map((p) => ({ ...p, rol: rolPorProyecto.get(p.id) ?? 'owner' }));
 

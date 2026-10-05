@@ -52,7 +52,7 @@ describe('la ficha muestra TODAS las referencias de la idea', () => {
 /**
  * El orden importa y hay una razón: la primera referencia es la que el equipo
  * eligió como la buena, pero si esa no se puede ver, la ficha no puede quedarse
- * en negro. El bloque tiene queikz本身 embebibles primero.
+ * en negro. El bloque tiene que dejar solo las embebibles primero.
  */
 describe('si la referencia principal no se ve, otra tiene que llenar ese lugar', () => {
   it('el bloque ordena por embebible antes de pintar', () => {

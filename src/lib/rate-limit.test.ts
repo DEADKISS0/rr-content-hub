@@ -116,7 +116,7 @@ describe('el que se pasó no se entera de que se pasó', () => {
   it('el Retry-After va en la cabecera, no en el cuerpo', () => {
     const s = segundosParaReintentar({ fallos: 9, desde: T0, hasta: T0 + VENTANA_MS }, T0);
     expect(s).toBeGreaterThan(0);
-    // Solo para navegadores合法: un reintento automático del propio código
+    // Solo para navegadores legitimos: un reintento automático del propio código
     // sigue siendo un intento más, que es justo lo que se quiere frenar.
     expect(s).toBeLessThanOrEqual(Math.ceil(VENTANA_MS / 1000));
   });

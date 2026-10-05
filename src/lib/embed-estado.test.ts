@@ -116,7 +116,7 @@ describe('el embed declara su estado', () => {
     expect(embed).toMatch(/text-mostaza/);
   });
 
-  it('NO画出 ningún mensaje encima del post ya pintado', () => {
+  it('NO pinta ningun mensaje encima del post ya pintado', () => {
     // Si el aviso aparece con el embed vivo, tapa el contenido y además dice
     // "cargando" sobre algo que ya cargó.
     expect(embed).toMatch(/\{estado !== 'vivo' &&/);

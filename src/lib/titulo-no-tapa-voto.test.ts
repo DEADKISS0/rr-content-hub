@@ -19,7 +19,18 @@ import { join } from 'node:path';
  * código esté mal escrito, es que hay que mirarlo con el dedo.
  *
  * Por eso estos asertos se leen sobre el CÓDIGO, pero lo que protegen es lo que
- * se MIDIO: que el pseudo-elemento no intercepte el toque.
+ * se MIDIO.
+ *
+ * ACTUALIZADO 2026-10-04. La primera versión de estos tests afirmaba que el
+ * pseudo-elemento no debía interceptar el toque, y ese arreglo —quitarle los
+ * eventos— dejó la TARJETA ENTERA sin abrir la ficha. MEDIDO después: cinco
+ * puntos de la tarjeta, `SPAN`, `DIV` o nada. Nunca el enlace. Se arregló una
+ * cosa rompiendo la otra.
+ *
+ * La lección que queda escrita: un patrón que estira el enlace sobre la tarjeta
+ * entera y, a la vez, unos botones dentro de esa tarjeta, no se resuelven
+ * se resuelven apagando el patrón — se resuelven poniendo los botones por encima. Esa es la
+ * forma correcta y la que estos tests sostienen ahora.
  */
 const RAIZ = join(__dirname, '..');
 
@@ -34,17 +45,32 @@ describe('el titulo estirable no se come los botones', () => {
     expect(mapa).toMatch(/<article[\s\S]{0,400}className=\{`[^`]*\brelative\b/);
   });
 
-  it('el pseudo-elemento del titulo no intercepta el toque', () => {
-    // ESTA es la linea que arregla el bug. Sin `after:pointer-events-none`, el
-    // pseudo cubre la tarjeta y el dedo toca el titulo en cualquier sitio.
+  it('el pseudo-elemento abre la ficha y el voto queda por encima', () => {
+    // MEDIDO 2026-10-04 con dedo real a 390x844: `elementFromPoint` en cinco
+    // puntos dentro de la tarjeta devolvió SPAN, DIV o nada — nunca el enlace.
+    // La tarjeta NO abría la ficha, y la causa era este mismo arreglo.
+    //
+    // Antes: el pseudo llevaba `pointer-events-none` para que el botón de votar
+    // fuera alcanzable. Eso lo consiguió, pero al quitarle los eventos al pseudo
+    // el pseudo dejó de ser el blanco del toque, así que el dedo pasaba de largo
+    // en toda la tarjeta menos en el botón. Arreglar el voto tapó la tarjeta.
+    //
+    // Ahora: el pseudo vuelve a recibir el toque —eso es lo que hace que toda la
+    // tarjeta abra la ficha— y el botón de votar sube por encima con
+    // `relative z-10`, que es lo que lo saca de debajo del pseudo. Las dos cosas
+    // a la vez, con un solo elemento.
     const enlace = mapa.match(/href=\{`\/\$\{projectSlug\}\/ideas\/\$\{idea\.id\}`\}[\s\S]{0,400}?>/);
     expect(enlace?.[0], 'no se encuentra el enlace del titulo').toBeTruthy();
-    expect(enlace![0]).toMatch(/after:pointer-events-none/);
+    expect(enlace![0]).not.toMatch(/after:pointer-events-none/);
+    expect(enlace![0]).toMatch(/after:absolute after:inset-0/);
+    // El voto es lo único que debe quedar por encima del pseudo.
+    expect(mapa).toMatch(/contenedorClase="relative z-10"/);
     // Y que no queden clases muertas del intento anterior: `pointer-events-auto`
-    // y `z-0` en el enlace no hacen nada con el pseudo ya transparente al toque,
-    // y una clase que no hace nada es una clase que el proximo no sabe leer.
+    // y `z-0` en el enlace no hacen nada, y una clase que no hace nada es una
+    // clase que el proximo no sabe leer.
     expect(enlace![0]).not.toMatch(/pointer-events-auto|relative z-0/);
   });
+
 
   it('los botones de votar van por encima del titulo estirable', () => {
     // `pointer-events-none` deja pasar el dedo al boton, pero el pseudo sigue
