@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { transitionIdeaStatus, type TimelineEvent } from '@/lib/workspace-client';
+import { postWorkspaceAction, transitionIdeaStatus, type TimelineEvent } from '@/lib/workspace-client';
 import { STATUS_META, TONE_CLASS, allowedTransitions, statusMeta, waitingOn, ROLE_KEYS, PUEDE_BORRAR, PUEDE_BORRAR_ESTADOS, type RoleKey, type WorkflowStatus } from '@/lib/flow';
 import { PUBLIC_MODE } from '@/lib/mode';
+import { perfilElegido, suscribirPerfil } from '@/lib/perfil-votante';
 
 /**
  * Guided hand-off. The person sees where the piece is, who acts now, and at
@@ -12,7 +13,7 @@ import { PUBLIC_MODE } from '@/lib/mode';
  * (ENVIAR A CLIENTE, no "siguiente") and, on click, the note previews what
  * happens next so nobody presses blind.
  */
-export function IdeaActions({ ideaId, currentStatus = 'pending_approval', role = 'client_viewer' }: { projectSlug: string; ideaId: string; currentStatus?: string; role?: string }) {
+export function IdeaActions({ projectSlug, ideaId, currentStatus = 'pending_approval', role = 'client_viewer' }: { projectSlug: string; ideaId: string; currentStatus?: string; role?: string }) {
   const [status, setStatus] = useState<WorkflowStatus>(currentStatus as WorkflowStatus);
   const [history, setHistory] = useState<TimelineEvent[]>([]);
   const [note, setNote] = useState('');
@@ -51,7 +52,43 @@ export function IdeaActions({ ideaId, currentStatus = 'pending_approval', role =
    * cuenta el rol: quien el servidor diga que es `client_viewer` no mueve nada,
    * y quien diga que tiene un rol sí lo hace, con o sin sesión.
    */
-  const activeRole = (ROLE_KEYS.includes(role as RoleKey) ? role : 'client_viewer') as RoleKey;
+  const [rolServidor, setRolServidor] = useState<string | null>(null);
+
+  /**
+   * El rol REAL del perfil elegido, pedido al servidor al montar.
+   *
+   * MEDIDO 2026-10-04. Santiago: «asegúrate de que el perfil de los dos de
+   * Wundeer puedan entrar desde esos perfiles y poder aprobar». El rol que llega
+   * por prop lo resuelve `rolEnProyecto()`, que corre en el servidor ANTES de que
+   * exista el perfil elegido: ese perfil vive en `localStorage`, o sea en el
+   * navegador. Sin sesión de Google, `rolEnProyecto()` cae a `client_viewer` y
+   * la ficha llegaba con «SIN ACCIÓN DISPONIBLE» — el botón de aprobar no existía,
+   * ni para el cliente ni para nadie.
+   *
+   * La pregunta va con el correo del perfil elegido y la respuesta es el rol que
+   * la base tiene para ese correo: no es el navegador pidiendo permiso, es
+   * consultando el mismo dato que aplica la transición. Mientras no llegue, se
+   * usa el rol de la prop, que es lo que había antes.
+   */
+  useEffect(() => {
+    let vivo = true;
+    const preguntar = async () => {
+      const perfil = perfilElegido();
+      if (!perfil) { setRolServidor(null); return; }
+      const cuerpo = await postWorkspaceAction('mi-rol', {
+        projectSlug, actorProfile: perfil.email,
+      }).catch(() => null);
+      if (vivo && cuerpo && typeof cuerpo.role === 'string') setRolServidor(cuerpo.role);
+    };
+    void preguntar();
+    // El perfil puede cambiar con la página abierta (el selector está en
+    // pantalla), así que se repregunta cuando llega el evento del perfil.
+    const quitar = suscribirPerfil(() => { void preguntar(); });
+    return () => { vivo = false; quitar(); };
+  }, [projectSlug]);
+
+  const rolEfectivo = rolServidor ?? role;
+  const activeRole = (ROLE_KEYS.includes(rolEfectivo as RoleKey) ? rolEfectivo : 'client_viewer') as RoleKey;
   const moves = useMemo(() => allowedTransitions(activeRole, status), [activeRole, status]);
   const readOnly = activeRole === 'client_viewer';
   const waiting = waitingOn(status);

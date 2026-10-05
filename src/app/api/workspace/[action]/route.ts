@@ -199,6 +199,60 @@ async function roleForIdea(supabase: SupabaseClient, userId: string, email: stri
   return null;
 }
 
+/** El proyecto al que pertenece una idea. `null` si la idea no existe. */
+async function projectIdDeIdea(supabase: SupabaseClient, ideaId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from('rr_hub_ideas')
+    .select('project:rr_hub_projects!inner(id)')
+    .eq('id', ideaId)
+    .maybeSingle();
+  return (data?.project as { id?: string } | undefined)?.id ?? null;
+}
+
+/**
+ * El rol que corresponde al PERFIL ELEGIDO en el selector, sin sesión.
+ *
+ * MEDIDO 2026-10-04. Santiago: «asegúrate de que el perfil de los dos de Wundeer
+ * [puedan] entrar desde esos perfiles y poder aprobar». El cliente abre el hub en
+ * el celular sin iniciar sesión con Google: elige «Cliente Wundeer 1» en el
+ * selector. Ese perfil vive en `localStorage`, o sea en el navegador, y el
+ * servidor se.renderiza sin él: `rolEnProyecto()` caía a `client_viewer` y la
+ * ficha llegaba con «SIN ACCIÓN DISPONIBLE». El rol del cliente era
+ * `client_viewer` (solo lectura) además, así que aunque el botón hubiera salido,
+ * la transición se rechazaba con 403.
+ *
+ * Aquí se resuelve contra la fila REAL de `rr_hub_access`, no contra lo que
+ * pidió el navegador: se acepta el correo que el cliente eligió como identidad
+ * declarada y se devuelve el rol que la base le tiene asignado. Alguien que se
+ * haga pasar por un correo ajeno recibe el rol de ese correo, no el suyo, así que
+ * escribir «cliente@wundeer.co» desde otro celular concede lo que ese perfil
+ * concede y nada más — igual que con la lista blanca de votación. No se inventa
+ * ningún permiso: solo se deja de tirar el que sí tiene.
+ */
+async function roleForPerfilElegido(
+  service: SupabaseClient,
+  projectId: string,
+  identidad: string,
+): Promise<RoleKey | null> {
+  const correo = identidad.trim().toLowerCase();
+  if (!correo) return null;
+
+  const { data: perfil } = await service
+    .from('rr_hub_profiles')
+    .select('id, is_active')
+    .ilike('email', correo)
+    .maybeSingle();
+  if (!perfil || perfil.is_active === false) return null;
+
+  const { data: acceso } = await service
+    .from('rr_hub_access')
+    .select('role_in_project')
+    .eq('user_id', perfil.id)
+    .eq('project_id', projectId)
+    .maybeSingle();
+  return (acceso?.role_in_project as RoleKey) ?? null;
+}
+
 type Body = Record<string, unknown>;
 
 /** The three things every action needs: the caller's own client, the service client, and who they are. */
@@ -245,6 +299,10 @@ export async function POST(request: NextRequest) {
   // has no idea, and asking for one would 400 before ever getting to the lookup.
   if (action === 'create-idea') return createIdea(body, ctx);
   if (action === 'roster') return roster(body, ctx);
+  // El rol real del perfil elegido, para que la ficha muestre sus botones. Va
+  // aparte de la página porque el perfil vive en `localStorage`: el servidor
+  // renderiza sin él y no puede saber, al pintar, quién va a mirar.
+  if (action === 'mi-rol') return miRol(body, ctx);
 
   const ideaId = str(body.ideaId, 64);
   if (!ideaId) return error('Falta ideaId.', 400);
@@ -270,9 +328,24 @@ export async function POST(request: NextRequest) {
   // del equipo entran como owner en todo». Así que `abierto` da `owner` para
   // TODA acción. Lo que protege ya no es el rol sino el catálogo: solo son
   // visibles los clientes de `HUB_CATALOGO_VISIBLE`.
-  const role: RoleKey | null = ctx.abierto
-    ? 'owner'
-    : await roleForIdea(supabase, userId!, email!, ideaId);
+  // MEDIDO 2026-10-04: el cliente de Wundeer entra desde el selector del celular
+  // y no tenía forma de aprobar — la ficha salía con «SIN ACCIÓN DISPONIBLE»
+  // porque sin sesión el rol cae a `client_viewer`. Antes de ceder `owner` a
+  // cualquiera (que es lo que hace `abierto`), se pregunta a la base qué rol
+  // tiene el perfil que el cliente declaró. Si hay fila, ese rol manda: un
+  // `client_approver` aprueba y un `client_viewer` solo mira, y el equipo sin
+  // sesión sigue entrando por el modelo abierto de siempre.
+  let role: RoleKey | null = null;
+  if (!ctx.abierto) role = await roleForIdea(supabase, userId!, email!, ideaId);
+
+  if (!role) {
+    const identidad = str(body.actorProfile, 200);
+    if (identidad) {
+      const projectId = await projectIdDeIdea(supabase, ideaId);
+      if (projectId) role = await roleForPerfilElegido(service, projectId, identidad);
+    }
+  }
+  if (!role) role = ctx.abierto ? 'owner' : null;
   if (!role) return unauthorized();
 
   if (action === 'transition') {
@@ -1104,6 +1177,52 @@ function validateAssetPath(
   if (parts[1] !== ideaId) return { pathError: 'La ruta no corresponde a esta idea.' };
   if (!parts[3].startsWith(userId)) return { pathError: 'La ruta no corresponde a tu sesión.' };
   return { assetPath: candidate };
+}
+
+/**
+ * El rol que la persona tiene AHORA, para el perfil que eligió en el selector.
+ *
+ * MEDIDO 2026-10-04. Santiago: «asegúrate de que el perfil de los dos de Wundeer
+ * [puedan] entrar desde esos perfiles y poder aprobar». La ficha se renderiza en
+ * el servidor sin saber qué perfil se eligió en el celular, así que llegaba con
+ * «SIN ACCIÓN DISPONIBLE» — y el botón se decide en el servidor. Este endpoint
+ * es el puente: el navegador pregunta su rol con el perfil que tiene en
+ * `localStorage` y la ficha pinta lo que ese perfil puede hacer de verdad.
+ *
+ * Devuelve el rol de la fila, nunca uno pedido por el cliente. Sin sesión y sin
+ * perfil elegido devuelve `client_viewer`, que es lo que se ve: solo lectura.
+ */
+async function miRol(body: Body, ctx: Ctx): Promise<NextResponse> {
+  const slug = str(body.projectSlug, 60);
+  const identidad = str(body.actorProfile, 200);
+  if (!slug) return error('Falta projectSlug.', 400);
+
+  const { data: proyecto } = await ctx.service
+    .from('rr_hub_projects').select('id').eq('slug', slug).maybeSingle();
+  if (!proyecto) return error('Ese proyecto no existe.', 404);
+
+  // 1. La sesión manda si existe: es la identidad comprobada.
+  const sesion = await quienEs();
+  if (sesion) {
+    const { data: fila } = await ctx.service
+      .from('rr_hub_profiles').select('id').ilike('email', sesion.email).maybeSingle();
+    if (fila) {
+      const { data: acceso } = await ctx.service
+        .from('rr_hub_access').select('role_in_project')
+        .eq('user_id', fila.id).eq('project_id', proyecto.id).maybeSingle();
+      if (acceso?.role_in_project) {
+        return NextResponse.json({ role: acceso.role_in_project, via: 'session' });
+      }
+    }
+  }
+
+  // 2. Sin sesión, el perfil declarado: se contrasta contra la base.
+  if (identidad) {
+    const rol = await roleForPerfilElegido(ctx.service, proyecto.id, identidad);
+    if (rol) return NextResponse.json({ role: rol, via: 'perfil' });
+  }
+
+  return NextResponse.json({ role: 'client_viewer', via: 'sin-perfil' });
 }
 
 /**
