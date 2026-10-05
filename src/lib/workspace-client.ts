@@ -1,6 +1,7 @@
 'use client';
 
 import { ROLE_LABEL, allowedTransitions, type RoleKey, type WorkflowStatus, type DecisionVoto } from '@/lib/flow';
+import { perfilElegido } from '@/lib/perfil-votante';
 
 /**
  * Client-side workspace operations backed by Supabase.
@@ -84,8 +85,17 @@ export async function transitionIdeaStatus(input: {
     return { error: `Tu rol (${ROLE_LABEL[input.role]}) no puede pasar de ${from} a ${to}.` };
   }
 
+  // MEDIDO 2026-10-04: el cuerpo viaja el perfil con el que se actúa. El cliente
+  // de Wundeer no tiene sesión de Google — elige su perfil en el selector y solo
+  // existe en `localStorage` — y sin esto el servidor no tenía con quién
+  // resolver el rol y la pieza llegaba con «SIN ACCIÓN DISPONIBLE». Se manda como
+  // `actorProfile`, igual que el voto y el comentario, y el servidor lo contrasta
+  // contra `rr_hub_profiles` + `rr_hub_access`: si la fila no existe, no concede
+  // nada. No es un permiso que seose por el cuerpo.
+  const perfil = perfilElegido();
   const response = await postWorkspaceAction('transition', {
     ideaId: input.ideaId, toStatus: to, fromStatus: from, note: input.note,
+    ...(perfil ? { actorProfile: perfil.email } : {}),
   });
   return response ?? {};
 }
