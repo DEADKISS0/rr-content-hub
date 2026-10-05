@@ -77,8 +77,24 @@ describe('el tour se puede salir siempre', () => {
   it('el botón de saltar no es diminuto al tacto', () => {
     // MEDIDO: SALTAR mide 16px de alto. En un dedo eso no se pincha.
     expect(tour).toMatch(/SALTAR/);
-    const botonSaltar = /onClick=\{cerrar\}[\s\S]{0,220}/.exec(tour)?.[0] ?? '';
-    expect(botonSaltar).toMatch(/min-h-\[?44px\]?|min-h-11|py-3|py-4/);
+    // MEDIDO 2026-10-05: el selector era /onClick=\{cerrar\}[\s\S]{0,220}/ y con la
+    // nueva X de cerrar arriba —que también usa `onClick={cerrar}`— se emparejaba
+    // con la X en lugar del botón de saltar, y el test fallaba con el código
+    // correcto. Ahora se ancla al texto del botón, que es lo que se quiere
+    // comprobar: el area tactil del control que cierra la guía.
+    const botonSaltar = /\{ultimo \? 'CERRAR' : 'SALTAR'\}[\s\S]{0,80}/.exec(tour)?.[0] ?? '';
+    expect(botonSaltar.length).toBeGreaterThan(0);
+    // Su bloque es el `min-h-[44px]`: el mínimo táctil del proyecto.
+    expect(tour).toMatch(/min-h-\[44px\][^"]*"[\s\S]{0,140}ultimo \? 'CERRAR' : 'SALTAR'/);
+  });
+
+  it('la salida de la guia se ve sin tener que leer el texto', () => {
+    // MEDIDO 2026-10-05 (informe del tester): la guia se leia como «un cuadro que
+    // bloquea la pagina». Tenia tres salidas, todas abajo y de texto; en iPhone
+    // quedaban bajo el pliegue. Ahora hay una X de 44px arriba a la derecha, que
+    // es la convencion que cualquiera reconoce sin instruccion.
+    expect(tour).toMatch(/aria-label="Cerrar la guía"/);
+    expect(tour).toMatch(/h-11 w-11/);
   });
 });
 

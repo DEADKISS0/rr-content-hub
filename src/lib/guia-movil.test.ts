@@ -54,12 +54,23 @@ describe('la guía cabe y se puede cerrar en un teléfono', () => {
     const c = leer('src/components/guided-tour.tsx');
     const zona = c.slice(c.indexOf('{abierto && ('));
     const botones = zona.match(/<button[\s\S]*?<\/button>/g) ?? [];
-    expect(botones.length).toBe(3); // ATRÁS, SIGUIENTE/YA ENTENDÍ y SALTAR/CERRAR
+    // MEDIDO 2026-10-05: eran 3 botones y ahora son 4. El cuarto es la X de
+    // cerrar que se puso arriba a la derecha por el informe del tester («un
+    // cuadro que bloquea la página»): la guía tenía tres salidas, todas de texto
+    // y abajo, y en iPhone quedaban bajo el pliegue. La X se mide por `h-11
+    // w-11`, que es el mismo mínimo táctil escrito de otra forma.
+    expect(botones.length).toBe(4); // ATRÁS, SIGUIENTE/YA ENTENDÍ, SALTAR/CERRAR y la X
     for (const b of botones) {
-      expect(b, b.slice(0, 80)).toMatch(/min-h-\[44px\]/);
-      // El que avanza es el ancho en móvil: se lee con el dedo sin afinar.
-      expect(botones[1], 'SIGUIENTE debe ocupar el ancho disponible').toMatch(/flex-1/);
+      const esLaX = /aria-label="Cerrar la guía"/.test(b);
+      expect(b, b.slice(0, 80)).toMatch(esLaX ? /h-11 w-11/ : /min-h-\[44px\]/);
     }
+    // El que avanza ocupa el ancho en móvil: se lee con el dedo sin afinar.
+    // MEDIDO 2026-10-05: se buscaba por POSICIÓN (`botones[1]`) y con la X
+    // insertada al principio ese índice ya no era SIGUIENTE, así que la
+    // comprobación se hacía sobre ATRÁS y fallaba con el código correcto. Ahora
+    // se localiza por su propio texto.
+    const avanza = botones.find((b) => /SIGUIENTE/.test(b));
+    expect(avanza, 'no encontre el botón de avanzar').toMatch(/flex-1/);
   });
 
   it('en móvil el recuadro vuelve a pintarse, pero solo si se ve el objetivo', () => {
