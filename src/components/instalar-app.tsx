@@ -178,7 +178,15 @@ export function InstalarApp() {
   // que un texto que dice que hacer.
   if (esIOS && !cerradoIOS) {
     return (
-      <div className="fixed bottom-16 right-4 z-40 w-[min(92vw,26rem)] border border-blanco-20 bg-negro px-4 py-3 sm:bottom-20 sm:right-6">
+      // MEDIDO 2026-10-04 con el dedo: este aviso estaba en `bottom-16` con
+      // `w-[min(92vw,26rem)]`, y el botón flotante de la guía vive en `bottom-20`
+      // a la izquierda. Playwright lo dice sin rodeos: el div «intercepts
+      // pointer events». En 390 px el aviso ocupa casi todo el ancho y se come
+      // el botón entero — la guía no se podía abrir con el dedo.
+      //
+      // Se sube a `bottom-28` y se le angosta el ancho para que el botón de la
+      // guía quede libre abajo a la izquierda.
+      <div className="fixed bottom-28 right-4 z-40 w-[min(80vw,22rem)] border border-blanco-20 bg-negro px-4 py-3 sm:bottom-32 sm:right-6">
         <p className="font-mono text-[10px] tracking-widest text-mostaza">// INSTALAR EN EL IPHONE</p>
         <p className="mt-1.5 text-xs leading-5 text-blanco-70">
           Toca <Icon name="link" size={12} className="inline align-[-2px]" /> <strong className="text-blanco">Compartir</strong> y luego{' '}

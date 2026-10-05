@@ -158,6 +158,36 @@ describe('el hub se ve bien en un celular', () => {
     });
   });
 
+  describe('7. los dos botones flotantes no se tapan entre sí', () => {
+    const instalar = leer('src/components/instalar-app.tsx');
+
+    // MEDIDO 2026-10-04 con el dedo: Playwright lo dice literal — el div del
+    // aviso de instalar en iPhone «intercepts pointer events» sobre el botón de
+    // la guía. En 390 px el aviso ocupa casi todo el ancho y se come el botón
+    // entero, así que la guía NO se podía abrir tocando.
+    it('el aviso de iPhone deja libre la franja del botón de la guía', () => {
+      // `bottom-16` + ancho casi completo = se monta sobre el botón, que está
+      // en `bottom-20` a la izquierda. MEDIDO: el div ocupaba 92vw y el botón
+      // quedaba debajo.
+      expect(instalar).toMatch(/bottom-28 right-4/);
+
+      // El `bottom-16 right-4` que queda es el botón de «hay versión nueva», y
+      // ese NO se tapa: vive a la DERECHA (`right-4`) y el de la guía a la
+      // IZQUIERDA (`left-3`). Los dos caben en 390 px porque cada uno mide lo
+      // suyo. Lo que se prohibe es el aviso de iPhone, que es el que barre el
+      // ancho entero.
+      const avisos = [...instalar.matchAll(/fixed bottom-(\d+) right-4[\s\S]{0,60}?w-\[min\(/g)];
+      expect(avisos.length).toBeGreaterThan(0);
+      for (const aviso of avisos) {
+        expect(Number(aviso[1])).toBeGreaterThanOrEqual(28);
+      }
+    });
+
+    it('el aviso se angosta para no barrer el ancho entero', () => {
+      expect(instalar).toMatch(/w-\[min\(80vw,22rem\)\]/);
+    });
+  });
+
   describe('6. tocar IDEAS lleva a las ideas', () => {
     const guia = leer('src/components/flow-guide.tsx');
     const mapa = leer('src/components/project-map.tsx');
