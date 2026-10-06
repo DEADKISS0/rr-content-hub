@@ -45,7 +45,9 @@ export async function GET(request: NextRequest) {
   // un archivo de un cliente oculto sigue dando 404, que es lo que se busca.
   const visibles = (process.env.HUB_CATALOGO_VISIBLE ?? '').split(',').map((s) => s.trim()).filter(Boolean);
   const clienteDeLaRuta = path.split('/')[0];
-  if (visibles.length > 0 && !visibles.includes(clienteDeLaRuta)) {
+  // REGLA: si no hay catálogo configurado, se oculta TODO. No se puede
+  // confundir "no configurado" con "visible": el default seguro es cerrado.
+  if (visibles.length === 0 || !visibles.includes(clienteDeLaRuta)) {
     return NextResponse.json({ error: 'Ese archivo no existe.' }, { status: 404 });
   }
   // Y no puede salirse de la carpeta con `..`.

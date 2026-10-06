@@ -19,10 +19,18 @@
 import { NextResponse } from 'next/server';
 
 import { createServiceClient } from '@/lib/supabase/service';
+import { quienEs } from '@/lib/quien-es';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request): Promise<NextResponse> {
+  // REGLA: el equipo se lee solo con sesión. Sin sesión no hay contra quién
+  // comprobar acceso, y devolver correos a cualquiera es filtración de datos.
+  const sesion = await quienEs();
+  if (!sesion) {
+    return NextResponse.json({ error: 'No has entrado.' }, { status: 401 });
+  }
+
   const proyecto = new URL(request.url).searchParams.get('proyecto');
   if (!proyecto) {
     return NextResponse.json({ error: 'Falta el proyecto.' }, { status: 400 });
