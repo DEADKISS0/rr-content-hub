@@ -197,7 +197,9 @@ export function SelectorCliente({
                     {cliente.name.toUpperCase()}
                   </span>
                   {cliente.description && (
-                    <span className="mt-1 block text-[10px] leading-4 text-blanco-50">{cliente.description}</span>
+                    <span className="mt-1 block truncate text-[10px] leading-4 text-blanco-50" title={cliente.description}>
+                      {cliente.description.length > 80 ? cliente.description.slice(0, 80) + '…' : cliente.description}
+                    </span>
                   )}
                   <span className="mt-1 block font-mono text-[10px] text-blanco-40">
                     {ETIQUETA_ROL[cliente.rol ?? ''] ?? (cliente.rol ?? '').toUpperCase()}
