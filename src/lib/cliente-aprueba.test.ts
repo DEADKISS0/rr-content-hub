@@ -39,7 +39,7 @@ describe('el cliente aprueba desde su propio perfil', () => {
     expect(api).toContain('actorProfile');
     expect(api).toMatch(/from\('rr_hub_access'\)[\s\S]{0,200}role_in_project/);
     // Y se entrega con la acción de transición, que es la que lo necesita.
-    expect(api).toContain('roleForPerfilElegido(service, projectId, identidad)');
+    expect(api).toContain('roleForPerfilElegido(ctx.service, projectId, identidad)');
   });
 
   it('un perfil inexistente o desactivado no recibe ningún rol', () => {

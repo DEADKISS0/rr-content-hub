@@ -100,6 +100,13 @@ export async function transitionIdeaStatus(input: {
   return response ?? {};
 }
 
+/** El perfil elegido viaja en TODA acción (antes solo en `transition`). */
+function conPerfil(body: Record<string, unknown>): Record<string, unknown> {
+  if (body.actorProfile) return body;
+  const perfil = perfilElegido();
+  return perfil ? { ...body, actorProfile: perfil.email } : body;
+}
+
 /**
  * Envía una acción al servidor y devuelve su cuerpo.
  *
@@ -121,7 +128,7 @@ export async function postWorkspaceAction(
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify(conPerfil(body)),
   });
 
   const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;

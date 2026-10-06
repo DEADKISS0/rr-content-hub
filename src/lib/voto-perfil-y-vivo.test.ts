@@ -266,12 +266,14 @@ describe('el hilo de comentarios se usa sin sesion', () => {
  * ahora protegen el modelo nuevo. Y conviene dejarlo escrito: lo que hace de
  * freno ya NO es el rol, es el catálogo.
  */
-describe('acceso libre: toda accion es de owner, el freno es el catalogo', () => {
-  it('el owner en modo abierto ya no se recorta por accion', () => {
+describe('sin sesion y sin perfil con fila en rr_hub_access no hay rol', () => {
+  it('el anonimo ya no es owner: ninguna accion le regala el rol', () => {
     const ruta = leer('src/app/api/workspace/[action]/route.ts');
     // `ctx.abierto` da owner sin condiciones. Las dos listas que lo recortaban se
     // fueron: no existen ya en el codigo.
-    expect(ruta).toMatch(/const role: RoleKey \| null = ctx\.abierto\s*\?\s*'owner'/);
+    expect(ruta).not.toMatch(/ctx\.abierto\s*\?\s*'owner'/);
+    expect(ruta).not.toMatch(/role = ctx\.abierto/);
+    expect(ruta).toContain('async function resolverRol');
     expect(ruta).not.toContain('ABIERTAS_EN_EQUIPO');
     expect(ruta).not.toContain('ABIERTAS_SIN_SESION');
   });

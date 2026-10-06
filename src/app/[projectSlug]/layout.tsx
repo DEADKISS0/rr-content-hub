@@ -1,7 +1,6 @@
 import { notFound } from 'next/navigation';
 import { getProject, getClientesDeLaPersona } from '@/lib/data';
 import { rolEnProyecto } from '@/lib/project-guard';
-import { AUTH_ENABLED } from '@/lib/mode';
 import { WorkspaceShell } from '@/components/workspace-shell';
 
 export default async function ProjectLayout({ children, params }: { children: React.ReactNode; params: Promise<{ projectSlug: string }> }) {
@@ -28,10 +27,8 @@ export default async function ProjectLayout({ children, params }: { children: Re
       project={project}
       role={veredicto.rol}
       email={veredicto.email ?? undefined}
-      // En modo abierto no hay a quién preguntarle el rol: se opera como se
-      // operaba antes de tener la tabla poblada, y el botón de crear queda
-      // disponible para todos en vez de desaparecer para todos.
-      puedeEscribir={AUTH_ENABLED ? veredicto.puedeEscribir : true}
+      // Misma regla que la API: sin sesión no hay rol propio (`resolverRol`).
+      puedeEscribir={veredicto.puedeEscribir}
       clientes={clientes}
     >
       {children}
