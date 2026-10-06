@@ -74,4 +74,12 @@ export async function entrarConCodigo(
 /** Salir: la cookie se borra y la persona vuelve a la puerta. */
 export async function salir() {
   await fetch('/api/entrar', { method: 'DELETE' });
+  // Limpia el selector de perfil para que el siguiente usuario tenga que
+  // elegirlo de nuevo (seguridad: no dejar perfil persistente entre sesiones).
+  try {
+    localStorage.removeItem('rr-hub:perfil-elegido');
+    localStorage.removeItem('rr-hub:aviso-perfil-visto');
+  } catch {
+    // noop: puede estar bloqueado o en modo privado
+  }
 }
