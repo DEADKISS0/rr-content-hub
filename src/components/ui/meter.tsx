@@ -98,6 +98,8 @@ export function briefState(idea: {
  */
 export function BriefRail({ states }: { states: BriefState[] }) {
   const done = states.filter((state) => state.done).length;
+  const falta = states.filter((state) => !state.done);
+  const completo = done === states.length;
   return (
     <div className="flex items-center gap-2">
       <div className="flex items-center gap-[3px]">
@@ -107,7 +109,13 @@ export function BriefRail({ states }: { states: BriefState[] }) {
           </span>
         ))}
       </div>
-      <span className="font-mono text-[10px] text-blanco-50">INFO {done}/{states.length}</span>
+      {completo ? (
+        <span className="font-mono text-[10px] text-orquidea">INFO {done}/{states.length} ✓</span>
+      ) : (
+        <span className="font-mono text-[10px] text-blanco-50">
+          INFO {done}/{states.length} · falta {falta.map(s => s.label).join(', ')}
+        </span>
+      )}
     </div>
   );
 }
