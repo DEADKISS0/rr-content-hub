@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Icon, type IconName } from './icons';
-import { IdeaCover } from './cover';
+import { CoverArt } from './cover';
 import { decidirPortada, type IdeaCover as IdeaCoverAsset } from '@/lib/idea-cover';
 
 /**
@@ -90,7 +90,17 @@ export function IdeaCoverFrame({
           className="preview-art h-full w-full object-cover"
         />
       ) : (
-        <IdeaCover code={code} title={title} size={size} format={format} />
+        /*
+         * MEDIDO 2026-10-05: antes esto llamaba a `IdeaCover`, que pinta SU
+         * PROPIO marco `.cover-frame` de 96 px con su propio pie (código + ícono).
+         * El resultado era un marco dentro de otro: el externo de 152 px con su
+         * pie, y el interno de 96 px con el pie repetido. El código de la pieza
+         * aparecía DOS VECES en la misma tarjeta.
+         *
+         * Ahora se pinta solo el arte (`CoverArt`), sin marco ni pie: el marco
+         * y el pie los pinta el componente de arriba, una sola vez.
+         */
+        <CoverArt code={code} title={title} />
       )}
 
       {/* Velo para que el código y el ícono se lean sobre cualquier imagen. */}
