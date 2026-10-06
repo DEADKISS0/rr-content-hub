@@ -33,12 +33,28 @@ export function IdeaCoverFrame({
   asset,
   size = 'md',
   format,
+  reference,
 }: {
   code?: string | null;
   title: string;
   asset?: IdeaCoverAsset;
   size?: 'sm' | 'md' | 'lg';
   format?: IconName;
+  /**
+   * MEDIDO 2026-10-05 (feedback de Santiago: «unifica todas las cards, para que
+   * todas tengan portada, labels de instagram y el botón de reproducción»).
+   * Antes esta tarjeta y `PublicationPreview` eran dos componentes con dos
+   * estables: la que tenía asset de portada NO pintaba el «IG» con el handle,
+   * y la queava de `PublicationPreview` y lo pintaba. En el mismo tablero se veían
+   * las dos: unas con el rótulo de red arriba a la izquierda y otras sin nada.
+   *
+   * Ahora las dos capas de la tarjeta las pinta SIEMPRE este componente: el
+   * rótulo de red (cuando hay referencia), el aviso «SIN MINIATURA» (cuando no
+   * hay imagen) y el pie con el código y el ícono de formato. La imagen real
+   * manda cuando existe; si no carga o no hay, cae al marco de marca con el
+   * rótulo puesto, que es lo que le dice a quien mira de dónde viene la pieza.
+   */
+  reference?: { icon: IconName; label: string } | null;
 }) {
   const [failed, setFailed] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -48,32 +64,65 @@ export function IdeaCoverFrame({
     ? { kind: 'placeholder' as const }
     : decidirPortada({ title, code }, asset ?? null);
 
-  if (decision.kind === 'placeholder') {
-    return <IdeaCover code={code} title={title} size={size} format={format} />;
-  }
+  /*
+   * MEDIDO 2026-10-05: el discriminante de `decidirPortada` es `'imagen'`, en
+   * español, no `'image'`. Con `'image'` la comparación no tenía intersección de
+   * tipos y el TypeScript la trataba como siempre falsa: el `else` quedaba como
+   * `never` y `decision.url` daba error. Por eso se compara contra el valor real
+   * que devuelve la función.
+   */
+  const conImagen = decision.kind === 'imagen';
 
   return (
     <div className={`cover-frame relative w-full overflow-hidden border border-blanco-20 bg-negro ${heightClass}`}>
       {/* El marco trabaja mientras baja la imagen, igual que en el preview. */}
-      {loading && <span className="shimmer absolute inset-0" aria-hidden />}
+      {conImagen && loading && <span className="shimmer absolute inset-0" aria-hidden />}
 
-      {/* eslint-disable-next-line @next/next/no-img-element -- portada externa sin optimizador de Next */}
-      <img
-        src={decision.url}
-        alt={decision.alt}
-        loading="lazy"
-        referrerPolicy="no-referrer"
-        onLoad={() => setLoading(false)}
-        onError={() => { setFailed(true); setLoading(false); }}
-        className="preview-art h-full w-full object-cover"
-      />
+      {conImagen ? (
+        /* eslint-disable-next-line @next/next/no-img-element -- portada externa sin optimizador de Next */
+        <img
+          src={decision.url}
+          alt={decision.alt}
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onLoad={() => setLoading(false)}
+          onError={() => { setFailed(true); setLoading(false); }}
+          className="preview-art h-full w-full object-cover"
+        />
+      ) : (
+        <IdeaCover code={code} title={title} size={size} format={format} />
+      )}
 
       {/* Velo para que el código y el ícono se lean sobre cualquier imagen. */}
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-negro via-negro/40 to-transparent" />
 
+      {/* MEDIDO 2026-10-05: el rótulo de red va SIEMPRE que haya referencia,
+          tenga o no imagen. Antes solo lo pintaba `PublicationPreview` y en las
+          tarjetas con portada real se leía una foto sin decir de qué red era. */}
+      {reference && (
+        <span className="absolute left-2 top-2 inline-flex items-center gap-1 border border-blanco-30 bg-negro/85 px-1.5 py-1 font-mono text-[10px] tracking-[0.08em] text-blanco">
+          <Icon name={reference.icon} size={11} />
+          {reference.label}
+        </span>
+      )}
+
+      {/* Aviso honesto: la miniatura no es pública, se ve al abrir. */}
+      {!conImagen && size !== 'sm' && (
+        <span className="absolute right-2 top-2 border border-blanco-20 bg-negro/85 px-1.5 py-1 font-mono text-[10px] tracking-[0.06em] text-blanco-50">
+          SIN MINIATURA
+        </span>
+      )}
+
       <span className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-2">
         <span className="font-mono text-[10px] font-bold tracking-[0.1em] text-blanco">{code ?? 'IDEA'}</span>
-        {format && <span className="border border-blanco-30 bg-negro/80 p-1 text-blanco"><Icon name={format} size={12} /></span>}
+        <span className="inline-flex items-center gap-2">
+          {format && <span className="border border-blanco-30 bg-negro/80 p-1 text-blanco"><Icon name={format} size={12} /></span>}
+          {/* Botón de reproducción: la acción de abrir, siempre en las mismas
+             坐标 que en el resto de tarjetas. MEDIDO 2026-10-05. */}
+          <span className="font-mono text-[10px] text-blanco-60 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+            VER <Icon name="arrow" size={11} />
+          </span>
+        </span>
       </span>
     </div>
   );

@@ -5,6 +5,8 @@ import { Icon } from '@/components/ui/icons';
 import { ROLE_LABEL, statusMeta, esTerminal, type RoleKey } from '@/lib/flow';
 import { contarEsperas } from '@/lib/esperas';
 import { QUEUES } from '@/lib/queues';
+import { resumenProyecto, seccionesProyecto } from '@/lib/resumen-proyecto';
+import { agruparPorPersona } from '@/lib/quien-tiene-la-pelota';
 
 type Project = { name: string; client_name: string; description?: string | null };
 
@@ -21,7 +23,14 @@ const WAITING_STATUSES: readonly string[] = QUEUES.aprobaciones.statuses;
  * El panel de bloqueos ya no es un número: son piezas concretas con su
  * responsable delante.
  */
-export function ProjectDashboard({ project, projectSlug, ideas, role }: { project: Project; projectSlug: string; ideas: BoardIdea[]; role: string }) {
+export function ProjectDashboard({ project, projectSlug, ideas, role, responsables }: {
+  project: Project;
+  projectSlug: string;
+  ideas: BoardIdea[];
+  role: string;
+  /** id de idea → nombre completo de quien la tiene. Ver `getResponsables`. */
+  responsables?: Map<string, string | null>;
+}) {
   /**
    * Lo que el equipo tiene pendiente, que NO es lo mismo que "paradas".
    *
@@ -67,6 +76,24 @@ export function ProjectDashboard({ project, projectSlug, ideas, role }: { projec
   }, {});
   const roleLabel = ROLE_LABEL[role as RoleKey] ?? role.toUpperCase();
 
+  /* MEDIDO 2026-10-05: ver `resumen-proyecto.ts`. La ficha completa se puede
+     abrir con un `<details>`, así que la cabecera no la tiene que cargar toda. */
+  const resumenCliente = resumenProyecto(project.description);
+  const tieneFichaLarga = seccionesProyecto(project.description) > 1;
+
+  /*
+   * MEDIDO 2026-10-05: el panel mostraba iniciales («C») y códigos («O6»). Con
+   * 21 personas con acceso, eso no le dice a nadie a quién hay que empujar.
+   *
+   * `agruparPorPersona` usa el `created_by` de cada pieza. Las piezas SIN
+   * responsable van a su propio grupo con la verdad de que están sin dueño: no
+   * se cuelgan de la primera persona de la lista, que sería inventarle trabajo.
+   */
+  const porPersona = (lista: BoardIdea[]) =>
+    agruparPorPersona(lista, responsables ?? new Map<string, string | null>());
+  const personasCliente = porPersona(esperandoCliente);
+  const personasEquipo = porPersona(esperandoEquipo);
+
   return (
     <main className="min-h-screen bg-negro">
       <div className="mx-auto max-w-[1440px] px-5 py-8 md:px-10 md:py-12">
@@ -74,9 +101,31 @@ export function ProjectDashboard({ project, projectSlug, ideas, role }: { projec
           <div>
             <p className="eyebrow">[{project.name.toUpperCase()} · OPERACIÓN VIVA]</p>
             <h1 className="display-title">El trabajo visible.</h1>
-            <p className="mt-6 max-w-2xl text-base leading-8 text-blanco-70">
-              {project.description ?? 'Cada pieza avanza de izquierda a derecha. El ícono, el color y el texto te dicen quién tiene la pelota.'}
-            </p>
+            {/*
+              MEDIDO 2026-10-05 (feedback de Santiago: «demasiado texto, y no se
+              si el necesario»). Aquí se pintaba `project.description` entero:
+              Wundeer, 4.108 caracteres, una caja de 672×1600 px dentro del
+              proyecto. Mezclaba lo que hay que saber para trabajar con el
+              historial de por qué se descartó cada referencia.
+
+              Ahora va el resumen y, si hay ficha larga, un enlace para abrirla.
+              `resumenProyecto` decide; acá no hay criterio de qué es importante.
+              */}
+            <div className="mt-6">
+              <p className="line-clamp-6 max-w-2xl text-base leading-8 text-blanco-70">
+                {resumenCliente || 'Cada pieza avanza de izquierda a derecha. El ícono, el color y el texto te dicen quién tiene la pelota.'}
+              </p>
+              {tieneFichaLarga && (
+                <details className="mt-4 max-w-2xl">
+                  <summary className="inline-flex min-h-[44px] cursor-pointer list-none items-center font-mono text-xs text-blanco-60 underline underline-offset-4 hover:text-blanco">
+                    LEER LA FICHA COMPLETA ({seccionesProyecto(project.description)} secciones)
+                  </summary>
+                  <p className="mt-3 whitespace-pre-line text-sm leading-7 text-blanco-60">
+                    {project.description}
+                  </p>
+                </details>
+              )}
+            </div>
             <div className="mt-6 flex flex-wrap items-center gap-2">
               <Chip icon="user" tone="blanco">TU ROL: {roleLabel}</Chip>
               <Chip icon="pieces" tone="neutro">{ideas.length} PIEZAS EN EL HUB</Chip>
@@ -98,57 +147,136 @@ export function ProjectDashboard({ project, projectSlug, ideas, role }: { projec
         <ProjectMap ideas={ideas} projectSlug={projectSlug} />
 
         <section className="mt-10 grid gap-5 lg:grid-cols-[1.2fr_1fr]">
+          {/*
+            MEDIDO 2026-10-05 (feedback de Santiago: «explica mejor esto, y en vez
+            del numero deja los nombres de las personas»). El panel decía «1» en
+            un número de 6xl y «C CLIENTE · 1 PIEZA O6»: la inicial de un rol, no
+            de una persona, y el código de la pieza. Con 21 personas con acceso,
+            un número grande no le dice a nadie a quién hay que escribirle.
+
+            Ahora manda la persona: nombre con primer nombre y primer apellido,
+            cuántas piezas tiene encima y cuáles. El número de piezas sigue
+            estando, pero como dato de carga de la persona, no como titular.
+            */}
           <div className="border border-blanco-20 bg-blanco-05 p-6 sm:p-8">
             <p className="eyebrow">[QUIÉN TIENE LA PELOTA]</p>
-            <p className="mt-3 font-display text-6xl font-bold leading-none text-blanco">{esperandoCliente.length}</p>
-            <h2 className="mt-2 font-display text-2xl font-bold text-blanco">
-              {esperandoCliente.length ? 'Esperan a alguien de fuera.' : 'Nada espera al cliente.'}
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-blanco-70">
-              {esperandoCliente.length
-                ? 'Estas piezas están en manos del cliente. Si no se mueven, no es un fallo del hub: es una decisión que no ha llegado.'
-                : 'Ninguna pieza depende hoy de una aprobación externa.'}
-            </p>
-            <Link href={`/${projectSlug}/aprobaciones`} className="mt-5 inline-flex min-h-[44px] items-center gap-2 font-mono text-xs text-blanco-60 underline hover:text-blanco">
-              VER DECISIONES <Icon name="arrow" size={13} />
-            </Link>
-            {/* El equipo tiene su propia cuenta y su propia frase. Antes solo
-                existía el número externo, y el tablero parecía tranquilo con 14
-                piezas esperando un empujón interno. */}
-            {esperandoEquipo.length > 0 && (
+
+            {esperandoCliente.length === 0 && esperandoEquipo.length === 0 ? (
+              <>
+                <h2 className="mt-3 font-display text-2xl font-bold text-blanco">Nada está trabado.</h2>
+                <p className="mt-3 text-sm leading-6 text-blanco-70">
+                  Ninguna pieza espera una aprobación de alguien de fuera ni un empujón interno.
+                  Todo lo que hay en el tablero se puede mover hoy mismo.
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className="mt-3 font-display text-2xl font-bold text-blanco">
+                  {esperandoCliente.length > 0
+                    ? `${esperandoCliente.length} esperando al cliente y ${esperandoEquipo.length} al equipo.`
+                    : `${esperandoEquipo.length} esperando que el equipo las mueva.`}
+                </h2>
+                <p className="mt-3 text-sm leading-6 text-blanco-70">
+                  {esperandoCliente.length > 0 && esperandoEquipo.length > 0
+                    ? 'Son dos esperas distintas y piden cosas distintas: una la destraba el cliente, la otra alguien del equipo. Abajo está el nombre de quien tiene cada grupo encima.'
+                    : esperandoCliente.length > 0
+                      ? 'Estas piezas están en manos del cliente. Si no se mueven no es un fallo del hub: es una decisión que no ha llegado. Abajo está el nombre de a quién esperarle.'
+                      : 'Estas no dependen de nadie de fuera: están listas para que alguien del equipo las empuje. Abajo está el nombre de quién las tiene.'}
+                </p>
+              </>
+            )}
+
+            {esperandoCliente.length > 0 && (
+              <Link href={`/${projectSlug}/aprobaciones`} className="mt-5 inline-flex min-h-[44px] items-center gap-2 font-mono text-xs text-blanco-60 underline hover:text-blanco">
+                VER DECISIONES <Icon name="arrow" size={13} />
+              </Link>
+            )}
+
+            {personasCliente.length > 0 && (
               <div className="mt-7 border-t border-blanco-20 pt-6">
                 <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-orquidea">
-                  Y ADEMÁS, {esperandoEquipo.length} ESPERANDO QUE EL EQUIPO LAS MUEVA
+                  ESPERANDO AL CLIENTE · {esperandoCliente.length} PIEZAS
                 </p>
-                <p className="mt-2 text-sm leading-6 text-blanco-70">
-                  Estas no dependen de nadie de fuera: están listas para que alguien las empuje.
-                  Son el trabajo que depende de nosotros, no una espera.
+                <ul className="mt-3 space-y-3">
+                  {personasCliente.map((persona) => (
+                    <li key={persona.nombre} className="flex items-start gap-3">
+                      <Initials label={persona.nombre} tone="neutro" size={30} />
+                      <div className="min-w-0">
+                        <p className="font-display text-sm font-bold text-blanco">{persona.nombre}</p>
+                        <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-blanco-50">
+                          {persona.total} {persona.total === 1 ? 'PIEZA' : 'PIEZAS'}
+                        </p>
+                        <p className="mt-1 font-display text-sm text-blanco-70">
+                          {persona.piezas.join(' · ')}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {personasEquipo.length > 0 && (
+              <div className="mt-7 border-t border-blanco-20 pt-6">
+                <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-orquidea">
+                  ESPERANDO QUE EL EQUIPO LAS MUEVA · {esperandoEquipo.length} PIEZAS
                 </p>
-                <p className="mt-3 font-display text-sm font-bold text-blanco">
-                  {esperandoEquipo.map((idea) => idea.code ?? 'IDEA').join(' · ')}
-                </p>
+                <ul className="mt-3 space-y-3">
+                  {personasEquipo.map((persona) => (
+                    <li key={persona.nombre} className="flex items-start gap-3">
+                      <Initials label={persona.nombre} tone="neutro" size={30} />
+                      <div className="min-w-0">
+                        <p className="font-display text-sm font-bold text-blanco">{persona.nombre}</p>
+                        <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-blanco-50">
+                          {persona.total} {persona.total === 1 ? 'PIEZA' : 'PIEZAS'}
+                        </p>
+                        <p className="mt-1 font-display text-sm text-blanco-70">
+                          {persona.piezas.join(' · ')}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
           </div>
 
+          {/*
+            Este panel es el detalle por rol. Se queda, pero con los nombres:
+            antes mostraba la inicial «C» como si fuera una persona.
+            */}
           <div className="border border-blanco-20 p-5 sm:p-6">
-            <p className="eyebrow">[QUIÉN ESTÁ ESPERANDO QUÉ]</p>
+            <p className="eyebrow">[QUÉ ESTÁ ESPERANDO Y POR QUÉ]</p>
+            <p className="mt-3 text-sm leading-6 text-blanco-70">
+              Una pieza en <span className="font-display font-bold text-blanco">votación</span> necesita
+              votos del equipo. Una en <span className="font-display font-bold text-blanco">aprobación</span>{' '}
+              necesita que el cliente la mire. Una en <span className="font-display font-bold text-blanco">cambios</span>{' '}
+              vuelve al equipo para rehacerla. Ninguna está parada: cada una está esperando a alguien concreto.
+            </p>
+
             {esperandoCliente.length ? (
-              <ul className="mt-4 space-y-3">
-                {Object.entries(byActor).map(([who, items]) => (
-                  <li key={who} className="flex items-start gap-3 border-b border-blanco-10 pb-3 last:border-0 last:pb-0">
-                    <Initials label={who} tone="neutro" size={30} />
-                    <div className="min-w-0">
-                      <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-blanco-50">{who} · {items.length} PIEZA{items.length === 1 ? '' : 'S'}</p>
-                      <p className="mt-1 truncate font-display text-sm font-bold text-blanco">
-                        {items.map((idea) => idea.code ?? 'IDEA').join(' · ')}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <div className="mt-6">
+                <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-blanco-50">
+                  ESPERANDO AL CLIENTE · {esperandoCliente.length}
+                </p>
+                <ul className="mt-3 space-y-3">
+                  {Object.entries(byActor).map(([who, items]) => (
+                    <li key={who} className="flex items-start gap-3 border-b border-blanco-10 pb-3 last:border-0 last:pb-0">
+                      <Initials label={who} tone="neutro" size={30} />
+                      <div className="min-w-0">
+                        <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-blanco-50">
+                          {who} · {items.length} {items.length === 1 ? 'PIEZA' : 'PIEZAS'}
+                        </p>
+                        <p className="mt-1 truncate font-display text-sm font-bold text-blanco">
+                          {items.map((idea) => idea.code ?? 'IDEA').join(' · ')}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ) : (
-              <p className="mt-4 text-sm leading-6 text-blanco-60">Nadie espera al cliente: ninguna pieza depende hoy de una aprobación externa.</p>
+              <p className="mt-6 text-sm leading-6 text-blanco-60">Nadie espera al cliente: ninguna pieza depende hoy de una aprobación externa.</p>
             )}
 
             {esperandoEquipo.length > 0 && (

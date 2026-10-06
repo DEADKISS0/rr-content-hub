@@ -19,6 +19,7 @@ import { Icon } from './ui/icons';
 import { BriefRail, briefState, SegMeter } from './ui/meter';
 import { formatOf } from './ui/cover';
 import { PublicationPreview } from './ui/preview';
+import { KIND_ICON, referenceSource } from '@/lib/reference';
 import { IdeaCoverFrame } from './ui/idea-cover-frame';
 import type { IdeaCover as IdeaCoverAsset } from '@/lib/idea-cover';
 
@@ -239,6 +240,19 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
                     const fecha = fechaEs(idea.due_at);
                     const vencido = cuantoPara(idea.due_at)?.vencido ?? false;
                     const tono = TONE_CLASS[meta.tone];
+                    /* MEDIDO 2026-10-05: rótulo de red unificado. La regla de
+                       qué red es (Instagram, TikTok, Drive…) vive en
+                       `@/lib/reference`, con test; acá solo se pasa el resultado.
+                       `reference_urls` es un array y `reference_url` un string: la
+                       idea puede traer cualquiera de los dos. */
+                    const refUrl = idea.reference_url
+                      ?? (Array.isArray(idea.reference_urls) && idea.reference_urls.length
+                        ? String(idea.reference_urls[0])
+                        : null);
+                    const ref = referenceSource(refUrl);
+                    const rotuloReferencia = ref
+                      ? { icon: KIND_ICON[ref.kind], label: ref.label }
+                      : null;
                     return (
                       /*
                        * MEDIDO 2026-10-01: esto era un `<Link>` que envolvía toda
@@ -261,9 +275,29 @@ export function ProjectMap({ ideas, projectSlug }: { ideas: BoardIdea[]; project
                             de marca. `PublicationPreview` no se reemplaza, se
                             queda como segunda opción para cuando hay una URL
                             de referencia pero ningún asset de portada. */}
-                        {idea.cover_asset
-                          ? <IdeaCoverFrame code={idea.code} title={idea.title} asset={idea.cover_asset} format={format.icon} />
-                          : <PublicationPreview url={idea.reference_url} code={idea.code} title={idea.title} format={format.icon} />}
+                        {/*
+                            MEDIDO 2026-10-05 (feedback de Santiago: «unifica
+                            todas las cards, para que todas tengan portada,
+                            labels de instagram y el botón de reproducción»).
+
+                            Antes la tarjeta elegía entre DOS componentes: si había
+                            asset de portada, `IdeaCoverFrame`, que NO pintaba el
+                            rótulo de red; si no, `PublicationPreview`, que sí. En el
+                            mismo tablero se veían las dos: unas con «IG» arriba a
+                            la izquierda y otras con la foto pelada.
+
+                            Ahora las dos van por el mismo componente. La imagen
+                            real manda cuando existe; cuando no, el marco de marca
+                            con el rótulo puesto. El rótulo, el aviso de miniatura
+                            y el pie son los mismos en las dos rutas.
+                          */}
+                        <IdeaCoverFrame
+                          code={idea.code}
+                          title={idea.title}
+                          asset={idea.cover_asset}
+                          format={format.icon}
+                          reference={rotuloReferencia}
+                        />
                         <div className="space-y-3 p-3">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <StatusBadge status={idea.status} compact />

@@ -347,6 +347,39 @@ export async function getProjects() {
   return { projects: (data ?? []).filter((row: any) => clienteEsVisible(row.projects?.slug, sesion.proyecto)), supabase };
 }
 
+/**
+ * Nombres de los responsables de un conjunto de ideas.
+ *
+ * MEDIDO 2026-10-05: el panel de bloqueos decía «C CLIENTE · 1 PIEZA O6» y
+ * «35 ESPERANDO QUE EL EQUIPO LAS MUEVA», sin decir a quién. Con 21 personas con
+ * acceso, un número no le dice a nadie qué hacer. Santiago pidió los nombres.
+ *
+ * `rr_hub_ideas.created_by` es un id de `rr_hub_profiles`; el nombre está en
+ * `full_name`. Se resuelve en UNA consulta para todas las ideas y se devuelve un
+ * `Map` id → nombre, con `null` cuando la pieza no tiene responsable. No se
+ * inventa un nombre: la ficha tiene que poder decir "sin responsable" en voz
+ * alta, porque un nombre inventado es peor que un hueco porque nadie se da
+ * cuenta del hueco.
+ */
+export async function getResponsables(ideas: { id: string; created_by?: string | null }[]): Promise<Map<string, string | null>> {
+  const vacio = new Map<string, string | null>();
+  if (!ideas.length) return vacio;
+
+  const supabase = await createServiceClient() ?? await createClient();
+  if (!supabase) return vacio;
+
+  const ids = [...new Set(ideas.map((i) => i.created_by).filter((id): id is string => Boolean(id)))];
+  if (!ids.length) return vacio;
+
+  const { data } = await supabase
+    .from('rr_hub_profiles')
+    .select('id, full_name')
+    .in('id', ids);
+
+  const porId = new Map((data ?? []).map((p) => [p.id as string, (p.full_name as string) ?? null]));
+  return new Map(ideas.map((i) => [i.id, porId.get(i.created_by ?? '') ?? null]));
+}
+
 export async function getIdeas(projectId: string) {
   const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) { requireSupabase(); return demoIdeas; }

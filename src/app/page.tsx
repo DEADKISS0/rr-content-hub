@@ -4,6 +4,7 @@ import { getIdeas, getClientesDeLaPersona } from '@/lib/data';
 import { statusMeta, type WorkflowStatus } from '@/lib/flow';
 import { BOARD_COLUMNS } from '@/lib/queues';
 import { Icon } from '@/components/ui/icons';
+import { resumenProyecto, seccionesProyecto } from '@/lib/resumen-proyecto';
 
 /**
  * MEDIDO 2026-10-03. La puerta de entrada del hub.
@@ -162,6 +163,10 @@ export default async function Home() {
             }));
             const enVotacion = ideas.filter((i) => i.status === 'voting').length;
             const masGrande = Math.max(...counts.map((c) => c.n), 1);
+            /* MEDIDO 2026-10-05: la descripción entera se pintaba aquí y
+               Wundeer ocupaba 2.080 px de alto. Ver `resumen-proyecto.ts`. */
+            const resumenCliente = resumenProyecto(cliente.description);
+            const tieneFichaLarga = seccionesProyecto(cliente.description) > 1;
 
             return <Link
               key={cliente.slug}
@@ -189,8 +194,31 @@ export default async function Home() {
                 </div>
               </div>
 
-              {cliente.description && (
-                <p className="mt-4 font-mono text-[10px] leading-5 text-blanco-60">{cliente.description}</p>
+              {/*
+                MEDIDO 2026-10-05 (feedback de diseño): aquí se pintaba
+                `cliente.description` entero. Wundeer traía 4.108 caracteres y
+                la caja medía 292×2080 px: «LECCION DE ESTE ENCARGO», «QUE
+                CAMBIA EL ENCARGO», «DESCARTADAS Y RESPALDADAS» y «A REVISAR
+                POR SANTIAGO» no son instrucciones de trabajo, son historial de
+                por qué se descartó cada cosa.
+
+                Ahora va el resumen, y el resto se abre en la ficha del
+                proyecto. El resumen lo arma `resumenProyecto`, que es pura.
+                */}
+              {resumenCliente && (
+                <div className="mt-4">
+                  <p className="line-clamp-4 font-mono text-[10px] leading-5 text-blanco-60">
+                    {resumenCliente}
+                  </p>
+                  {tieneFichaLarga && (
+                    <Link
+                      href={`/${cliente.slug}/ideas`}
+                      className="mt-2 inline-flex min-h-[44px] items-center font-mono text-[10px] text-blanco-40 underline underline-offset-4 hover:text-blanco-70"
+                    >
+                      VER LA FICHA COMPLETA
+                    </Link>
+                  )}
+                </div>
               )}
 
               <div className="mt-6 flex items-end gap-6">
@@ -244,16 +272,22 @@ export default async function Home() {
         )}
       </section>
 
+      {/*
+        MEDIDO 2026-10-05 (feedback de Santiago): este párrafo decía «La auditoría
+        es la vista de solo lectura» y el enlace se llamaba «ABRE LA AUDITORÍA».
+        Se va: la auditoría no es solo lectura y el nombre hacía creer que no se
+        podía tocar nada. Ahora el enlace dice lo que hace — mirar las métricas —
+        y el párrafo solo dice cómo llegar a cada cliente.
+        */}
       <p className="mt-12 border-t border-blanco-10 pt-6 font-mono text-[10px] leading-6 text-blanco-50">
-        La auditoría es la vista de solo lectura: contadores por fase y trazabilidad de cada
-        decisión. {' '}
-        <Link href={abiertos.length === 1 ? `/audit/${abiertos[0].slug}` : `/${abiertos[0].slug}/metricas`}
+        Cada cliente tiene su tablero con las piezas, quién las tiene y qué falta.{' '}
+        <Link href={`/${abiertos[0].slug}/metricas`}
           /* MEDIDO 2026-10-03 a 390 px: este enlace medía 184x11 px. Once de
              alto: con un dedo no se abre, y es el enlace que lleva a las métricas. */
           className="inline-flex min-h-[44px] items-center text-blanco-70 underline underline-offset-4 hover:text-blanco">
-          {abiertos.length === 1 ? 'ABRE LA AUDITORÍA' : 'MIRA LAS MÉTRICAS DEL BANCO'}
+          MIRA LAS MÉTRICAS
         </Link>
-        . También puedes ir directo: cada cliente vive en <span className="text-blanco-60">/wundeer</span>,{' '}
+        {' '}También puedes ir directo: cada cliente vive en <span className="text-blanco-60">/wundeer</span>,{' '}
         <span className="text-blanco-60">/candilejas</span>.
       </p>
     </div>
