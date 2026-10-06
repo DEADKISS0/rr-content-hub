@@ -49,6 +49,7 @@ export function NewIdeaForm({ projectSlug, projectId, anuncios, usosPorAnuncio }
     event.preventDefault();
     if (saving) return;
     if (!form.title.trim() || !form.objective.trim()) { avisar('Falta el título o el objetivo.'); return; }
+    if (!form.reference.trim()) { avisar('Toda idea necesita al menos un link de referencia (Instagram, TikTok, YouTube, Google Drive o cualquier URL pública). Sin referencia no se crea la idea.'); return; }
     if (!referenceValid) { avisar('La referencia debe ser un enlace válido (https://…).'); return; }
     if (!projectId) { avisar('No se pudo identificar el cliente de esta idea. Recarga la página.'); return; }
     setSaving(true);
@@ -140,7 +141,7 @@ export function NewIdeaForm({ projectSlug, projectId, anuncios, usosPorAnuncio }
           avisar(`Anuncio: ${elegido.adName}. La pieza queda ligada a él, no copiada.`);
         }}
       />
-      <Field label="REFERENCIA VISUAL (INSTAGRAM, TIKTOK, YOUTUBE O FACEBOOK)" value={form.reference} onChange={(value) => update('reference', value)} placeholder="Pega un enlace: la previsualización aparece abajo" />
+      <Field label="REFERENCIA * (INSTAGRAM, TIKTOK, YOUTUBE, DRIVE O CUALQUIER URL PÚBLICA)" value={form.reference} onChange={(value) => update('reference', value)} placeholder="Obligatorio: pega un enlace de referencia. Sin referencia no se crea la idea." />
       {!referenceValid && <p role="alert" className="mt-2 border border-blanco-20 bg-blanco-05 p-2 font-mono text-[10px] text-blanco">Ese texto no parece un enlace válido. Debe empezar por https://</p>}
     </div>
     {form.reference.trim() && referenceValid && <section aria-live="polite"><p className="mono-label mb-2 text-blanco-50">// PREVISUALIZACIÓN AUTOMÁTICA</p><ReferenceWithBrief url={form.reference.trim()} title={form.title || 'Nueva idea'} brief={{ intention: form.objective, camera: form.camera, talent: form.talent, edit: form.edit }} /></section>}
