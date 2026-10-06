@@ -1368,6 +1368,15 @@ async function createIdea(body: Body, ctx: Ctx): Promise<NextResponse> {
   const referencia = pedidas.find((u) => EMBEBIBLES.some((rx) => rx.test(u))) || pedidas[0];
   const references = referencia ? [referencia] : [];
 
+  // REGLA DURA 2026-10-06 (Santiago): toda idea DEBE tener al menos una
+  // referencia con URL funcional. Sin referencia no se crea la idea.
+  if (!referencia) {
+    return error(
+      'Toda idea necesita al menos un link de referencia (Instagram, TikTok, YouTube, Google Drive o cualquier URL pública). Sin referencia no se crea la idea.',
+      400,
+    );
+  }
+
   /**
    * El anuncio de la biblioteca, si se eligió uno al crear la pieza.
    *
