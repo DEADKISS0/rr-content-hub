@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { ProjectMap, type BoardIdea } from '@/components/project-map';
-import { Chip, Initials } from '@/components/ui/chips';
+import { Chip } from '@/components/ui/chips';
 import { Icon } from '@/components/ui/icons';
 import { ROLE_LABEL, statusMeta, esTerminal, type RoleKey } from '@/lib/flow';
 import { contarEsperas } from '@/lib/esperas';
@@ -200,7 +200,6 @@ export function ProjectDashboard({ project, projectSlug, ideas, role, responsabl
                 <ul className="mt-3 space-y-3">
                   {personasCliente.map((persona) => (
                     <li key={persona.nombre} className="flex items-start gap-3">
-                      <Initials label={persona.nombre} tone="neutro" size={30} />
                       <div className="min-w-0">
                         <p className="font-display text-sm font-bold text-blanco">{persona.nombre}</p>
                         <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-blanco-50">
@@ -224,7 +223,6 @@ export function ProjectDashboard({ project, projectSlug, ideas, role, responsabl
                 <ul className="mt-3 space-y-3">
                   {personasEquipo.map((persona) => (
                     <li key={persona.nombre} className="flex items-start gap-3">
-                      <Initials label={persona.nombre} tone="neutro" size={30} />
                       <div className="min-w-0">
                         <p className="font-display text-sm font-bold text-blanco">{persona.nombre}</p>
                         <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-blanco-50">
@@ -262,7 +260,6 @@ export function ProjectDashboard({ project, projectSlug, ideas, role, responsabl
                 <ul className="mt-3 space-y-3">
                   {Object.entries(byActor).map(([who, items]) => (
                     <li key={who} className="flex items-start gap-3 border-b border-blanco-10 pb-3 last:border-0 last:pb-0">
-                      <Initials label={who} tone="neutro" size={30} />
                       <div className="min-w-0">
                         <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-blanco-50">
                           {who} · {items.length} {items.length === 1 ? 'PIEZA' : 'PIEZAS'}
