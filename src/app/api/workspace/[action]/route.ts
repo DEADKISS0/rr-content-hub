@@ -253,6 +253,23 @@ async function roleForPerfilElegido(
   return (acceso?.role_in_project as RoleKey) ?? null;
 }
 
+/**
+ * El rol de quien llama sobre UNA idea. Única fuente: lo usan el despacho y `borrar`.
+ *
+ * Orden: (1) la cookie firmada + su fila en `rr_hub_access`; (2) el perfil elegido
+ * en el selector (`actorProfile`) contrastado con su fila REAL en `rr_hub_access`.
+ * Sin ninguna de las dos: `null`. Ya NO existe el "anónimo es owner".
+ */
+async function resolverRol(ctx: Ctx, ideaId: string, identidad: string): Promise<RoleKey | null> {
+  if (!ctx.abierto) {
+    const porSesion = await roleForIdea(ctx.supabase, ctx.userId!, ctx.email!, ideaId);
+    if (porSesion) return porSesion;
+  }
+  if (!identidad) return null;
+  const projectId = await projectIdDeIdea(ctx.supabase, ideaId);
+  return projectId ? roleForPerfilElegido(ctx.service, projectId, identidad) : null;
+}
+
 type Body = Record<string, unknown>;
 
 /** The three things every action needs: the caller's own client, the service client, and who they are. */
@@ -335,17 +352,7 @@ export async function POST(request: NextRequest) {
   // tiene el perfil que el cliente declaró. Si hay fila, ese rol manda: un
   // `client_approver` aprueba y un `client_viewer` solo mira, y el equipo sin
   // sesión sigue entrando por el modelo abierto de siempre.
-  let role: RoleKey | null = null;
-  if (!ctx.abierto) role = await roleForIdea(supabase, userId!, email!, ideaId);
-
-  if (!role) {
-    const identidad = str(body.actorProfile, 200);
-    if (identidad) {
-      const projectId = await projectIdDeIdea(supabase, ideaId);
-      if (projectId) role = await roleForPerfilElegido(service, projectId, identidad);
-    }
-  }
-  if (!role) role = ctx.abierto ? 'owner' : null;
+  const role = await resolverRol(ctx, ideaId, str(body.actorProfile, 200));
   if (!role) return unauthorized();
 
   if (action === 'transition') {
@@ -893,7 +900,7 @@ export async function POST(request: NextRequest) {
     const ideaId = str(body.ideaId, 64);
     if (!ideaId) return error('Falta la idea.', 400);
 
-    const role: RoleKey | null = ctx.abierto ? 'owner' : await roleForIdea(supabase, userId!, email!, ideaId);
+    const role: RoleKey | null = await resolverRol(ctx, ideaId, str(body.actorProfile, 200));
     if (!role) return error('No se pudo comprobar tu acceso a esa idea.', 403);
     if (!PUEDE_BORRAR.includes(role)) {
       return error('Solo Dirección borra ideas. Si una pieza sobra, avísame y la archivo.', 403);
@@ -1312,12 +1319,15 @@ async function createIdea(body: Body, ctx: Ctx): Promise<NextResponse> {
   if (!project) return error('Ese proyecto no existe.', 404);
 
   const { data: access } = ctx.abierto
-    ? { data: { role_in_project: 'owner' } }
+    ? { data: null }
     : await supabase
       .from('rr_hub_access').select('role_in_project')
       .eq('user_id', userId!).eq('project_id', project.id).maybeSingle();
-  const creatorRole = (access?.role_in_project as RoleKey | undefined)
-    ?? (email && isSuperAdmin(email) ? 'owner' : undefined);
+  const identidad = str(body.actorProfile, 200);
+  const creatorRole: RoleKey | undefined =
+    (access?.role_in_project as RoleKey | undefined)
+    ?? (email && isSuperAdmin(email) ? 'owner' : undefined)
+    ?? (identidad ? (await roleForPerfilElegido(service, project.id, identidad)) ?? undefined : undefined);
   if (!creatorRole) return unauthorized();
 
   const title = str(body.title, 160);

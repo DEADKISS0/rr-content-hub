@@ -3,7 +3,6 @@ import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { quienEs } from '@/lib/quien-es';
-import { AUTH_ENABLED } from '@/lib/mode';
 import { PUEDE_EDITAR, type RoleKey } from '@/lib/flow';
 
 const SUPER_ADMIN_EMAILS = (process.env.SUPER_ADMIN_EMAILS ?? '')
@@ -86,14 +85,9 @@ export async function rolEnProyecto(projectId: string): Promise<VeredictoProyect
   // `allowedTransitions` la degradaría igual a lectura, y el perfil lo mostraría
   // como un rol roto en vez de como lo que es — nadie dentro.
   if (!email) {
-    const abierto = !AUTH_ENABLED;
-    return {
-      rol: abierto ? 'owner' : 'client_viewer',
-      email: null,
-      puedeEscribir: abierto,
-      puedeAprobar: abierto,
-      via: 'sin-sesion',
-    };
+    // Misma regla que la API (`resolverRol`): sin sesión no hay rol propio. El rol
+    // de quien eligió un perfil en el selector lo resuelve `/api/workspace/mi-rol`.
+    return { rol: 'client_viewer', email: null, puedeEscribir: false, puedeAprobar: false, via: 'sin-sesion' };
   }
 
   // La lista de emergencia: mientras la tabla esté incompleta, el equipo
