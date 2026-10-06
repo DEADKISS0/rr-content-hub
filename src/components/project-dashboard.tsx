@@ -63,17 +63,12 @@ export function ProjectDashboard({ project, projectSlug, ideas, role, responsabl
   const conteo = contarEsperas(ideas, esTerminal);
   const esperandoCliente = conteo.esperandoCliente;
   const esperandoEquipo = conteo.esperandoEquipo;
-  const byActor = esperandoCliente.reduce<Record<string, BoardIdea[]>>((groups: Record<string, BoardIdea[]>, idea: BoardIdea) => {
-    const who = statusMeta(idea.status).who;
-    groups[who] = [...(groups[who] ?? []), idea];
-    return groups;
-  }, {});
-  /** Lo mismo, para la espera interna: agrupado por rol, no por "quién". */
-  const porRolEquipo = esperandoEquipo.reduce<Record<string, BoardIdea[]>>((groups: Record<string, BoardIdea[]>, idea: BoardIdea) => {
-    const rol = statusMeta(idea.status).who;
-    groups[rol] = [...(groups[rol] ?? []), idea];
-    return groups;
-  }, {});
+  /* MEDIDO 2026-10-06: antes estos dos agrupaban por ROL (`statusMeta().who`
+     que devuelve «CLIENTE» o «EQUIPO»), no por persona. El panel derecho
+     mostraba «CLIENTE · 1 PIEZA O6» y «EQUIPO · O32 · P30 · P29...»: códigos
+     de pieza, no nombres. Ahora los dos paneles usan `personasCliente` y
+     `personasEquipo`, que agrupan por `created_by` y resuelven el nombre
+     completo. */
   const roleLabel = ROLE_LABEL[role as RoleKey] ?? role.toUpperCase();
 
   /* MEDIDO 2026-10-05: ver `resumen-proyecto.ts`. La ficha completa se puede
@@ -258,14 +253,15 @@ export function ProjectDashboard({ project, projectSlug, ideas, role, responsabl
                   ESPERANDO AL CLIENTE · {esperandoCliente.length}
                 </p>
                 <ul className="mt-3 space-y-3">
-                  {Object.entries(byActor).map(([who, items]) => (
-                    <li key={who} className="flex items-start gap-3 border-b border-blanco-10 pb-3 last:border-0 last:pb-0">
+                  {personasCliente.map((persona) => (
+                    <li key={persona.nombre} className="flex items-start gap-3 border-b border-blanco-10 pb-3 last:border-0 last:pb-0">
                       <div className="min-w-0">
+                        <p className="font-display text-sm font-bold text-blanco">{persona.nombre}</p>
                         <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-blanco-50">
-                          {who} · {items.length} {items.length === 1 ? 'PIEZA' : 'PIEZAS'}
+                          {persona.total} {persona.total === 1 ? 'PIEZA' : 'PIEZAS'}
                         </p>
-                        <p className="mt-1 truncate font-display text-sm font-bold text-blanco">
-                          {items.map((idea) => idea.code ?? 'IDEA').join(' · ')}
+                        <p className="mt-1 truncate font-display text-sm text-blanco-70">
+                          {persona.piezas.join(' · ')}
                         </p>
                       </div>
                     </li>
@@ -282,11 +278,11 @@ export function ProjectDashboard({ project, projectSlug, ideas, role, responsabl
                   ESPERANDO QUE LAS MUEVA EL EQUIPO · {esperandoEquipo.length}
                 </p>
                 <ul className="mt-3 space-y-2">
-                  {Object.entries(porRolEquipo).map(([rol, items]) => (
-                    <li key={rol} className="flex items-baseline gap-2">
-                      <span className="w-24 shrink-0 font-mono text-[10px] text-blanco-50">{rol}</span>
-                      <span className="font-display text-sm font-bold text-blanco">
-                        {items.map((idea) => idea.code ?? 'IDEA').join(' · ')}
+                  {personasEquipo.map((persona) => (
+                    <li key={persona.nombre} className="flex items-baseline gap-2">
+                      <span className="shrink-0 font-display text-sm font-bold text-blanco">{persona.nombre}</span>
+                      <span className="font-mono text-[10px] text-blanco-50">
+                        {persona.total} {persona.total === 1 ? 'PIEZA' : 'PIEZAS'} · {persona.piezas.join(' · ')}
                       </span>
                     </li>
                   ))}
