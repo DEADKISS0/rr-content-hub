@@ -109,16 +109,21 @@ export function IdeaCoverFrame({
       {/* MEDIDO 2026-10-05: el rótulo de red va SIEMPRE que haya referencia,
           tenga o no imagen. Antes solo lo pintaba `PublicationPreview` y en las
           tarjetas con portada real se leía una foto sin decir de qué red era. */}
-      {reference && (
+      {reference ? (
         <span className="absolute left-2 top-2 inline-flex items-center gap-1 border border-blanco-30 bg-negro/85 px-1.5 py-1 font-mono text-[10px] tracking-[0.08em] text-blanco">
           <Icon name={reference.icon} size={11} />
           {reference.label}
+        </span>
+      ) : (
+        <span className="absolute left-2 top-2 inline-flex items-center gap-1 border border-blanco-20 bg-negro/85 px-1.5 py-1 font-mono text-[10px] tracking-[0.08em] text-blanco-50">
+          <Icon name="link" size={11} />
+          SIN REFERENCIA
         </span>
       )}
 
       {/* Aviso honesto: la miniatura no es pública, se ve al abrir. */}
       {!conImagen && size !== 'sm' && (
-        <span className="absolute right-2 top-2 border border-blanco-20 bg-negro/85 px-1.5 py-1 font-mono text-[10px] tracking-[0.06em] text-blanco-50">
+        <span className="absolute right-2 top-2 border border-mostaza/60 bg-negro/85 px-1.5 py-1 font-mono text-[10px] tracking-[0.06em] text-mostaza">
           SIN MINIATURA
         </span>
       )}
