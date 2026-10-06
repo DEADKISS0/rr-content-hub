@@ -11,6 +11,7 @@ import { SelectorPerfil } from '@/components/selector-perfil';
 import { AUTH_ENABLED } from '@/lib/mode';
 import { HubFooter } from '@/components/hub-footer';
 import { SelectorCliente, type ClienteParaPintar } from '@/components/selector-cliente';
+import { logoDeCliente } from '@/lib/logo-cliente';
 
 /**
  * Cascarón del proyecto.
@@ -143,6 +144,8 @@ export function WorkspaceShell({ children, project, role, email, nombre, puedeEs
   const collapsed = useSyncExternalStore(subscribeAside, readAside, () => false);
   const slug = params.projectSlug;
   const sesion = useSesion(email, nombre);
+  /** MEDIDO 2026-10-05: el logo del cliente en la barra. Ver `logo-cliente.ts`. */
+  const logoCliente = logoDeCliente(slug);
 
   function toggleCollapsed() {
     try {
@@ -256,9 +259,33 @@ export function WorkspaceShell({ children, project, role, email, nombre, puedeEs
               <Icon name="list" size={14} /> MENÚ
             </button>
             <div className="hidden items-center gap-4 md:flex">
-              <Link href={`/${slug}`} className="font-mono text-xs text-blanco-60 transition-colors hover:text-blanco">
-                {project.name.toUpperCase()} · TODO EL CONTENIDO EN UN LUGAR
-              </Link>
+              {/* MEDIDO 2026-10-05 (feedback de Santiago: «aquí quiero el logo
+                  de wundeer»). Antes era el nombre en monoespaciada: «WUNDEER ·
+                  TODO EL CONTENIDO EN UN LUGAR». Un nombre en una barra es lo que
+                  dice cualquier sistema; el logo hace que la pantalla se vea del
+                  cliente.
+
+                  El nombre no desaparece: pasa a ser el `alt` del logo, que es lo
+                  que un lector de pantalla lee y lo que se ve al no cargar la
+                  imagen. Si el cliente no tiene logo, `logoDeCliente` devuelve
+                  null y cae al texto, que es lo correcto: un hueco se nota; una
+                  imagen rota en la barra se nota peor. */}
+              {logoCliente ? (
+                <Link href={`/${slug}`} className="inline-flex items-center" title={`${project.name} · todo el contenido en un lugar`}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={logoCliente}
+                    alt={`${project.name} · todo el contenido en un lugar`}
+                    width={274}
+                    height={80}
+                    className="h-5 w-auto object-contain opacity-80 transition-opacity hover:opacity-100"
+                  />
+                </Link>
+              ) : (
+                <Link href={`/${slug}`} className="font-mono text-xs text-blanco-60 transition-colors hover:text-blanco">
+                  {project.name.toUpperCase()} · TODO EL CONTENIDO EN UN LUGAR
+                </Link>
+              )}
               {/* MEDIDO 2026-10-03: la votación interna solo se llegaba a través
                   de la ficha de cada idea. Con 18 piezas en `voting`, eso es
                   recorrer el tablero buscando cuál abrir. Este enlace va en la

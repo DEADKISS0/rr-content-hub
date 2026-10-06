@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { getIdeas, getProject, getVotosDeVarias } from '@/lib/data';
+import { getIdeas, getProject, getVotosDeVarias, getResponsables } from '@/lib/data';
 import { ProjectDashboard } from '@/components/project-dashboard';
 
 export default async function ProjectDashboardPage({ params }: { params: Promise<{ projectSlug: string }> }) {
@@ -21,6 +21,14 @@ export default async function ProjectDashboardPage({ params }: { params: Promise
    */
   const enVotacion = ideas.filter((idea) => idea.status === 'voting').map((idea) => idea.id);
   const conteos = await getVotosDeVarias(enVotacion);
+
+  /*
+   * MEDIDO 2026-10-05: el panel de bloqueos mostraba iniciales («C») y códigos
+   * («O6»), no nombres. Con 21 personas con acceso, eso no le dice a nadie a quién
+   * hay que empujar. Los nombres se resuelven en UNA consulta aparte y viajan como
+   * `Map` id → nombre; el componente decide cómo abreviarlos.
+   */
+  const responsables = await getResponsables(ideas);
 
   const conVotos = ideas.map((idea) => ({
     ...idea,
@@ -50,5 +58,5 @@ export default async function ProjectDashboardPage({ params }: { params: Promise
   // selector de perfil cuando hace falta escribir.
   const rol = access?.role_in_project ?? 'owner';
 
-  return <ProjectDashboard project={project} projectSlug={projectSlug} ideas={conVotos} role={rol} />;
+  return <ProjectDashboard project={project} projectSlug={projectSlug} ideas={conVotos} role={rol} responsables={responsables} />;
 }
