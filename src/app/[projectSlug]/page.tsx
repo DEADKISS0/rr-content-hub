@@ -1,6 +1,17 @@
 import { notFound } from 'next/navigation';
+import type { Metadata } from 'next';
 import { getIdeas, getProject, getVotosDeVarias, getResponsables } from '@/lib/data';
 import { ProjectDashboard } from '@/components/project-dashboard';
+
+export async function generateMetadata({ params }: { params: Promise<{ projectSlug: string }> }): Promise<Metadata> {
+  const { projectSlug } = await params;
+  const { project } = await getProject(projectSlug);
+  if (!project) return { title: 'Proyecto no encontrado | RR Content Hub' };
+  return {
+    title: `${project.name} | RR Content Hub`,
+    description: `Dashboard de ${project.name} en RR Content Hub`,
+  };
+}
 
 export default async function ProjectDashboardPage({ params }: { params: Promise<{ projectSlug: string }> }) {
   const { projectSlug } = await params;

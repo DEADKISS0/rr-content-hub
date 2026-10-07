@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { quienEs } from '@/lib/quien-es';
 import { createServiceClient } from '@/lib/supabase/service';
+import { catalogoIncluye } from '@/lib/config';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,11 +44,8 @@ export async function GET(request: NextRequest) {
   //
   // Lo que NO cambia: `..` sigue prohibido y el bucket no se lista. Preguntar por
   // un archivo de un cliente oculto sigue dando 404, que es lo que se busca.
-  const visibles = (process.env.HUB_CATALOGO_VISIBLE ?? '').split(',').map((s) => s.trim()).filter(Boolean);
   const clienteDeLaRuta = path.split('/')[0];
-  // REGLA: si no hay catálogo configurado, se oculta TODO. No se puede
-  // confundir "no configurado" con "visible": el default seguro es cerrado.
-  if (visibles.length === 0 || !visibles.includes(clienteDeLaRuta)) {
+  if (!catalogoIncluye(clienteDeLaRuta)) {
     return NextResponse.json({ error: 'Ese archivo no existe.' }, { status: 404 });
   }
   // Y no puede salirse de la carpeta con `..`.

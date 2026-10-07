@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { assignOwner, loadRoster, type RosterMember } from '@/lib/workspace-client';
 import { ROLE_LABEL, type RoleKey } from '@/lib/flow';
 import { Icon } from '@/components/ui/icons';
@@ -34,6 +35,7 @@ export function AssignOwner({
   currentName: string | null;
   canAssign: boolean;
 }) {
+  const router = useRouter();
   const [roster, setRoster] = useState<RosterMember[]>([]);
   const [elegido, setElegido] = useState('');
   const [busy, setBusy] = useState(false);
@@ -61,7 +63,7 @@ export function AssignOwner({
     if (error) { setFallo(error); return; }
     setNotice(`✓ ${nombre ?? 'Responsable'} es ahora el responsable de esta pieza.`);
     setElegido('');
-    window.setTimeout(() => window.location.reload(), 1200);
+    window.setTimeout(() => router.refresh(), 1200);
   }
 
   // Con responsable asignado, el bloque es un dato, no un formulario: la única

@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { ReferenceEmbed } from './reference-embed';
 
@@ -234,9 +235,12 @@ export function ReferenceWithBrief({ url, refs, title, brief, coverUrl }: { url?
           aviso al lado se ve como lo que es: una referencia que se ve en otro
           sitio y que aquí está su límite.
         */}
-        {coverUrl && <img
+        {coverUrl && <Image
           src={coverUrl}
           alt="Miniatura del anuncio de referencia"
+          width={1200}
+          height={800}
+          unoptimized
           className="mx-auto mb-6 max-h-[420px] w-auto max-w-full border border-blanco-20 object-contain"
         />}
         <p className="font-mono text-xs text-mostaza">[PREVIEW NO DISPONIBLE PARA ESTE ORIGEN]</p>

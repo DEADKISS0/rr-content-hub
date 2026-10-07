@@ -86,11 +86,17 @@ const subir = fs.readFileSync(path.join(repoRoot, 'src/app/api/subir/route.ts'),
 // de sesion; las de contenido y de esquema se quedan.
 check('la subida no exige la cookie de la puerta: el acceso es libre',
   !/if \(!sesion\)/.test(subir) && !/quienEs\(\)[\s\S]{0,120}401/.test(subir));
+const config = fs.readFileSync(path.join(repoRoot, 'src/lib/config.ts'), 'utf8');
+const subidaFiltraCatalogoLocal = /HUB_CATALOGO_VISIBLE[\s\S]{0,220}!visibles\.includes\(projectSlug\)/.test(subir);
+const subidaFiltraCatalogoCentral =
+  /catalogoIncluye\(projectSlug\)/.test(subir)
+  && /HUB_CATALOGO_VISIBLE/.test(config)
+  && /lista\.includes\(slug\.trim\(\)\.toLowerCase\(\)\)/.test(config);
 check('la subida NO acepta el cliente del cuerpo como verdad absoluta',
-      /HUB_CATALOGO_VISIBLE[\s\S]{0,220}!visibles\.includes\(projectSlug\)/.test(subir));
+      subidaFiltraCatalogoLocal || subidaFiltraCatalogoCentral);
 // MEDIDO 2026-10-04: `HUB_CATALOGO_VISIBLE` es lo que protege ahora. Un cliente
 // fuera del catalogo no se sube nada a el, aunque la subida sea libre.
-check('la subida respeta el catalogo visible', /HUB_CATALOGO_VISIBLE/.test(subir));
+check('la subida respeta el catalogo visible', subidaFiltraCatalogoLocal || subidaFiltraCatalogoCentral);
 check('la metadata del asset la escribe el servidor', /rr_hub_assets'\)\.insert/.test(subir));
 check('la subida mira los bytes, no lo que el navegador declara', /firmaDeImagen\(/.test(subir));
 // `version_label` es NOT NULL con default 'v1'. Mandar null explicitamente hace

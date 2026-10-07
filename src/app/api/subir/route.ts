@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { quienEs } from '@/lib/quien-es';
 import { createServiceClient } from '@/lib/supabase/service';
 import { firmaDeImagen, TIPOS_DE_IMAGEN } from '@/lib/firma-imagen';
+import { catalogoIncluye } from '@/lib/config';
+import { checkDbLimit, recordDbFailure, retryAfterDb } from '../_lib/rate-limit-db';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +32,24 @@ const BUCKET = 'rr-content-assets';
 const MAX_BYTES = 100 * 1024 * 1024;
 const TIPOS = new Set<string>(TIPOS_DE_IMAGEN);
 
+function origenDePeticion(request: NextRequest): string {
+  const cadena = request.headers.get('x-forwarded-for') ?? '';
+  const primera = cadena.split(',')[0]?.trim();
+  return primera || 'desconocido';
+}
+
 export async function POST(request: NextRequest) {
+  const ip = origenDePeticion(request);
+  const path = '/api/subir';
+  const ok = await checkDbLimit(ip, path, 20);
+  if (!ok) {
+    const espera = await retryAfterDb(ip, path);
+    const respuesta = NextResponse.json({ error: 'Demasiadas subidas. Intenta de nuevo mas tarde.' }, { status: 429 });
+    respuesta.headers.set('Retry-After', String(espera));
+    return respuesta;
+  }
+  await recordDbFailure(ip, path);
+
   // MEDIDO 2026-10-04. Acceso libre («100% libre», Santiago). Esta era la
   // ÚLTIMA escritura que exigía la puerta: todo lo demás ya estaba abierto desde
   // el 2026-10-03, y con esto subir un archivo sin sesión devolvía 401 con un
@@ -73,11 +92,20 @@ export async function POST(request: NextRequest) {
   if (!projectSlug) {
     return NextResponse.json({ error: 'Falta el cliente.' }, { status: 400 });
   }
-  const visibles = (process.env.HUB_CATALOGO_VISIBLE ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-  if (visibles.length > 0 && !visibles.includes(projectSlug)) {
+  if (!catalogoIncluye(projectSlug)) {
     return NextResponse.json({ error: 'Ese cliente no existe.' }, { status: 404 });
   }
   if (!ideaId) return NextResponse.json({ error: 'Falta la idea.' }, { status: 400 });
+
+  // Verificar que la idea pertenece al projectSlug antes de subir.
+  const { data: ideaCheck, error: ideaCheckError } = await service
+    .from('rr_hub_ideas')
+    .select('id, project:rr_hub_projects!inner(slug)')
+    .eq('id', ideaId)
+    .maybeSingle();
+  if (ideaCheckError || !ideaCheck || (ideaCheck.project as { slug?: string } | null)?.slug !== projectSlug) {
+    return NextResponse.json({ error: 'Esa idea no pertenece a ese cliente.' }, { status: 403 });
+  }
 
   // El tipo se mira DOS veces: una contra lo que el navegador dice, y otra
   // contra los bytes. El `Content-Type` lo pone el cliente y no vale como

@@ -5,6 +5,7 @@ import { quienEs } from '@/lib/quien-es';
 import { DEMO_MODE, SupabaseNotConfiguredError } from './demo-mode';
 import { demoIdeas, demoProjects, getDemoIdea, getDemoProject } from './demo-data';
 import { clienteEsVisible, clienteExiste } from './projects';
+import { catalogoIncluye } from './config';
 
 /**
  * Data access layer for the RR Content Hub.
@@ -308,7 +309,7 @@ export async function getProjects() {
       .from('rr_hub_projects')
       .select('id, slug, name, client_name')
       .order('name', { ascending: true });
-    return { projects: todos ?? [], supabase };
+    return { projects: (todos ?? []).filter((p) => catalogoIncluye(p.slug)), supabase };
   }
 
   // Global admins supervisan every project even without an explicit access row.
@@ -391,7 +392,8 @@ export async function getIdeas(projectId: string) {
     // Las ideas archivadas desaparecen del tablero, pero NO se borran. Siguen en
     // la tabla con sus votos y sus comentarios, y se pueden volver a desarchivar.
     .is('archived_at', null)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(100);
 
   return (await conPortadas(supabase, data ?? [])).map(mapIdea);
 }
@@ -672,7 +674,8 @@ export async function getPresencia(): Promise<PresenciaFila[]> {
   const { data } = await supabase
     .from('rr_hub_presencia')
     .select('email, profile_id, last_seen_at')
-    .order('last_seen_at', { ascending: false });
+    .order('last_seen_at', { ascending: false })
+    .limit(50);
 
   const filas = data ?? [];
   if (!filas.length) return [];
@@ -857,7 +860,8 @@ export async function getComentarios(ideaId: string) {
     .from('rr_hub_comments')
     .select('id, body, author_label, resolved_at, created_at')
     .eq('idea_id', ideaId)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: true })
+    .limit(100);
   // Se devuelve con la forma que el componente ya espera (`text`, `author`,
   // `createdAt`), no con los nombres de columna. Que el mapeo esté aquí y no
   // en el componente es lo que evita tener dos versiones de la misma cosa: si
@@ -879,7 +883,8 @@ export async function getAssets(ideaId: string) {
     .from('rr_hub_assets')
     .select('id, asset_stage, storage_path, external_url, file_name, mime_type, version_label, created_at')
     .eq('idea_id', ideaId)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: true })
+    .limit(100);
   return (data ?? []).map((f) => ({
     id: f.id as string,
     name: (f.file_name as string) || 'archivo',
@@ -905,7 +910,8 @@ export async function getTimeline(ideaId: string) {
     .from('rr_hub_events')
     .select('id, from_status, to_status, comment, actor_label, created_at')
     .eq('idea_id', ideaId)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: true })
+    .limit(100);
   return (data ?? []).map((e) => ({
     id: e.id as string,
     status: (e.to_status as string) ?? '',
@@ -1001,21 +1007,11 @@ export async function getClientesDeLaPersona(): Promise<{
   // `CLIENTES_CONOCIDOS = ['wundeer', 'candilejas']` a mano, y por eso Boga y
   // Satiro salían con candado: había que abrir el fichero para poder verlos.
   //
-  // Si la variable no está, se ven todos: fallar hacia «que se vea de más» y
-  // no hacia «que no se vea nada», porque un cliente escondido sin querer deja
-  // de existir para quien debería verlo.
-  const CATALOGO_VISIBLE = (process.env.HUB_CATALOGO_VISIBLE ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-
   const todosLosProyectos = (catalogo.data ?? []) as {
     id: string; slug: string; name: string; client_name: string;
     brand_primary_color: string | null; description: string | null;
   }[];
-  const proyectos = CATALOGO_VISIBLE.length === 0
-    ? todosLosProyectos
-    : todosLosProyectos.filter((p) => CATALOGO_VISIBLE.includes(p.slug));
+  const proyectos = todosLosProyectos.filter((p) => catalogoIncluye(p.slug));
 
   if (proyectos.length === 0) return vacio;
 

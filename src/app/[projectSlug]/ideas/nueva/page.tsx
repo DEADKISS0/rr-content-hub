@@ -1,7 +1,16 @@
+import type { Metadata } from 'next';
 import { NewIdeaForm } from '@/components/new-idea-form';
 import { listarAnuncios, anunciosEnUso } from '@/lib/ad-library-server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { createClient } from '@/lib/supabase/server';
+
+export async function generateMetadata({ params }: { params: Promise<{ projectSlug: string }> }): Promise<Metadata> {
+  const { projectSlug } = await params;
+  return {
+    title: `Nueva idea \u00b7 ${projectSlug} | RR Content Hub`,
+    description: `Crear una nueva idea para ${projectSlug}`,
+  };
+}
 
 export default async function NewIdea({ params }: { params: Promise<{ projectSlug: string }> }) {
   const { projectSlug } = await params;

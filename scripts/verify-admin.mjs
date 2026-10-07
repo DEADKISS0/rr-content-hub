@@ -34,7 +34,12 @@ check('no acepta roles de proyecto como admin', !/role_in_project/.test(guard));
 //    produccion, asi que un control estricto sin escape dejaria a todos fuera
 //    y la unica salida seria por SQL.
 check('existe escape hatch por variable de entorno', /SUPER_ADMIN_EMAILS/.test(guard));
-check('el escape hatch solo se aplica con sesion iniciada', /currentEmail\(\)[\s\S]{0,200}SUPER_ADMIN_EMAILS/.test(guard));
+const config = read('src/lib/config.ts');
+const escapeHatchConSesion =
+  /currentEmail\(\)[\s\S]{0,220}esSuperAdmin\(email\)/.test(guard)
+  && /SUPER_ADMIN_EMAILS/.test(config)
+  && /hubConfig\.SUPER_ADMIN_EMAILS\.includes\(email\.trim\(\)\.toLowerCase\(\)\)/.test(config);
+check('el escape hatch solo se aplica con sesion iniciada', escapeHatchConSesion);
 
 // 4. LA RUTA USA LA GUARDA. Esta es la comprobacion que importa: existia
 //    /audit/admin sin ninguna comprobacion y renderizaba el roster entero a

@@ -114,6 +114,8 @@ export function InstagramEmbed({ url, title, marca = 'instagram' }: { url: strin
           loading="lazy"
           allow="autoplay; encrypted-media; picture-in-picture"
           scrolling="no"
+          sandbox="allow-scripts allow-same-origin"
+          referrerPolicy="strict-origin-when-cross-origin"
         />
       </div>
       <p className="border-t border-blanco-20 px-3 py-2 font-mono text-[10px] text-blanco-50">

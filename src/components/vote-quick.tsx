@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Icon } from './ui/icons';
 import { Chip } from './ui/chips';
 import { voteIdea, type VotoResultado } from '@/lib/workspace-client';
@@ -71,6 +72,7 @@ export function VoteQuick({
    * oculta y por eso el endpoint responde con `max-age` de 10 s: el navegador
    * sirve la misma respuesta a varias tarjetas sin volver a pedirla.
    */
+  const router = useRouter();
   const { conteo } = useVotosEnVivo(slug, ideaId, {
     aFavor: inicial.aFavor,
     enContra: inicial.enContra,
@@ -84,7 +86,7 @@ export function VoteQuick({
   const aFavor = propio?.aFavor ?? conteo.aFavor;
   const enContra = propio?.enContra ?? conteo.enContra;
 
-  const [enviando, setEnviando] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [fallo, setFallo] = useState('');
   const [guardado, setGuardado] = useState<DecisionVoto | null>(null);
 
@@ -95,8 +97,8 @@ export function VoteQuick({
 
   const votar = useCallback(
     async (decision: DecisionVoto) => {
-      if (enviando) return;
-      setEnviando(true);
+      if (isSubmitting) return;
+      setIsSubmitting(true);
       setFallo('');
       // MEDIDO 2026-10-03: este botón NO mandaba perfil, así que el servidor
       // caía al correo de la sesión. Y aquí, en el tablero, casi siempre no hay
@@ -104,7 +106,7 @@ export function VoteQuick({
       // y el botón se quedaba sin efecto. MEDIDO: el clic se registraba y no
       // pasaba nada en la base.
       const resultado: VotoResultado = await voteIdea(ideaId, decision, '', emailElegido());
-      setEnviando(false);
+      setIsSubmitting(false);
       if (resultado.error) {
         setFallo(resultado.error);
         return;
@@ -117,10 +119,10 @@ export function VoteQuick({
       // Si la votación se decidió con este voto, el tablero entero cambia: la
       // pieza sale al cliente. Se recarga para que las columnas cuadren.
       if (resultado.votacion === 'ganada' || resultado.votacion === 'perdida') {
-        window.setTimeout(() => window.location.reload(), 1100);
+        window.setTimeout(() => router.refresh(), 1100);
       }
     },
-    [enviando, ideaId],
+    [isSubmitting, ideaId, router],
   );
 
   return (
@@ -138,7 +140,8 @@ export function VoteQuick({
         <button
           type="button"
           onClick={() => void votar('yes')}
-          disabled={enviando}
+          disabled={isSubmitting}
+          aria-pressed={guardado === 'yes'}
           aria-label={`Votar a favor. Faltan ${faltan} de ${VOTOS_NECESARIOS} votos`}
           className="inline-flex min-h-[36px] flex-1 items-center justify-center gap-1.5 border border-blanco-25 bg-blanco-05 font-mono text-[10px] uppercase tracking-[0.06em] text-blanco-80 transition-colors hover:border-mostaza hover:text-blanco disabled:opacity-50"
         >
@@ -148,7 +151,8 @@ export function VoteQuick({
         <button
           type="button"
           onClick={() => void votar('no')}
-          disabled={enviando}
+          disabled={isSubmitting}
+          aria-pressed={guardado === 'no'}
           aria-label={`Votar en contra. Faltan ${faltan} de ${VOTOS_NECESARIOS} votos`}
           className="inline-flex min-h-[36px] flex-1 items-center justify-center gap-1.5 border border-blanco-25 bg-blanco-05 font-mono text-[10px] uppercase tracking-[0.06em] text-blanco-80 transition-colors hover:border-fucsia hover:text-blanco disabled:opacity-50"
         >

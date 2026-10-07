@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { postWorkspaceAction, transitionIdeaStatus, type TimelineEvent } from '@/lib/workspace-client';
 import { STATUS_META, TONE_CLASS, allowedTransitions, statusMeta, waitingOn, ROLE_KEYS, PUEDE_BORRAR, PUEDE_BORRAR_ESTADOS, type RoleKey, type WorkflowStatus } from '@/lib/flow';
@@ -37,8 +37,22 @@ export function IdeaActions({ projectSlug, ideaId, currentStatus = 'pending_appr
 
   useEffect(() => {
     const t0 = window.setTimeout(refresh, 0);
-    const id = window.setInterval(refresh, 20_000);
-    return () => { window.clearTimeout(t0); window.clearInterval(id); };
+    // La pestaña oculta no pregunta. MEDIDO 2026-10-07: este sondeo era el unico
+    // de los tres sin portón de visibilidad, así que una pestaña en segundo
+    // plano seguía pegando al servidor cada 20 s con nadie mirando. Un mes de
+    // eso son 129.600 llamadas por pestaña. Se reactiva al volver.
+    const id = window.setInterval(() => {
+      if (document.visibilityState === 'visible') refresh();
+    }, 20_000);
+    const alVolver = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    document.addEventListener('visibilitychange', alVolver);
+    return () => {
+      window.clearTimeout(t0);
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', alVolver);
+    };
   }, [refresh]);
   /**
    * `readOnly` no puede depender de `PUBLIC_MODE`.
@@ -107,6 +121,12 @@ export function IdeaActions({ projectSlug, ideaId, currentStatus = 'pending_appr
    * confirma; Escape o un clic fuera cancelan.
    */
   const [armado, setArmado] = useState<WorkflowStatus | null>(null);
+  const confirmPanelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!armado) return;
+    confirmPanelRef.current?.focus();
+  }, [armado]);
 
   async function run(target: WorkflowStatus, label: string, note: string) {
     if (busy) return; // double-click guard: one in-flight transition at a time
@@ -159,7 +179,7 @@ export function IdeaActions({ projectSlug, ideaId, currentStatus = 'pending_appr
               <span className="block">{busy && armadoEste ? 'REGISTRANDO…' : move.label}</span>
               <span className="mt-1 block font-mono text-[10px] font-normal opacity-80">→ deja la pieza en {moveMeta.label} · le tocará a {moveMeta.who}</span>
             </button>
-            {armadoEste && armadoMeta && <div className="anim-slide-down mt-2 border border-blanco-40 bg-blanco-10 p-4">
+            {armadoEste && armadoMeta && <div ref={confirmPanelRef} tabIndex={-1} role="group" aria-label="Confirmar cambio de estado" className="anim-slide-down mt-2 border border-blanco-40 bg-blanco-10 p-4 outline-none focus-visible:ring-2 focus-visible:ring-mostaza">
               <p className="mono-label text-blanco-60">[CONFIRMA ANTES]</p>
               <p className="mt-2 text-sm leading-6 text-blanco-70">
                 Vas a mover <strong className="text-blanco">{meta.label}</strong> a <strong className="text-blanco">{armadoMeta.label}</strong>.

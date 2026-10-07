@@ -1,5 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { clienteExiste } from '@/lib/projects';
+import { hubConfig, catalogoIncluye } from '@/lib/config';
+import { checkDbLimit, recordDbFailure, recordDbSuccess, retryAfterDb } from '../_lib/rate-limit-db';
 import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -18,10 +20,20 @@ type Payload = {
 };
 
 function configured() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const token = process.env.RR_HUB_AUTOMATION_TOKEN;
+  const url = hubConfig.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = hubConfig.SUPABASE_SERVICE_ROLE_KEY;
+  const token = hubConfig.RR_HUB_AUTOMATION_TOKEN;
   return url && serviceKey && token ? { url, serviceKey, token } : null;
+}
+
+function origenDe(request: NextRequest): 'asistente' | 'manual' {
+  return request.headers.get('x-rr-origen') === 'asistente' ? 'asistente' : 'manual';
+}
+
+function origenDePeticion(request: NextRequest): string {
+  const cadena = request.headers.get('x-forwarded-for') ?? '';
+  const primera = cadena.split(',')[0]?.trim();
+  return primera || 'desconocido';
 }
 
 function authorized(request: NextRequest, token: string) {
@@ -90,6 +102,7 @@ async function insertWithCode(
   input: {
     projectId: string; title: string; description: string; objective: string;
     category: string; references: string[]; contentType: 'organic' | 'paid'; priority: 'high' | 'normal';
+    origen: 'asistente' | 'manual';
   },
 ): Promise<{ data?: IdeaRow; error?: string }> {
   const prefix = input.contentType === 'organic' ? 'O' : 'P';
@@ -104,12 +117,8 @@ async function insertWithCode(
       project_id: input.projectId, code: `${prefix}${next}`, title: input.title,
       description: input.description, objective: input.objective,
       content_type: input.contentType, category: input.category, reference_urls: input.references,
-      // MEDIDO 2026-10-04, Santiago: una idea nace ABIERTA A VOTACIÓN. Antes esta
-      // vía (la API de automatización, la que usa el generador) también nacía en
-      // `draft`, o sea que las ideas que llegaban solas se quedaban sin que nadie
-      // las mirara. Ahora es el mismo punto de partida que la creación manual: la
-      // primera persona que la ve ya puede opinar.
       status: 'voting', priority: input.priority,
+      origen: input.origen,
     }).select('id, code, title, status').single();
 
     if (!error) return { data: data as IdeaRow };
@@ -128,13 +137,22 @@ async function context(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  const ip = origenDePeticion(request);
+  const path = '/api/ideas:get';
+  const ok = await checkDbLimit(ip, path, 120);
+  if (!ok) {
+    const espera = await retryAfterDb(ip, path);
+    const respuesta = NextResponse.json({ error: 'Demasiadas solicitudes. Intenta de nuevo mas tarde.' }, { status: 429 });
+    respuesta.headers.set('Retry-After', String(espera));
+    return respuesta;
+  }
+  await recordDbFailure(ip, path);
+
   const setup = await context(request);
   if ('response' in setup) return setup.response;
-  // Esta API la usa el generador de ideas, que está capado por la cola
-  // (`--tope-cola`), así que no necesita más puerta que la que ya tiene: la clave
-  // de API. Lo que sí hace es dejar de estar atada a un solo cliente: escribir
-  // `project=wundeer` o `project=candilejas` devuelve las ideas de ese cliente.
+
   const slug = new URL(request.url).searchParams.get('project') ?? 'wundeer';
+  if (!catalogoIncluye(slug)) return error('Ese cliente no existe.', 400);
   if (!(await clienteExiste(slug))) return error('Ese cliente no existe.', 400);
 
   const { data: project, error: projectError } = await setup.supabase.from('rr_hub_projects').select('id').eq('slug', slug).single();
@@ -149,11 +167,24 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const ip = origenDePeticion(request);
+  const path = '/api/ideas:post';
+  const ok = await checkDbLimit(ip, path, 60);
+  if (!ok) {
+    const espera = await retryAfterDb(ip, path);
+    const respuesta = NextResponse.json({ error: 'Demasiadas solicitudes. Intenta de nuevo mas tarde.' }, { status: 429 });
+    respuesta.headers.set('Retry-After', String(espera));
+    return respuesta;
+  }
+  await recordDbFailure(ip, path);
+
   const setup = await context(request);
   if ('response' in setup) return setup.response;
+
   let body: Payload;
   try { body = await request.json(); } catch { return error('El cuerpo debe ser JSON válido.', 400); }
   const slug = body.project_slug ?? 'wundeer';
+  if (!catalogoIncluye(slug)) return error('Ese cliente no existe.', 400);
   if (!(await clienteExiste(slug))) return error('Ese cliente no existe.', 400);
 
   const problem = validate(body);
@@ -172,6 +203,7 @@ export async function POST(request: NextRequest) {
     references,
     contentType,
     priority: body.priority === 'high' ? 'high' : 'normal',
+    origen: origenDe(request),
   });
   if (insertError || !idea) return error(insertError ?? 'No se pudo crear la idea.', 409);
   await setup.supabase.from('rr_hub_events').insert({

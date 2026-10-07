@@ -167,6 +167,9 @@ export function ReferenceEmbed({
         data-estado={estado}
         className={`w-full border-0 ${className ?? ''}`}
         allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+        sandbox="allow-scripts allow-same-origin"
+        referrerPolicy="strict-origin-when-cross-origin"
+        loading="lazy"
       />
 
       {estado !== 'vivo' && (

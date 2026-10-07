@@ -9,17 +9,20 @@
  * problema real: se discute una idea "con 2 sí" mientras en otra pantalla ya
  * hay 3.
  *
- * Lo que hace: consulta `/api/workspace/votos` cada 10 segundos y devuelve solo
+ * Lo que hace: consulta `/api/workspace/votos` cada 30 segundos y devuelve solo
  * lo que cambió. Si el número no ha cambiado, no se repinta nada: un `setState`
  * con el mismo valor en React no vuelve a renderizar, así que el contador no
- * parpadea cada 10 segundos.
+ * parpadea cada 30 segundos.
  *
- * Por qué 10 segundos y no WebSocket: MEDIDO contra el caso real, una votación
- * son 3-5 personas y cada una vota una vez. Con 10 s, quien acaba de pulsar ve
- * el cambio casi al instante y el hub se mantiene en unas peticiones pequeñas.
- * Un socket abierto por cliente serían 18 conexiones vivas en Vercel para mirar
- * tres números; si algún día hace falta empuje de verdad, este endpoint sigue
- * siendo la fuente y lo que cambia es solo cómo se avisa.
+ * Por qué 30 segundos y no WebSocket: MEDIDO 2026-10-07 contra el consumo real
+ * de Vercel, no contra el gusto. A 10 s esta sola ruta hacía 259.200 llamadas
+ * al mes y el equipo completo se pasaba el techo de CPU de Hobby (4h 43m
+ * contra 4h), lo que bloqueaba TODOS los despliegues. A 30 s son 86.400 y quien
+ * acaba de pulsar ve el cambio en menos de medio minuto, que es lo que importa
+ * en una votación de 3-5 personas. Un socket abierto por cliente serían 18
+ * conexiones vivas en Vercel para mirar tres números; si algún día hace falta
+ * empuje de verdad, este endpoint sigue siendo la fuente y lo que cambia es
+ * solo cómo se avisa.
  *
  * La pestaña oculta no pregunta. MEDIDO: con 18 pestañas del equipo abiertas,
  * preguntar en segundo plano es gasto sin información, porque nadie está
@@ -39,7 +42,7 @@ export type ConteoVotos = {
 type Respuesta = { votos?: Record<string, ConteoVotos>; minimo?: number; error?: string };
 
 /** Cada cuánto se pregunta. Medido, no inventado: ver el comentario de arriba. */
-export const INTERVALO_MS = 10_000;
+export const INTERVALO_MS = 30_000;
 
 export function useVotosEnVivo(slug: string, ideaId: string, inicial: ConteoVotos): {
   conteo: ConteoVotos;
@@ -53,11 +56,17 @@ export function useVotosEnVivo(slug: string, ideaId: string, inicial: ConteoVoto
   // El intervalo se guarda en una ref y no en el estado: si fuera estado, cada
   // respuesta re-crearía el `setInterval` y el contador no volvería a parar.
   const ultimo = useRef<ConteoVotos>(inicial);
+  const intervalIdRef = useRef<number | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const preguntar = useCallback(async () => {
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
     try {
       const r = await fetch(`/api/workspace/votos?proyecto=${encodeURIComponent(slug)}`, {
         cache: 'no-store',
+        signal: ctrl.signal,
       });
       if (!r.ok) return;
       const datos = (await r.json()) as Respuesta;
@@ -90,7 +99,7 @@ export function useVotosEnVivo(slug: string, ideaId: string, inicial: ConteoVoto
     // tocando el estado al resolver. Con un frame de margen, el efecto no pinta
     // nada de forma síncrona y el aviso de "cambió" sigue saliendo al instante.
     const primer = window.requestAnimationFrame(() => void preguntar());
-    const id = window.setInterval(() => {
+    intervalIdRef.current = window.setInterval(() => {
       if (document.visibilityState === 'visible') void preguntar();
     }, INTERVALO_MS);
 
@@ -101,7 +110,11 @@ export function useVotosEnVivo(slug: string, ideaId: string, inicial: ConteoVoto
 
     return () => {
       window.cancelAnimationFrame(primer);
-      window.clearInterval(id);
+      if (intervalIdRef.current !== null) {
+        window.clearInterval(intervalIdRef.current);
+        intervalIdRef.current = null;
+      }
+      abortRef.current?.abort();
       document.removeEventListener('visibilitychange', alVolver);
     };
   }, [preguntar]);

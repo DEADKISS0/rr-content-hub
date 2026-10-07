@@ -1,17 +1,24 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { saveIdeaScript } from '@/lib/workspace-client';
 import { RoleKey } from '@/lib/flow';
 
 export function ScriptEditor({ ideaId, initialScript }: { ideaId: string; initialScript: string }) {
-  const [content, setContent] = useState(initialScript ?? '');
+  const draftKey = `rr-hub-script-draft:${ideaId}`;
+  const [content, setContent] = useState(() => {
+    if (typeof window === 'undefined') return initialScript ?? '';
+    return window.localStorage.getItem(draftKey) ?? initialScript ?? '';
+  });
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [lastSaved, setLastSaved] = useState(initialScript ?? '');
+  const dirty = content !== lastSaved;
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(async (automatico = false) => {
+    if (!dirty || saving) return;
     setSaving(true);
     const { error } = await saveIdeaScript({ ideaId, script: content, role: 'owner' as RoleKey });
     setSaving(false);
@@ -19,14 +26,34 @@ export function ScriptEditor({ ideaId, initialScript }: { ideaId: string; initia
       setNotice(`Error al guardar: ${error}`);
       return;
     }
-    setNotice('✓ Guion guardado correctamente');
-    setEditing(false);
+    setLastSaved(content);
+    window.localStorage.removeItem(draftKey);
+    setNotice(automatico ? '✓ Autoguardado' : '✓ Guion guardado correctamente');
+    if (!automatico) setEditing(false);
     setTimeout(() => setNotice(''), 3000);
-  }, [content, ideaId]);
+  }, [content, dirty, draftKey, ideaId, saving]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', beforeUnload);
+    return () => window.removeEventListener('beforeunload', beforeUnload);
+  }, [dirty]);
+
+  useEffect(() => {
+    if (!editing || !dirty || saving) return;
+    const id = window.setTimeout(() => { void handleSave(true); }, 30_000);
+    return () => window.clearTimeout(id);
+  }, [dirty, editing, handleSave, saving]);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setContent(e.target.value);
-  }, []);
+    const siguiente = e.target.value.slice(0, 5000);
+    setContent(siguiente);
+    window.localStorage.setItem(draftKey, siguiente);
+  }, [draftKey]);
 
   return (
     <section className="border border-blanco-20 bg-blanco-05 p-5 sm:p-7 anim-rise">
@@ -48,6 +75,7 @@ export function ScriptEditor({ ideaId, initialScript }: { ideaId: string; initia
             ref={textareaRef}
             value={content}
             onChange={handleChange}
+            maxLength={5000}
             className="w-full min-h-[200px] bg-negro border border-blanco-30 p-4 font-mono text-sm leading-6 text-blanco focus:outline-none focus:border-blanco-40 resize-none"
             placeholder="Escribe el desglose, ganchos, llamada a la acción y bloques del guion..."
           />
@@ -56,7 +84,7 @@ export function ScriptEditor({ ideaId, initialScript }: { ideaId: string; initia
               {content.length} / 5000 caracteres
             </span>
             <button
-              onClick={handleSave}
+              onClick={() => { void handleSave(false); }}
               disabled={saving}
               className="btn-brutal text-xs"
             >

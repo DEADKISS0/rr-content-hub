@@ -3,6 +3,7 @@ import { createServiceClient } from '@/lib/supabase/service';
 import { crearSesion, NOMBRE_COOKIE } from '@/lib/hub-session';
 import { quienEs } from '@/lib/quien-es';
 import { clienteExiste } from '@/lib/projects';
+import { catalogoIncluye } from '@/lib/config';
 
 /**
  * Cambiar de cliente sin salir del hub.
@@ -72,8 +73,7 @@ export async function POST(request: NextRequest) {
   // responderia que si, y el selector PODRIA cambiar a un cliente que la portada
   // no muestra. Un cliente escondido en la lista y abierto por la URL no esta
   // escondido. Se comprueba aqui, en el servidor, que es donde se decide.
-  const visibles = (process.env.HUB_CATALOGO_VISIBLE ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-  if (visibles.length > 0 && !visibles.includes(destino)) {
+  if (!catalogoIncluye(destino)) {
     return NextResponse.json({ error: 'Ese cliente no existe.' }, { status: 404 });
   }
 

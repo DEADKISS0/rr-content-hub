@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import type { Metadata } from 'next';
 import { getIdea, getProject, getProfileName, getVotos, getPresencia, getEquipoVotante, getComentarios, getAssets, getTimeline, getCoverDelAnuncio } from '@/lib/data';
 import { rolEnProyecto } from '@/lib/project-guard';
 import { StatusBadge, STATUS_ICON } from '@/components/status-badge';
@@ -32,6 +33,18 @@ import { statusMeta, productionStep, daysSince, type WorkflowStatus } from '@/li
  * estado era un bloque de color y había que adivinar en qué punto del camino
  * estaba la pieza.
  */
+export async function generateMetadata({ params }: { params: Promise<{ projectSlug: string; ideaId: string }> }): Promise<Metadata> {
+  const { projectSlug, ideaId } = await params;
+  const { project } = await getProject(projectSlug);
+  if (!project) return { title: 'Ficha no encontrada | RR Content Hub' };
+  const idea = await getIdea(project.id, ideaId);
+  if (!idea) return { title: `Ficha no encontrada \u00b7 ${project.name} | RR Content Hub` };
+  return {
+    title: `${idea.title ?? idea.code ?? 'Ficha'} \u00b7 ${project.name} | RR Content Hub`,
+    description: idea.description ?? `Ficha de ${idea.title ?? idea.code ?? 'idea'} en ${project.name}`,
+  };
+}
+
 export default async function IdeaDetail({ params }: { params: Promise<{ projectSlug: string; ideaId: string }> }) {
   const { projectSlug, ideaId } = await params;
 
@@ -72,8 +85,21 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
   // MEDIDO 2026-10-01: la miniatura del anuncio de Facebook no se puede embeber ni
   // capturar al vuelo (la biblioteca pide sesion). Lo que si se puede es la que ya
   // esta guardada en la biblioteca de anuncios.
-  const [votos, presencia, equipo, comentarios, assets, timeline, coverAnuncio] =
-    await Promise.all([
+  /**
+   * Las seis consultas paralelas pueden fallar por timeout de Supabase,
+   * error de red o columna inexistente. En vez de dejar que un rechazo
+   * tire la pagina entera (error 500 generico), se captura y se degrada
+   * graceful: la ficha se pinta con los datos que SI llegaron.
+   */
+  let votos: Awaited<ReturnType<typeof getVotos>> = { aFavor: 0, enContra: 0, total: 0, detalle: [] };
+  let presencia: Awaited<ReturnType<typeof getPresencia>> = [];
+  let equipo: Awaited<ReturnType<typeof getEquipoVotante>> = [];
+  let comentarios: Awaited<ReturnType<typeof getComentarios>> = [];
+  let assets: Awaited<ReturnType<typeof getAssets>> = [];
+  let timeline: Awaited<ReturnType<typeof getTimeline>> = [];
+  let coverAnuncio: Awaited<ReturnType<typeof getCoverDelAnuncio>> = null;
+  try {
+    const resultados = await Promise.all([
       getVotos(ideaId),
       getPresencia(),
       getEquipoVotante(),
@@ -82,14 +108,25 @@ export default async function IdeaDetail({ params }: { params: Promise<{ project
       getTimeline(ideaId),
       getCoverDelAnuncio(idea.ad_id),
     ]);
+    [votos, presencia, equipo, comentarios, assets, timeline, coverAnuncio] = resultados;
+  } catch (e) {
+    // AUDIT 2026-10-07: un fallo parcial no debe ocultar la ficha entera.
+    // Se deja el valor por defecto de cada variable y se continua.
+    console.error('[ideaId/page] Error cargando datos paralelos:', e);
+  }
 
-// El responsable se resuelve en el servidor y se pasa como NOMBRE, no como
+  // El responsable se resuelve en el servidor y se pasa como NOMBRE, no como
   // id: el navegador no necesita saber el uuid de nadie, y `created_by` es la
-  // única columna que lo guarda. Si no hay responsable, `null` — y el bloque lo
+  // unica columna que lo guarda. Si no hay responsable, `null` — y el bloque lo
   // dice, en vez de inventar un nombre.
-  const responsable = idea.created_by
-    ? (await getProfileName(idea.created_by as string))
-    : null;
+  let responsable: Awaited<ReturnType<typeof getProfileName>> = null;
+  try {
+    responsable = idea.created_by
+      ? (await getProfileName(idea.created_by as string))
+      : null;
+  } catch (e) {
+    console.error('[ideaId/page] Error cargando responsable:', e);
+  }
   const raw = idea.reference_url ?? idea.ref ?? idea.reference_urls?.[0] ?? '';
   // La lista completa, no solo la primera: el editor tiene que ofrecer lo que hay
   // y poder quitarla. `reference_urls` es jsonb y siempre es una lista.

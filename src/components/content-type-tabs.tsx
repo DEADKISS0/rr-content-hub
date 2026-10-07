@@ -20,6 +20,17 @@ export function ContentTypeTabs({
     { key: 'paid', label: 'PAUTA', icon: 'target' },
   ];
 
+  const activeIndex = tabs.findIndex((t) => t.key === value);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    const next = e.key === 'ArrowLeft'
+      ? (activeIndex - 1 + tabs.length) % tabs.length
+      : (activeIndex + 1) % tabs.length;
+    onChange(tabs[next].key);
+  };
+
   return (
     // MEDIDO 2026-10-04, Santiago: «no es responsive a celular».
     //
@@ -33,16 +44,20 @@ export function ContentTypeTabs({
     // `overflow-x-auto` las tres siguen en una línea y si no caben se deslizan,
     // que en un teléfono es lo natural.
     <nav
+      role="tablist"
       aria-label="Tipo de contenido"
       className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      onKeyDown={handleKeyDown}
     >
       {tabs.map((tab) => {
         const active = value === tab.key;
         return (
           <button
             key={tab.key}
+            role="tab"
+            aria-selected={active}
+            tabIndex={active ? 0 : -1}
             onClick={() => onChange(tab.key)}
-            aria-current={active ? 'page' : undefined}
             className={`
               group inline-flex shrink-0 items-center gap-2 px-3 py-2.5 font-mono text-xs tracking-wider uppercase sm:px-4
               border transition-all duration-150

@@ -11,10 +11,10 @@
  * comprobable. Con un contador dentro del handler lo único que se puede
  * probar es que el handler existe.
  *
- * Por qué memoria y no tabla: un atacante que tumbe la memoria lo reinicia y
- * pierde la cuenta, y eso no es un ataque nuevo, es reiniciar el proceso. Una
- * tabla en la base exigiría escribir en cada intento fallido, o sea darle al
- * atacante una vía de escritura para protegerse de él.
+ * La política vive aquí porque es comprobable y reusable. La implementación
+ * persistente que escribe en Supabase vive en `src/app/api/_lib/rate-limit-db.ts`:
+ * no pertenece a `src/lib`, porque el guard `verify:writes` exige que ningún
+ * módulo compartido pueda escribir en `rr_hub_*`.
  *
  * El límite es POR ORIGEN, no global: si lo fuera, bastarían unas pocas
  * peticiones de cualquiera para dejar la puerta cerrada a todo el equipo, y eso

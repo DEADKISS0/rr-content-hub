@@ -88,7 +88,10 @@ describe('se ve en la interfaz', () => {
     // Fallo real de 2026-09-29: la insignia estaba en el componente correcto y la
     // tarjeta se pintaba bien, pero `getIdeas` enumera las columnas a mano y no
     // incluia `origen`. En produccion salian 0 de 41 marcadas sin un solo error.
-    const select = datos.match(/export async function getIdeas[\s\S]*?\.select\('([^']+)'/);
+    const iGetIdeas = datos.search(/export\s+(async function|const)\s+getIdeas/);
+    const iConPortadas = datos.search(/async function conPortadas/);
+    const bloque = datos.slice(iGetIdeas, iConPortadas > iGetIdeas ? iConPortadas : datos.length);
+    const select = bloque.match(/\.select\('([^']+)'/);
     expect(select?.[1]).toContain('origen');
   });
 

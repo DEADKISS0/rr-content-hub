@@ -29,6 +29,10 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'RR Content Hub',
   description: 'Sistema de gestión de contenido para RR ALIADOS y clientes',
+  openGraph: {
+    type: 'website',
+    siteName: 'RR Content Hub',
+  },
   manifest: '/manifest.webmanifest',
   applicationName: 'RR Content Hub',
   appleWebApp: {

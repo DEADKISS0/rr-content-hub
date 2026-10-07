@@ -22,7 +22,15 @@ import { Icon } from './ui/icons';
  */
 
 const VENTANA_ONLINE_MS = 5 * 60 * 1000;
-const CADA_CUANTO_MS = 30_000;
+/**
+ * Cada cuánto se manda el latido. MEDIDO 2026-10-07: estaba en 30 s, y como
+ * `Latido` vive en el layout raíz eso era un latido en TODA página abierta del
+ * hub — 86.400 llamadas al mes por pestaña, cada una con un `upsert` en
+ * `rr_hub_presencia`. Con `VENTANA_ONLINE_MS` de 5 minutos, un latido de 120 s
+ * deja el estado "conectado" exactamente igual de cierto por cuarta parte del
+ * gasto, y son 64.800 escrituras menos al mes.
+ */
+const CADA_CUANTO_MS = 120_000;
 
 /**
  * Tope de renglones por bloque.
