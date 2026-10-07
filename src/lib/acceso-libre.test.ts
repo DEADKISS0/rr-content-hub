@@ -137,7 +137,7 @@ describe('la puerta del hub se queda abierta', () => {
     // corte al primero hacia que este test mirara la funcion equivocada: se
     // ponia en verde con la escritura de `getProject` abierta de par en par.
     // Un test que pasa mientras lo que dice vigilar esta roto.
-    const inicio = datos.indexOf('export async function getProject');
+    const inicio = datos.search(/export\s+(async function|const)\s+getProject/);
     expect(inicio, 'no se encuentra getProject en lib/data.ts').toBeGreaterThan(-1);
     const cuerpo = datos.slice(inicio);
     const ramaSinSesion = cuerpo.slice(
@@ -265,12 +265,12 @@ describe('la puerta del hub se queda abierta', () => {
     // cerrado. Si se filtrara despues, la separacion ya estaria decidida y solo
     // se cortaria la lista.
     const c = codigo('src/lib/data.ts');
-    const iFiltro = c.indexOf('CATALOGO_VISIBLE.includes(p.slug)');
+    const iFiltro = c.indexOf('catalogoIncluye(p.slug)');
     const iAbiertos = c.indexOf('const abiertos =');
     expect(iFiltro, 'no hay filtro de catalogo').toBeGreaterThan(-1);
     expect(iAbiertos).toBeGreaterThan(-1);
     expect(iFiltro).toBeLessThan(iAbiertos);
     // Y lista vacia = se ven todos, no ninguno.
-    expect(c).toMatch(/CATALOGO_VISIBLE\.length\s*===\s*0\s*\?/);
+    expect(c).toMatch(/catalogoIncluye\(p\.slug\)/);
   });
 });

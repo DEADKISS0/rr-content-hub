@@ -43,8 +43,8 @@ describe('la ruta que cambia de cliente', () => {
     // MEDIDO 2026-10-04. `clienteExiste` responde que si para Boga y Satiro, asi
     // que el selector PODIA cambiar a un cliente que la portada no muestra. Un
     // cliente escondido en la lista y abierto por la URL no esta escondido.
-    expect(ruta).toContain('HUB_CATALOGO_VISIBLE');
-    expect(ruta).toMatch(/visibles\.includes\(destino\)/);
+    expect(ruta).toContain('catalogoIncluye');
+    expect(ruta).toMatch(/catalogoIncluye\(destino\)/);
   });
 
   it('NO acepta un código: el correo es lo que decide', () => {

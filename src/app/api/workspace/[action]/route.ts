@@ -36,13 +36,10 @@ export const dynamic = 'force-dynamic';
  * widening what a project role can do — a super admin is `owner`, which is the
  * top of the existing ladder, not a new bypass.
  */
-const SUPER_ADMIN_EMAILS = (process.env.SUPER_ADMIN_EMAILS ?? '')
-  .split(',')
-  .map((value) => value.trim().toLowerCase())
-  .filter(Boolean);
+import { esSuperAdmin } from '@/lib/config';
 
 function isSuperAdmin(email: string): boolean {
-  return SUPER_ADMIN_EMAILS.includes(email.trim().toLowerCase());
+  return esSuperAdmin(email);
 }
 
 function error(message: string, status: number) {
@@ -1125,16 +1122,17 @@ export async function POST(request: NextRequest) {
     //
     // El rol no alcanza: tener rol `creator` en Wundeer dice que puedes operar
     // en Wundeer, no que puedas escribir en el banco de Candilejas.
-    if (!ctx.abierto && ctx.proyecto) {
-      const { data: ideaConProyecto } = await supabase
-        .from('rr_hub_ideas')
-        .select('project:rr_hub_projects!inner(slug)')
-        .eq('id', ideaId)
-        .maybeSingle();
-      const slugIdea = (ideaConProyecto?.project as { slug?: string } | undefined)?.slug;
-      if (slugIdea && slugIdea !== ctx.proyecto) {
-        return error('Esa idea no es de tu cliente.', 403);
-      }
+    const { data: ideaConProyecto, error: ideaProyectoError } = await supabase
+      .from('rr_hub_ideas')
+      .select('project:rr_hub_projects!inner(slug)')
+      .eq('id', ideaId)
+      .maybeSingle();
+    if (ideaProyectoError) return error('No se pudo comprobar el cliente de la idea.', 500);
+    const proyectoRelacionado = ideaConProyecto?.project as { slug?: string } | { slug?: string }[] | undefined;
+    const slugIdea = Array.isArray(proyectoRelacionado) ? proyectoRelacionado[0]?.slug : proyectoRelacionado?.slug;
+    if (!slugIdea) return error('Esa idea no existe.', 404);
+    if (ctx.proyecto && slugIdea !== ctx.proyecto) {
+      return error('Esa idea no es de tu cliente.', 403);
     }
 
     // The object itself was uploaded by the browser with the session token, so
@@ -1146,6 +1144,9 @@ export async function POST(request: NextRequest) {
     // dice a simple vista que la subida vino sin quien.
     const check = validateAssetPath(str(body.path, 300), ideaId, userId ?? SIN_QUIEN);
     if ('pathError' in check) return error(check.pathError, 400);
+    if (check.assetPath.split('/')[0] !== slugIdea) {
+      return error('La ruta del archivo no corresponde al cliente de la idea.', 403);
+    }
 
     const { error: insertError } = await service.from('rr_hub_assets').insert({
       idea_id: ideaId,

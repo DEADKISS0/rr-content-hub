@@ -4,6 +4,7 @@
 import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 import { correoDeQuienEntra } from '@/lib/quien-es';
+import { esSuperAdmin } from '@/lib/config';
 
 /**
  * Gate for administrative routes.
@@ -22,11 +23,6 @@ import { correoDeQuienEntra } from '@/lib/quien-es';
  * database-only check would lock everyone out with no way back in but SQL).
  * Configure it in Vercel, never in the repo.
  */
-const SUPER_ADMIN_EMAILS = (process.env.SUPER_ADMIN_EMAILS ?? '')
-  .split(',')
-  .map((value) => value.trim().toLowerCase())
-  .filter(Boolean);
-
 export type AdminVerdict =
   | { allowed: true; via: 'super-admin-env' | 'database'; email: string }
   | { allowed: false; reason: 'no-session' | 'auth-disabled' | 'not-admin' };
@@ -39,7 +35,7 @@ export type AdminVerdict =
 export async function requireAdmin(): Promise<AdminVerdict> {
   const email = await currentEmail();
   if (!email) return { allowed: false, reason: 'no-session' };
-  if (SUPER_ADMIN_EMAILS.includes(email)) return { allowed: true, via: 'super-admin-env', email };
+  if (esSuperAdmin(email)) return { allowed: true, via: 'super-admin-env', email };
 
   const supabase = await createClient();
   if (!supabase) return { allowed: false, reason: 'auth-disabled' };

@@ -33,6 +33,7 @@ export function PanelFaltan({ states, missing }: { states: BriefState[]; missing
   // abierto se queda pegado y tapa la referencia de la pieza.
   useEffect(() => {
     if (!abierto) return;
+    caja.current?.focus();
     const fuera = (e: PointerEvent) => {
       if (caja.current?.contains(e.target as Node)) return;
       if (boton.current?.contains(e.target as Node)) return;
@@ -98,6 +99,7 @@ export function PanelFaltan({ states, missing }: { states: BriefState[]; missing
             <div
               id="panel-faltan"
               ref={caja}
+              tabIndex={-1}
               role="dialog"
               aria-label="Lo que falta de esta ficha"
               className="anim-pop fixed inset-x-3 bottom-4 z-50 max-h-[70dvh] overflow-y-auto border border-mostaza bg-negro p-4 shadow-2xl sm:inset-x-auto sm:left-auto sm:right-6 sm:w-[24rem] sm:max-h-[60dvh]"

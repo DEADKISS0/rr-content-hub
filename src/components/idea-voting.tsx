@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useState, useSyncExternalStore } from 'react';
+import { useRouter } from 'next/navigation';
 import { voteIdea, type VotoResultado } from '@/lib/workspace-client';
 import { estadoVotacion, votosParaDecidir, VOTOS_NECESARIOS, type DecisionVoto } from '@/lib/flow';
 import { Icon, type IconName } from '@/components/ui/icons';
@@ -57,6 +58,7 @@ export function IdeaVoting({
   /** Conteo que llega del servidor al pintar la ficha. */
   inicial: { aFavor: number; enContra: number; detalle?: DecisionVoto[] };
 }) {
+  const router = useRouter();
   /**
    * MEDIDO 2026-10-03. El conteo venía de `useState(inicial)` y se quedaba en el
    * número que el servidor mandó al pintar. Votaba una persona y las demás
@@ -89,7 +91,7 @@ export function IdeaVoting({
   // siguiera rebotando para siempre, parecería que está seleccionado, y no es
   // un estado, es un eco de que se acaba de guardar.
   const [votoReciente, setVotoReciente] = useState<DecisionVoto | null>(null);
-  const [enviando, setEnviando] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [aviso, setAviso] = useState('');
   const [fallo, setFallo] = useState('');
   // El panel de "cambio" y el de "nota" son el mismo control con dos textos
@@ -129,13 +131,13 @@ export function IdeaVoting({
   const puedeVotar = esDelEquipo(perfilActual?.email ?? '', equipo);
 
   const votar = useCallback(async (decision: DecisionVoto, nota = '') => {
-    if (enviando) return;
-    setEnviando(true);
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     setFallo('');
     setAviso('');
 
     const resultado: VotoResultado = await voteIdea(ideaId, decision, nota, emailElegido());
-    setEnviando(false);
+    setIsSubmitting(false);
 
     if (resultado.error) { setFallo(resultado.error); return; }
 
@@ -158,10 +160,10 @@ export function IdeaVoting({
       // (estado, botón de siguiente paso) quede coherente: votar no refleja solo
       // un número, refleja un cambio de fase.
       setAviso('Aprobada. La idea ya pasó a revisión del cliente.');
-      window.setTimeout(() => window.location.reload(), 1400);
+      window.setTimeout(() => router.refresh(), 1400);
     } else if (resultado.votacion === 'perdida') {
-      setAviso('La votación se decidió en contra. La idea vuelve a revisión interna.');
-      window.setTimeout(() => window.location.reload(), 1400);
+      setAviso('La votacion se decidio en contra. La idea vuelve a revision interna.');
+      window.setTimeout(() => router.refresh(), 1400);
     } else if (decision === 'change') {
       // El cambio pedido mueve la pieza aunque no haya mínimo. Y hay que decirlo
       // claro: no es que "quedan votos", es que alguien pidió tocar algo y la idea
@@ -171,7 +173,7 @@ export function IdeaVoting({
         `Tu cambio quedó pedido (${cuantos} en total). La idea vuelve a revisión interna `
         + `para aplicar lo que pediste.`,
       );
-      window.setTimeout(() => window.location.reload(), 2200);
+      window.setTimeout(() => router.refresh(), 2200);
     } else if (decision === 'note') {
       // La nota no cuenta ni frena: se dice eso mismo, para que nadie espere que
       // su nota haya movido nada.
@@ -184,7 +186,7 @@ export function IdeaVoting({
         + `(hacen falta ${VOTOS_NECESARIOS}).`,
       );
     }
-  }, [ideaId, enviando]);
+  }, [ideaId, isSubmitting, router]);
 
   // Nunca votada y ya fuera de votación: no hay nada que contar y no hay nada
   // que hacer. Poner un "0 votos" en una pieza publicada sería ruido.
@@ -292,7 +294,7 @@ export function IdeaVoting({
               texto="SÍ, SALE"
               ayuda={`Tu sí. Hacen falta ${minimoVivo} para que decida.`}
               onClick={() => votar('yes')}
-              enviado={enviando}
+              enviado={isSubmitting}
               destacado={false}
               rebote={votoReciente === 'yes'}
             />
@@ -301,7 +303,7 @@ export function IdeaVoting({
               texto="NO"
               ayuda="No sale. No es lo mismo que pedir un cambio."
               onClick={() => votar('no')}
-              enviado={enviando}
+              enviado={isSubmitting}
               destacado={false}
               rebote={votoReciente === 'no'}
             />
@@ -310,7 +312,7 @@ export function IdeaVoting({
               texto="SÍ, PERO CÁMBIALE ALGO"
               ayuda="Ni sí ni no. Vuelve a revisión interna para aplicar tu cambio."
               onClick={() => { setPidiendo('change'); setTexto(''); }}
-              enviado={enviando}
+              enviado={isSubmitting}
               destacado={pidiendo === 'change'}
             />
             <BotonVoto
@@ -318,7 +320,7 @@ export function IdeaVoting({
               texto="DEJAR UNA NOTA"
               ayuda="Aporta sin contar como voto ni detener la votación."
               onClick={() => { setPidiendo('note'); setTexto(''); }}
-              enviado={enviando}
+              enviado={isSubmitting}
               destacado={pidiendo === 'note'}
             />
           </div>
@@ -354,7 +356,7 @@ export function IdeaVoting({
                 <button
                   type="button"
                   onClick={() => { setPidiendo(null); setTexto(''); }}
-                  disabled={enviando}
+                  disabled={isSubmitting}
                   className="btn-ghost"
                 >
                   CANCELAR
@@ -362,10 +364,10 @@ export function IdeaVoting({
                 <button
                   type="button"
                   onClick={() => void votar(pidiendo, texto)}
-                  disabled={enviando || texto.trim().length === 0}
+                  disabled={isSubmitting || texto.trim().length === 0}
                   className="btn-brutal inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {enviando ? 'ENVIANDO…' : pidiendo === 'change' ? 'PEDIR EL CAMBIO' : 'ENVIAR LA NOTA'}
+                  {isSubmitting ? 'ENVIANDO…' : pidiendo === 'change' ? 'PEDIR EL CAMBIO' : 'ENVIAR LA NOTA'}
                 </button>
               </div>
             </div>
@@ -450,6 +452,7 @@ function BotonVoto({
       type="button"
       onClick={onClick}
       disabled={enviado}
+      aria-pressed={destacado || rebote}
       className={`group flex items-start gap-3 p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
         destacado ? 'bg-blanco-10' : 'bg-negro hover:bg-blanco-05'
       }`}

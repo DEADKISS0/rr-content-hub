@@ -73,11 +73,11 @@ describe('la votación se ve en vivo, sin recargar', () => {
     expect(ruta).toContain("from('rr_hub_votes')");
   });
 
-  it('el navegador pregunta cada 10 segundos y no repinta si nada cambió', () => {
+  it('el navegador pregunta cada 30 segundos y no repinta si nada cambió', () => {
     const hook = leer('src/lib/use-votos-vivo.ts');
-    expect(hook).toContain('INTERVALO_MS = 10_000');
+    expect(hook).toContain('INTERVALO_MS = 30_000');
     expect(hook).toMatch(/setInterval/);
-    // Si se repinta siempre, el contador parpadea cada 10 segundos.
+    // Si se repinta siempre, el contador parpadea cada 30 segundos.
     expect(hook).toMatch(/if \(igual\) return/);
   });
 
@@ -89,7 +89,7 @@ describe('la votación se ve en vivo, sin recargar', () => {
     // también lleva el guard, y si el slice lo incluyera, quitar el del intervalo
     // dejaría el test verde sin comprobar nada.
     const hook = leer('src/lib/use-votos-vivo.ts');
-    const desde = hook.indexOf('const id = window.setInterval');
+    const desde = hook.indexOf('window.setInterval');
     const hasta = hook.indexOf('const alVolver');
     expect(hasta).toBeGreaterThan(desde);
     expect(hook.slice(desde, hasta)).toContain("document.visibilityState === 'visible'");
@@ -178,11 +178,11 @@ describe('el selector de clientes prometía puertas que no abrían', () => {
     //
     // MEDIDO 2026-10-04: eso ya no es lo que se decidió. Acceso libre, y el
     // freno pasó a ser el catálogo: Boga y Satiro quedan fuera de
-    // `HUB_CATALOGO_VISIBLE`, así que no se ven NI se escriben, mientras que
+    // `catalogoIncluye`, así que no se ven NI se escriben, mientras que
     // Wundeer y Candilejas se abren y se escriben sin sesion.
     const datos = leer('src/lib/data.ts');
     expect(datos).toMatch(/clienteEsVisible\(slug, sesion\.proyecto\)/);
-    expect(datos).toContain('HUB_CATALOGO_VISIBLE');
+    expect(datos).toContain('catalogoIncluye');
     // La escritura no vuelve a pedir `sesion.proyecto` en la subida: ya no hay
     // cookie contra la que comparar, y `/api/subir` filtra por catálogo.
     expect(leer('src/app/api/subir/route.ts')).not.toContain('projectSlug !== sesion.proyecto');
@@ -291,12 +291,10 @@ describe('sin sesion y sin perfil con fila en rr_hub_access no hay rol', () => {
   });
 
   it('lo que sigue escribiendo sin sesion es el CATALOGO, no el rol', () => {
-    // Las dos rutas de escritura comprueban `HUB_CATALOGO_VISIBLE`. Si alguien la
-    // quita, esto falla; si la deja pero cambia el nombre del cliente, tambien.
+    // Las dos rutas de escritura comprueban el catalogo via catalogoIncluye.
     for (const rel of ['src/app/api/subir/route.ts', 'src/app/api/cambiar-cliente/route.ts']) {
       const c = leer(rel);
-      expect(c, rel).toContain('HUB_CATALOGO_VISIBLE');
-      expect(c, rel).toMatch(/visibles\.includes\(/);
+      expect(c, rel).toContain('catalogoIncluye');
     }
   });
 

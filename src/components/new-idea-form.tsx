@@ -44,6 +44,11 @@ export function NewIdeaForm({ projectSlug, projectId, anuncios, usosPorAnuncio }
 
   const referenceValid = looksLikeUrl(form.reference);
   const generated = buildIdeaPack({ title: form.title, objective: form.objective, description: form.description, reference: form.reference });
+  const titleError = notice && !form.title.trim() ? 'El titulo es obligatorio.' : '';
+  const objectiveError = notice && !form.objective.trim() ? 'El objetivo es obligatorio.' : '';
+  const referenceError = notice && (!form.reference.trim() || !referenceValid)
+    ? 'Pega una URL valida que empiece por https://.'
+    : '';
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -115,15 +120,15 @@ export function NewIdeaForm({ projectSlug, projectId, anuncios, usosPorAnuncio }
             el servidor. Ahora el campo dice lo que es y no promete nada. */}
         <span className="mt-2 block font-mono text-[10px] text-blanco-40">Se genera al guardar</span>
       </div>
-      <Field label="TÍTULO *" value={form.title} onChange={(value) => update('title', value)} placeholder="Ej. La textura que se siente" />
+      <Field label="TÍTULO *" value={form.title} onChange={(value) => update('title', value)} placeholder="Ej. La textura que se siente" maxLength={120} error={titleError} id="idea-title" />
     </div>
 
     <div className="grid gap-6 md:grid-cols-2">
       <Field label="TIPO" value={form.type} onChange={(value) => update('type', value)} select options={['Orgánico', 'Pauta']} />
-      <Field label="CATEGORÍA" value={form.category} onChange={(value) => update('category', value)} placeholder="Producto y tela" />
+      <Field label="CATEGORÍA" value={form.category} onChange={(value) => update('category', value)} placeholder="Producto y tela" maxLength={80} />
     </div>
-    <Field label="OBJETIVO *" value={form.objective} onChange={(value) => update('objective', value)} textarea placeholder="¿Qué debe conseguir esta pieza?" />
-    <Field label="DESCRIPCIÓN / CONCEPTO" value={form.description} onChange={(value) => update('description', value)} textarea placeholder="Describe la idea en lenguaje claro para el cliente y el equipo..." />
+    <Field label="OBJETIVO *" value={form.objective} onChange={(value) => update('objective', value)} textarea placeholder="¿Qué debe conseguir esta pieza?" maxLength={500} error={objectiveError} id="idea-objective" />
+    <Field label="DESCRIPCIÓN / CONCEPTO" value={form.description} onChange={(value) => update('description', value)} textarea placeholder="Describe la idea en lenguaje claro para el cliente y el equipo..." maxLength={2000} />
     <div>
       <BotonBiblioteca
         anuncios={anuncios}
@@ -141,8 +146,8 @@ export function NewIdeaForm({ projectSlug, projectId, anuncios, usosPorAnuncio }
           avisar(`Anuncio: ${elegido.adName}. La pieza queda ligada a él, no copiada.`);
         }}
       />
-      <Field label="REFERENCIA * (INSTAGRAM, TIKTOK, YOUTUBE, DRIVE O CUALQUIER URL PÚBLICA)" value={form.reference} onChange={(value) => update('reference', value)} placeholder="Obligatorio: pega un enlace de referencia. Sin referencia no se crea la idea." />
-      {!referenceValid && <p role="alert" className="mt-2 border border-blanco-20 bg-blanco-05 p-2 font-mono text-[10px] text-blanco">Ese texto no parece un enlace válido. Debe empezar por https://</p>}
+      <Field label="REFERENCIA * (INSTAGRAM, TIKTOK, YOUTUBE, DRIVE O CUALQUIER URL PÚBLICA)" value={form.reference} onChange={(value) => update('reference', value)} placeholder="Obligatorio: pega un enlace de referencia. Sin referencia no se crea la idea." maxLength={2000} error={referenceError} id="idea-reference" />
+      {!referenceValid && form.reference.trim() && !referenceError && <p role="alert" className="mt-2 border border-blanco-20 bg-blanco-05 p-2 font-mono text-[10px] text-blanco">Ese texto no parece un enlace válido. Debe empezar por https://</p>}
     </div>
     {form.reference.trim() && referenceValid && <section aria-live="polite"><p className="mono-label mb-2 text-blanco-50">// PREVISUALIZACIÓN AUTOMÁTICA</p><ReferenceWithBrief url={form.reference.trim()} title={form.title || 'Nueva idea'} brief={{ intention: form.objective, camera: form.camera, talent: form.talent, edit: form.edit }} /></section>}
 
@@ -174,7 +179,7 @@ export function NewIdeaForm({ projectSlug, projectId, anuncios, usosPorAnuncio }
                 {editado && <span className="font-mono text-[10px] text-mostaza">EDITADO</span>}
               </div>
               <p className="mt-3 text-sm leading-6 text-blanco-70">{generado}</p>
-              <Field label="" value={form[campo]} onChange={(value) => update(campo, value)} textarea placeholder="O escribe tu propia versión (vacío = usar la generada)" className="mt-4" />
+              <Field label="" value={form[campo]} onChange={(value) => update(campo, value)} textarea placeholder="O escribe tu propia versión (vacío = usar la generada)" className="mt-4" maxLength={1000} id={`brief-${campo}`} />
             </div>
           );
         })}
@@ -193,6 +198,18 @@ export function NewIdeaForm({ projectSlug, projectId, anuncios, usosPorAnuncio }
   </form>;
 }
 
-function Field({ label, value, onChange, placeholder, textarea, select, options, className = '' }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; textarea?: boolean; select?: boolean; options?: string[]; className?: string }) {
-  return <label className={`block ${className}`}>{label && <span className="mono-label mb-2 block text-blanco-50">// {label}</span>}{select ? <select value={value} onChange={(event) => onChange(event.target.value)} className="input-brutal">{options?.map((option) => <option key={option}>{option}</option>)}</select> : textarea ? <textarea value={value} onChange={(event) => onChange(event.target.value)} className="input-brutal min-h-24" placeholder={placeholder} /> : <input value={value} onChange={(event) => onChange(event.target.value)} className="input-brutal" placeholder={placeholder} />}</label>;
+function Field({ label, value, onChange, placeholder, textarea, select, options, className = '', maxLength, error, id }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; textarea?: boolean; select?: boolean; options?: string[]; className?: string; maxLength?: number; error?: string; id?: string }) {
+  const inputId = id ?? label.toLowerCase().replace(/[^a-z]/g, '-');
+  const errorId = error ? `${inputId}-error` : undefined;
+  return (
+    <label className={`block ${className}`}>
+      {label && <span className="mono-label mb-2 block text-blanco-50">// {label}</span>}
+      {select
+        ? <select id={inputId} value={value} onChange={(event) => onChange(event.target.value)} className="input-brutal">{options?.map((option) => <option key={option}>{option}</option>)}</select>
+        : textarea
+          ? <textarea id={inputId} value={value} onChange={(event) => onChange(event.target.value)} className="input-brutal min-h-24" placeholder={placeholder} maxLength={maxLength} aria-invalid={!!error} aria-describedby={errorId} />
+          : <input id={inputId} value={value} onChange={(event) => onChange(event.target.value)} className="input-brutal" placeholder={placeholder} maxLength={maxLength} aria-invalid={!!error} aria-describedby={errorId} />}
+      {error && <p id={errorId} role="alert" className="mt-2 border border-blanco-20 bg-blanco-05 p-2 font-mono text-[10px] text-blanco">{error}</p>}
+    </label>
+  );
 }

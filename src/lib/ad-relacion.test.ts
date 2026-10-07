@@ -53,18 +53,17 @@ describe('el select del tablero no se puede romper con una relacion inexistente'
     // Lo que se fija es el que rompio: el embed al anuncio. Y se mide solo en el
     // cuerpo de `getIdeas`, que es la funcion que alimenta el tablero: un embed
     // mal escrito en otra pantalla no vacia el tablero.
-    const cuerpoGetIdeas = data.slice(
-      data.indexOf('export async function getIdeas'),
-      data.indexOf('export async function getIdea('),
-    );
+    const iGetIdeas = data.search(/export\s+(async function|const)\s+getIdeas/);
+    const iConPortadas = data.search(/async function conPortadas/);
+    const cuerpoGetIdeas = data.slice(iGetIdeas, iConPortadas > iGetIdeas ? iConPortadas : data.length);
     // `cover_asset:cover_asset_id(...)` SI es un embed y SI funciona: esa
     // relacion existe. Por eso el aserto no prohibe embeds en general, prohibe
     // el embed del anuncio, que es el que no tiene foreign key.
     expect(cuerpoGetIdeas, 'getIdeas no debe pedir el anuncio como embed')
       .not.toMatch(/\bad:[a-z_]+\s*\(/);
     // Y el embed de portada tiene que seguir ahí: si alguien lo quita para
-    // "arreglar" el otro, tambien se rompe la ficha.
-    expect(cuerpoGetIdeas).toContain('cover_asset:cover_asset_id(');
+    // "arreglar" el otro, tambien se rompe la ficha. Ahora vive en conPortadas.
+    expect(data).toContain('cover_asset:cover_asset_id(');
     // El nombre de la tabla del anuncio no puede aparecer como embed.
     expect(cuerpoGetIdeas).not.toContain('ad_library');
     expect(cuerpoGetIdeas).not.toContain('ad:');

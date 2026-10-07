@@ -19,7 +19,14 @@ export function SegMeter({ filled, total, tone = 'fucsia', label, compact = fals
   const safe = Math.max(0, Math.min(filled, total));
   return (
     <div className="flex items-center gap-2">
-      <div className="flex flex-1 gap-[3px]" role="img" aria-label={label ?? `${safe} de ${total}`}>
+      <div
+        className="flex flex-1 gap-[3px]"
+        role="meter"
+        aria-label={label ?? `Progreso: ${safe} de ${total}`}
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-valuenow={safe}
+      >
         {Array.from({ length: total }).map((_, index) => (
           <span key={index} className={`h-[7px] flex-1 border ${index < safe ? TONE_FILL[tone] : 'border-blanco-30 bg-blanco-10'}`} />
         ))}
@@ -101,7 +108,14 @@ export function BriefRail({ states }: { states: BriefState[] }) {
   const falta = states.filter((state) => !state.done);
   const completo = done === states.length;
   return (
-    <div className="flex items-center gap-2">
+    <div
+      className="flex items-center gap-2"
+      role="progressbar"
+      aria-label="Completitud de la informacion de la pieza"
+      aria-valuemin={0}
+      aria-valuemax={states.length}
+      aria-valuenow={done}
+    >
       <div className="flex items-center gap-[3px]">
         {states.map((state) => (
           <span key={state.key} title={`${state.label}: ${state.done ? 'listo' : 'falta'}`} className={`flex h-6 w-6 items-center justify-center border ${state.done ? 'border-orquidea bg-orquidea text-negro' : 'border-blanco-20 bg-negro text-blanco-30'}`}>

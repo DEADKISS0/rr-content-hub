@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { updateIdea, type EditableIdea } from '@/lib/workspace-client';
 import { Icon } from '@/components/ui/icons';
 
@@ -39,6 +40,7 @@ export function IdeaEditor({
     references: string[];
   };
 }) {
+  const router = useRouter();
   const [abierto, setAbierto] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
@@ -109,8 +111,8 @@ export function IdeaEditor({
     setGuardado(`✓ Guardado. ${n} ${n === 1 ? 'campo corregido' : 'campos corregidos'}.`);
     // Se deja abierto para que se vea el resultado; la recarga del servidor
     // pone el embed y los textos al día.
-    setTimeout(() => window.location.reload(), 1200);
-  }, [titulo, descripcion, objetivo, camara, talento, edicion, referencia, ideaId, initial]);
+    setTimeout(() => router.refresh(), 1200);
+  }, [titulo, descripcion, objetivo, camara, talento, edicion, referencia, ideaId, initial, router]);
 
   if (soloLectura) {
     return (

@@ -75,7 +75,7 @@ describe('todas las paginas posibles funcionan', () => {
     // catalogo visible, no las cuatro de la base. Santiago 2026-10-04: «solo
     // quiero que dejes a wundeer y candilejas».
     const data = sinComentarios(readFileSync(join(RAIZ, 'lib/data.ts'), 'utf8'));
-    expect(data).toContain('HUB_CATALOGO_VISIBLE');
+    expect(data).toContain('catalogoIncluye');
     // Y la portada no escribe slugs a mano.
     const portada = sinComentarios(readFileSync(join(RAIZ, 'app/page.tsx'), 'utf8'));
     expect(portada).toMatch(/href=\{`\/\$\{cliente\.slug\}`\}/);

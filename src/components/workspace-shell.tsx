@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { salir } from '@/lib/hub-client';
 import Link from 'next/link';
 import { useParams, usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { GuidedTour } from './guided-tour';
 import { Icon, type IconName } from './ui/icons';
 import { SelectorPerfil } from '@/components/selector-perfil';
@@ -141,11 +141,30 @@ export function WorkspaceShell({ children, project, role, email, nombre, puedeEs
   const params = useParams<{ projectSlug: string }>();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+  const profileFirstItemRef = useRef<HTMLAnchorElement>(null);
   const collapsed = useSyncExternalStore(subscribeAside, readAside, () => false);
   const slug = params.projectSlug;
   const sesion = useSesion(email, nombre);
   /** MEDIDO 2026-10-05: el logo del cliente en la barra. Ver `logo-cliente.ts`. */
   const logoCliente = logoDeCliente(slug);
+
+  useEffect(() => {
+    if (!profileOpen) return;
+    profileFirstItemRef.current?.focus();
+    const cerrar = (event: MouseEvent | KeyboardEvent) => {
+      if (event instanceof KeyboardEvent && event.key !== 'Escape') return;
+      if (event instanceof MouseEvent && profileMenuRef.current?.contains(event.target as Node)) return;
+      setProfileOpen(false);
+    };
+    document.addEventListener('mousedown', cerrar);
+    document.addEventListener('keydown', cerrar);
+    return () => {
+      document.removeEventListener('mousedown', cerrar);
+      document.removeEventListener('keydown', cerrar);
+    };
+  }, [profileOpen]);
 
   function toggleCollapsed() {
     try {
@@ -304,27 +323,32 @@ export function WorkspaceShell({ children, project, role, email, nombre, puedeEs
                   que entrar. El botón se guardó en el código, no se borra —
                   vuelve con `NEXT_PUBLIC_AUTH_ENABLED=true`. */}
               {AUTH_ENABLED && (sesion.correo ? (
-                <details className="relative">
-                  <summary className="inline-flex cursor-pointer list-none items-center gap-2 border border-blanco-20 px-2 py-1.5 font-mono text-[10px] text-blanco-70 hover:border-blanco-40">
+                <div ref={profileMenuRef} className="relative">
+                  <button
+                    type="button"
+                    aria-haspopup="menu"
+                    aria-expanded={profileOpen}
+                    onClick={() => setProfileOpen((open) => !open)}
+                    className="inline-flex items-center gap-2 border border-blanco-20 px-2 py-1.5 font-mono text-[10px] text-blanco-70 hover:border-blanco-40"
+                  >
                     <span className="inline-block h-4 w-4 border border-blanco-40 text-center leading-4 text-blanco-80">
                       {(sesion.nombre ?? sesion.correo).slice(0, 1).toUpperCase()}
                     </span>
-                    {/* El nombre, no el correo. MEDIDO 2026-10-01: el servidor ya
-                        lo mandaba y la pantalla no lo pintaba. El correo queda en
-                        el `title`, que es donde se consulta si hace falta. */}
                     <span title={sesion.correo} className="hidden max-w-32 truncate sm:inline">{sesion.nombre ?? sesion.correo}</span>
-                  </summary>
-                  <div className="absolute right-0 z-30 mt-1 w-64 border border-blanco-20 bg-negro p-3">
-                    <p className="font-mono text-[10px] leading-5 text-blanco-60">
-                      <span className="block text-blanco-80">{sesion.nombre ?? sesion.correo}</span>
-                      Rol en {project.name}: <span className="text-orquidea">{role.replace('_', ' ')}</span>
-                    </p>
-                    <div className="mt-3 flex flex-col gap-1">
-                      <Link href={`/${slug}/perfil`} className="btn-ghost">VER PERFIL</Link>
-                      <button onClick={sesion.cerrarSesion} className="btn-ghost">CERRAR SESIÓN</button>
+                  </button>
+                  {profileOpen && (
+                    <div role="menu" className="absolute right-0 z-30 mt-1 w-64 border border-blanco-20 bg-negro p-3">
+                      <p className="font-mono text-[10px] leading-5 text-blanco-60">
+                        <span className="block text-blanco-80">{sesion.nombre ?? sesion.correo}</span>
+                        Rol en {project.name}: <span className="text-orquidea">{role.replace('_', ' ')}</span>
+                      </p>
+                      <div className="mt-3 flex flex-col gap-1">
+                        <Link ref={profileFirstItemRef} role="menuitem" href={`/${slug}/perfil`} onClick={() => setProfileOpen(false)} className="btn-ghost">VER PERFIL</Link>
+                        <button role="menuitem" onClick={sesion.cerrarSesion} className="btn-ghost">CERRAR SESIÓN</button>
+                      </div>
                     </div>
-                  </div>
-                </details>
+                  )}
+                </div>
               ) : (
                 // SIN PUERTA (2026-10-02): este botón iba a `/login`, que ya no
                 // existe. Un enlace a una pantalla borrada es un 404 con un texto

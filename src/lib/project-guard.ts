@@ -4,11 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { quienEs } from '@/lib/quien-es';
 import { PUEDE_EDITAR, type RoleKey } from '@/lib/flow';
-
-const SUPER_ADMIN_EMAILS = (process.env.SUPER_ADMIN_EMAILS ?? '')
-  .split(',')
-  .map((value) => value.trim().toLowerCase())
-  .filter(Boolean);
+import { esSuperAdmin } from '@/lib/config';
 
 /**
  * Roles que pueden crear y mover piezas. `client_viewer` no está.
@@ -92,7 +88,7 @@ export async function rolEnProyecto(projectId: string): Promise<VeredictoProyect
 
   // La lista de emergencia: mientras la tabla esté incompleta, el equipo
   // directive conserva el acceso. No reemplaza la tabla; solo la red de seguridad.
-  if (SUPER_ADMIN_EMAILS.includes(email)) {
+  if (esSuperAdmin(email)) {
     return { rol: 'owner', email, puedeEscribir: true, puedeAprobar: true, via: 'session' };
   }
 
