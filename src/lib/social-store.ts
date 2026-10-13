@@ -244,10 +244,11 @@ export class LocalFileSocialStore implements SocialPostStore {
 /**
  * Adaptador Supabase: MISMA interfaz, otra implementación.
  *
- * Escribe contra `rr_hub_social_posts` (migración 20261012_hub_social_posts.sql)
- * con el versionado en la propia tabla. CANDADO NX-1028: este adaptador existe
- * para que conectar staging sea cambiar una variable, no reescribir la capa, y
- * mientras tanto NUNCA se selecciona — cero escrituras remotas.
+ * Escribe contra `rr_hub_social_plans` + `rr_hub_social_plan_history`
+ * (migración 20261013_hub_social_plans_jsonb.sql) a través de la RPC
+ * transaccional `rr_hub_social_plan_commit`: un commit por guardado, versión
+ * esperada explícita, y una fila de historial por cada versión movida.
+ * La fábrica socialStore() lo elige cuando hay proyecto real y no es modo demo.
  */
 export class SupabaseSocialStore implements SocialPostStore {
   private readonly cliente: import('@supabase/supabase-js').SupabaseClient;
@@ -292,8 +293,8 @@ export class SupabaseSocialStore implements SocialPostStore {
     const { data, error } = await this.cliente.rpc('rr_hub_social_plan_commit', {
       p_project_id: this.projectId,
       p_expected_version: versionEsperada,
-      p_posts: JSON.stringify(plan.posts),
-      p_pautas: JSON.stringify(plan.pautas),
+      p_posts: plan.posts,
+      p_pautas: plan.pautas,
       p_changed_by: plan.updatedBy,
       p_operation: 'guardar',
     });
@@ -345,8 +346,8 @@ export class SupabaseSocialStore implements SocialPostStore {
     const { data, error } = await this.cliente.rpc('rr_hub_social_plan_commit', {
       p_project_id: this.projectId,
       p_expected_version: actual.version,
-      p_posts: JSON.stringify(posts),
-      p_pautas: JSON.stringify(pautas),
+      p_posts: posts,
+      p_pautas: pautas,
       p_changed_by: por,
       p_operation: 'archivar',
     });
@@ -388,8 +389,8 @@ export class SupabaseSocialStore implements SocialPostStore {
     const { data, error } = await this.cliente.rpc('rr_hub_social_plan_commit', {
       p_project_id: this.projectId,
       p_expected_version: actual.version,
-      p_posts: JSON.stringify(snapshot.posts),
-      p_pautas: JSON.stringify(snapshot.pautas),
+      p_posts: snapshot.posts,
+      p_pautas: snapshot.pautas,
       p_changed_by: por,
       p_operation: 'restaurar',
     });
