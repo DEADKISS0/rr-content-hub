@@ -226,7 +226,7 @@ describe('la lista la da el servidor, no el navegador', () => {
     const iAbiertos = bloque.indexOf('const abiertos');
     const iCerrados = bloque.indexOf('const cerrados');
     expect(iCerrados).toBeGreaterThan(iAbiertos);
-    const seccionCerrados = bloque.slice(iCerrados, bloque.indexOf('return {'));
+    const seccionCerrados = bloque.slice(iCerrados, bloque.indexOf('return {', iCerrados));
     expect(seccionCerrados).toMatch(/\.filter\(\(p\) => !slugsAbiertos\.has\(p\.slug\)\)/);
     // Y se filtran sobre el catálogo completo, no sobre `conocidos`.
     expect(seccionCerrados).not.toMatch(/conocidos\s*$/);
