@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Logo mock Wundeer">
+  <rect width="512" height="512" rx="256" fill="#070001"/>
+  <circle cx="256" cy="256" r="226" fill="none" stroke="#ded116" stroke-width="22"/>
+  <text x="256" y="300" text-anchor="middle" fill="#ded116" font-family="Arial Black,Arial,sans-serif" font-size="190">W</text>
+</svg>

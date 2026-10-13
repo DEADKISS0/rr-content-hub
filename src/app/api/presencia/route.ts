@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { quienEs } from '@/lib/quien-es';
+import { DEMO_MODE } from '@/lib/demo-mode';
 
 /**
  * El latido: quién está conectado ahora mismo.
@@ -26,6 +27,8 @@ const VENTANA_ONLINE_MS = 5 * 60 * 1000;
 export type Latido = { sesionId?: string };
 
 export async function POST(request: Request) {
+  if (DEMO_MODE) return NextResponse.json({ ok: true, demo: true });
+
   // Con la clave del servidor. Antes usaba el cliente anónimo y sus políticas
   // comparaban con `auth.jwt() ->> 'email'`, que con la puerta por código
   // devuelve siempre NULL: el UPSERT no coincidía con ninguna fila y la
@@ -95,6 +98,8 @@ export async function POST(request: Request) {
  * decisión del cliente, que es justo lo que no debe ser.
  */
 export async function GET() {
+  if (DEMO_MODE) return NextResponse.json({ ventana_ms: VENTANA_ONLINE_MS, presencia: [], demo: true });
+
   const sesion = await quienEs();
   if (!sesion) return NextResponse.json({ error: 'Entra con el código de tu cliente.' }, { status: 401 });
 

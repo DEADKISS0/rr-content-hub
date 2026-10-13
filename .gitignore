@@ -50,3 +50,7 @@ __pycache__/
 test-results/
 playwright-report/
 .vitest/
+
+# Estado en disco del almacén local del plan social (.data/social/*.json): lo escribe
+# el servidor en cada guardado, no es fuente y cambia con cada corrida de E2E.
+.data/

@@ -39,6 +39,7 @@ const PRINCIPAL: readonly { label: string; path: string; help: string; icon: Ico
   { label: 'LAS PIEZAS', path: '/ideas', help: 'La lista completa', icon: 'pieces' },
   { label: 'ESPERA RESPUESTA', path: '/aprobaciones', help: 'Lo que hay que decidir', icon: 'decisions' },
   { label: 'EL PLAN', path: '/roadmap', help: 'Cuánto falta para el final', icon: 'roadmap' },
+  { label: 'PLAN DE PUBLICACIÓN', path: '/redes', help: 'Feed simulado, orden y aprobación', icon: 'publish' },
 ];
 
 const SECUNDARIO: readonly { label: string; path: string; help: string; icon: IconName }[] = [

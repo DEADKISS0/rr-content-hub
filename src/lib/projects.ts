@@ -52,6 +52,12 @@
  */
 export async function clienteExiste(slug?: string | null): Promise<boolean> {
   if (!slug) return false;
+  const slugNormalizado = slug.trim().toLowerCase();
+  const { DEMO_MODE } = await import('./demo-mode');
+  if (DEMO_MODE) {
+    const { getDemoProject } = await import('./demo-data');
+    return Boolean(getDemoProject(slugNormalizado));
+  }
   const { createServiceClient } = await import('./supabase/service');
   const supabase = await createServiceClient();
   if (!supabase) {
@@ -63,7 +69,7 @@ export async function clienteExiste(slug?: string | null): Promise<boolean> {
   const { data } = await supabase
     .from('rr_hub_projects')
     .select('slug')
-    .eq('slug', slug)
+    .eq('slug', slugNormalizado)
     .maybeSingle();
   return Boolean(data);
 }

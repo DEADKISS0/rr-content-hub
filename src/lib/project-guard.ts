@@ -61,7 +61,6 @@ export async function rolEnProyecto(projectId: string): Promise<VeredictoProyect
   // lectura, sin error visible. Aquí la identidad la trae la cookie firmada, que
   // se resuelve arriba; lo que la base hace es devolver la fila.
   const supabase = (await createServiceClient()) ?? (await createClient());
-  if (!supabase) return { rol: 'sin_rol', email: null, puedeEscribir: false, puedeAprobar: false, via: 'sin-tabla' };
 
   // La puerta es un código por cliente (2026-09-28), así que la identidad viene
   // de la cookie firmada del hub y no de `supabase.auth.getUser()`. El correo es
@@ -69,6 +68,20 @@ export async function rolEnProyecto(projectId: string): Promise<VeredictoProyect
   // como identidad, aunque siga siendo la PK de `rr_hub_profiles`.
   const sesion = await quienEs();
   const email = sesion?.email ?? null;
+
+  if (!supabase) {
+    // Sin cliente Supabase no hay fila de rol que consultar — pero la lista de
+    // emergencia es CONFIGURACIÓN (`SUPER_ADMIN_EMAILS`), no datos: resolverla
+    // no depende de la tabla. NX-1030 paso 2: sin esta rama, en modo demo (y en
+    // cualquier despliegue sin Supabase) hasta el dueño caía en `sin_rol` y el
+    // plan quedaba en solo lectura, con lo que los recorridos de edición,
+    // autoguardado y 409 eran inalcanzables en E2E. El resto sigue en `sin_rol`
+    // (solo lectura): sin tabla no se concede nada por cookies.
+    if (email && esSuperAdmin(email)) {
+      return { rol: 'owner', email, puedeEscribir: true, puedeAprobar: true, via: 'session' };
+    }
+    return { rol: 'sin_rol', email, puedeEscribir: false, puedeAprobar: false, via: 'sin-tabla' };
+  }
 
   // Sin sesión. El hub está en modo abierto (el login de Google pelea con
   // Medellín Guide) y el servidor de escritura opera con rol `owner` en esa
