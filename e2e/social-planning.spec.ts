@@ -16,21 +16,36 @@ import { expect, test } from '@playwright/test';
  *     «Sin acceso» que el test interpretaría como producto roto.
  */
 const ruta = '/wundeer/redes';
+const base = process.env.HUB_BASE_URL ?? `http://localhost:${process.env.HUB_E2E_PORT ?? '3100'}`;
+const estadoVisitante = {
+  cookies: [],
+  origins: [{
+    origin: new URL(base).origin,
+    localStorage: [{ name: 'rr-hub-guia-v1', value: 'visto' }],
+  }],
+};
 
-test('el visitante sin sesión no ve el plan: pantalla «Sin acceso» y API en 401', async ({ page, baseURL }) => {
-  const api = await page.request.get(`${baseURL}/api/social-plan?proyecto=wundeer`);
-  expect(api.status(), 'GET del plan sin sesión').toBe(401);
+test.describe('visitante sin sesión', () => {
+  // Cuando HUB_E2E_STATE está definido, Playwright aplica la sesión del owner a
+  // todo el proyecto. Estos dos recorridos miden lo contrario, así que vacían
+  // la cookie explícitamente en vez de heredar una identidad y dar un rojo falso.
+  test.use({ storageState: estadoVisitante });
 
-  await page.goto(ruta, { waitUntil: 'networkidle' });
-  await expect(page.getByTestId('sin-acceso')).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Editor de contenido organico' })).toHaveCount(0);
-});
+  test('el visitante sin sesión no ve el plan: pantalla «Sin acceso» y API en 401', async ({ page, baseURL }) => {
+    const api = await page.request.get(`${baseURL}/api/social-plan?proyecto=wundeer`);
+    expect(api.status(), 'GET del plan sin sesión').toBe(401);
 
-test('la pantalla de «Sin acceso» no se desborda en móvil', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(ruta, { waitUntil: 'networkidle' });
-  await expect(page.getByTestId('sin-acceso')).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.goto(ruta, { waitUntil: 'networkidle' });
+    await expect(page.getByTestId('sin-acceso')).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Editor de contenido organico' })).toHaveCount(0);
+  });
+
+  test('la pantalla de «Sin acceso» no se desborda en móvil', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(ruta, { waitUntil: 'networkidle' });
+    await expect(page.getByTestId('sin-acceso')).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
 });
 
 test.describe('el plan abierto (requiere sesión)', () => {

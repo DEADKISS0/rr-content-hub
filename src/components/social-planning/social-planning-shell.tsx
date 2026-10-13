@@ -143,9 +143,9 @@ function InstagramMock({ plan, posts, seleccionadoId, onSeleccionar, onAbrir, on
             </div>
           </div>
           <div className="grid min-w-0 flex-1 grid-cols-3 gap-2 text-center">
-            <span><strong className="block text-base font-semibold">{posts.length}</strong><small className="text-xs text-[#f5f5f5]">publicaciones</small></span>
-            <span><strong className="block text-base font-semibold">{plan.perfil.metricas.seguidores}</strong><small className="text-xs text-[#f5f5f5]">seguidores</small></span>
-            <span><strong className="block text-base font-semibold">{plan.perfil.metricas.siguiendo}</strong><small className="text-xs text-[#f5f5f5]">seguidos</small></span>
+            <span className="min-w-0"><strong className="block text-base font-semibold">{posts.length}</strong><small className="block whitespace-nowrap text-[9px] text-[#f5f5f5] sm:text-xs">publicaciones</small></span>
+            <span className="min-w-0"><strong className="block text-base font-semibold">{plan.perfil.metricas.seguidores}</strong><small className="block whitespace-nowrap text-[9px] text-[#f5f5f5] sm:text-xs">seguidores</small></span>
+            <span className="min-w-0"><strong className="block text-base font-semibold">{plan.perfil.metricas.siguiendo}</strong><small className="block whitespace-nowrap text-[9px] text-[#f5f5f5] sm:text-xs">seguidos</small></span>
           </div>
         </div>
 
@@ -337,7 +337,7 @@ function EditorPublicacion({ post, etiqueta, ariaLabel, onActualizar, onMover, o
           </Campo>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3">
           {puedeEditar ? <>
             <button type="button" onClick={() => onMover('atras')} className="min-h-[44px] border border-blanco-20 px-4 font-mono text-xs uppercase text-blanco-70 hover:border-mostaza hover:text-mostaza">Mover atras</button>
             <button type="button" onClick={() => onMover('adelante')} className="min-h-[44px] border border-blanco-20 px-4 font-mono text-xs uppercase text-blanco-70 hover:border-mostaza hover:text-mostaza">Mover adelante</button>

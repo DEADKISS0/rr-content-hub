@@ -11,7 +11,27 @@
  * `NEXT_PUBLIC_HUB_DEMO=true` is the only way to get the fixtures, and it is
  * for working on the UI without credentials.
  */
-export const DEMO_MODE = process.env.NEXT_PUBLIC_HUB_DEMO === 'true';
+type EntornoDemo = {
+  NEXT_PUBLIC_HUB_DEMO?: string;
+  VERCEL_ENV?: string;
+  [clave: string]: string | undefined;
+};
+
+/**
+ * El preview puede usar datos ficticios, pero producción debe negarse a
+ * arrancar si alguien activa la bandera por error. `VERCEL_ENV` distingue el
+ * preview del despliegue productivo aunque ambos se construyan con
+ * `NODE_ENV=production`.
+ */
+export function resolverModoDemo(env: EntornoDemo): boolean {
+  const solicitado = env.NEXT_PUBLIC_HUB_DEMO === 'true';
+  if (solicitado && env.VERCEL_ENV === 'production') {
+    throw new Error('El modo demo no puede activarse en produccion. Retira NEXT_PUBLIC_HUB_DEMO antes de desplegar.');
+  }
+  return solicitado;
+}
+
+export const DEMO_MODE = resolverModoDemo(process.env);
 
 export class SupabaseNotConfiguredError extends Error {
   constructor() {

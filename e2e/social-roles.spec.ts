@@ -81,6 +81,48 @@ test.describe('owner (rol de edición) sobre el plan real', () => {
     });
     expect([400, 413], 'cuerpo que pasa el techo de 1 MB').toContain(gigante.status());
   });
+
+  test('los controles del plan caben en escritorio y movil sin solaparse', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(ruta, { waitUntil: 'networkidle' });
+
+    const escritorio = await page.evaluate(() => {
+      const botones = [...document.querySelectorAll('button')];
+      const aprobar = botones.filter((boton) => boton.textContent?.trim() === 'Aprobar publicación');
+      const guia = document.querySelector('button[aria-label="Abrir la guía: te explica cada botón"]')?.getBoundingClientRect();
+      const instalar = document.querySelector('button[aria-label="Volver a mostrar el aviso de instalar en el iPhone"]')?.getBoundingClientRect();
+      const seCruzan = Boolean(
+        guia && instalar
+        && guia.left < instalar.right && guia.right > instalar.left
+        && guia.top < instalar.bottom && guia.bottom > instalar.top,
+      );
+      return {
+        botonesCaben: aprobar.every((boton) => boton.scrollWidth <= boton.clientWidth),
+        flotantesSeCruzan: seCruzan,
+      };
+    });
+    expect(escritorio.botonesCaben, 'el texto Aprobar publicación cabe en sus botones').toBe(true);
+    expect(escritorio.flotantesSeCruzan, 'la guía y el aviso de instalar no se pisan').toBe(false);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload({ waitUntil: 'networkidle' });
+    const movil = await page.evaluate(() => {
+      const metricas = [...document.querySelectorAll('article[aria-label="Vista previa del perfil de Instagram"] small')]
+        .map((elemento) => elemento.getBoundingClientRect());
+      const seCruzan = metricas.slice(0, -1).some((caja, indice) => {
+        const siguiente = metricas[indice + 1];
+        return caja.left < siguiente.right && caja.right > siguiente.left
+          && caja.top < siguiente.bottom && caja.bottom > siguiente.top;
+      });
+      return {
+        anchoDocumento: document.documentElement.scrollWidth,
+        anchoVentana: window.innerWidth,
+        metricasSeCruzan: seCruzan,
+      };
+    });
+    expect(movil.anchoDocumento, 'sin desborde horizontal').toBeLessThanOrEqual(movil.anchoVentana);
+    expect(movil.metricasSeCruzan, 'las etiquetas de métricas no se solapan').toBe(false);
+  });
 });
 
 test.describe('lector sin fila (camino SIN TABLA del modo demo) sobre el plan real', () => {
