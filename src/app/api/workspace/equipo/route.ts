@@ -20,10 +20,18 @@ import { NextResponse } from 'next/server';
 
 import { createServiceClient } from '@/lib/supabase/service';
 import { quienEs } from '@/lib/quien-es';
+import { DEMO_MODE } from '@/lib/demo-mode';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request): Promise<NextResponse> {
+  if (DEMO_MODE) {
+    return NextResponse.json(
+      { equipo: [], clientes: [], demo: true },
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
+
   // REGLA: el equipo se lee solo con sesión. Sin sesión no hay contra quién
   // comprobar acceso, y devolver correos a cualquiera es filtración de datos.
   const sesion = await quienEs();

@@ -113,6 +113,13 @@ create table if not exists public.rr_hub_invites (
   primary key (email, project_id)
 );
 
+-- NX-1026 fix-1: rr_hub_is_admin() se movio aqui; se usaba en la policy de la linea 118
+-- antes de crearse (forward-ref dentro del mismo archivo). Orden: DDL de funciones -> policies.
+create or replace function public.rr_hub_is_admin()
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.rr_hub_profiles where id = auth.uid() and global_role = 'admin');
+$$;
+
 alter table public.rr_hub_invites enable row level security;
 drop policy if exists rr_hub_invites_admin on public.rr_hub_invites;
 create policy rr_hub_invites_admin on public.rr_hub_invites for all using (public.rr_hub_is_admin()) with check (public.rr_hub_is_admin());

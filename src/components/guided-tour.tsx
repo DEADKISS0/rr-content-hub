@@ -310,12 +310,11 @@ export function GuidedTour() {
 
           En escritorio sigue siendo el botón flotante de la esquina: ahí hay
           sitio de sobra y nunca estorba. */}
-      {/* MEDIDO 2026-10-02 (auditoria del frontend): este boton y el
-          `INSTALAR EL HUB` comparten `sm:bottom-4 sm:right-4` con el mismo
-          `z-40`. Sin z distinto gana el ultimo en el DOM, y `InstalarApp` se
-          monta DESPUES de los hijos en `layout.tsx`: el instalador tapaba la
-          guia. Aqui la guia sube a `sm:bottom-20` y quedan apilados sin
-          solaparse. */}
+      {/* MEDIDO 2026-10-13: este botón y `AVISO INSTALAR` se cruzaban 12 px
+          en escritorio: `bottom-20` dejaba la guía hasta y=820 y el aviso
+          empezaba en y=808 sobre un viewport de 900 px. La guía sube a
+          `sm:bottom-28`; en móvil conserva `bottom-20` porque el aviso está
+          oculto allí. */}
       <button
         type="button"
         onClick={() => setPaso(0)}
@@ -323,7 +322,7 @@ export function GuidedTour() {
            barra que cruzaba la pantalla entera en el móvil y tapaba el borde
            inferior de la lista. En un teléfono un botón de ayuda va en su
            esquina, como en escritorio, y ocupa lo que ocupa. */
-        className="fixed bottom-20 left-3 z-40 inline-flex min-h-[44px] items-center justify-center gap-2 border border-blanco-20 bg-negro px-3 font-mono text-xs text-blanco-70 transition-colors hover:bg-blanco-10 hover:text-blanco sm:left-auto sm:right-4 sm:px-3 sm:py-2"
+        className="fixed bottom-20 left-3 z-40 inline-flex min-h-[44px] items-center justify-center gap-2 border border-blanco-20 bg-negro px-3 font-mono text-xs text-blanco-70 transition-colors hover:bg-blanco-10 hover:text-blanco sm:bottom-28 sm:left-auto sm:right-4 sm:px-3 sm:py-2"
         aria-label="Abrir la guía: te explica cada botón"
         title="¿Cómo se usa?"
       >

@@ -56,24 +56,40 @@ DECLARE
   t text;
   n bigint;
 BEGIN
+  -- NX-1026 fix-4: en base limpia estas tablas del CRM no existen; saltarlas
+  -- en vez de lanzar 'relation does not exist'.
   FOREACH t IN ARRAY ARRAY['prospects', 'activities', 'knowledge', 'outreach_sequences', 'demos', 'verticals']
   LOOP
+    IF to_regclass('public.' || t) IS NULL THEN
+      RAISE NOTICE 'INVENTARIO % no existe en esta base (base limpia), omitida', t;
+      CONTINUE;
+    END IF;
     EXECUTE format('SELECT count(*) FROM public.%I', t) INTO n;
     RAISE NOTICE 'INVENTARIO % = % filas (no se borra ninguna)', t, n;
   END LOOP;
 END $$;
 
--- ---------------------------------------------------------------------------
--- 1. Policies anon. Se quitan las que abren lectura y, sobre todo, escritura.
--- ---------------------------------------------------------------------------
-DROP POLICY IF EXISTS prospects_select_anon          ON public.prospects;
-DROP POLICY IF EXISTS prospects_write_anon          ON public.prospects;
-DROP POLICY IF EXISTS prospects_all_anon            ON public.prospects;
-DROP POLICY IF EXISTS activities_all_anon           ON public.activities;
-DROP POLICY IF EXISTS outreach_all_anon             ON public.outreach_sequences;
-DROP POLICY IF EXISTS demos_all_anon                 ON public.demos;
-DROP POLICY IF EXISTS knowledge_all_anon             ON public.knowledge;
-DROP POLICY IF EXISTS "Allow all operations"         ON public.knowledge;
+-- NX-1026 fix-4b: drops y grants condicionados por existencia de cada tabla.
+DO $$
+DECLARE
+  t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['prospects', 'activities', 'knowledge', 'outreach_sequences', 'demos']
+  LOOP
+    IF to_regclass('public.' || t) IS NULL THEN
+      RAISE NOTICE 'CRM ausente (base limpia): % no existe, lockdown omitido', t;
+      CONTINUE;
+    END IF;
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_select_anon', t);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_write_anon', t);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_all_anon', t);
+    EXECUTE format('REVOKE ALL ON public.%I FROM anon', t);
+  END LOOP;
+  IF to_regclass('public.knowledge') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Allow all operations" ON public.knowledge;
+    GRANT SELECT ON public.knowledge TO service_role;
+  END IF;
+END $$;
 
 -- El policy original en `knowledge` se llama "Allow all operations": es el nombre que
 -- pone el boton de la consola de Supabase, no alguien de RR. Sin esta linea el
@@ -83,17 +99,21 @@ DROP POLICY IF EXISTS "Allow all operations"         ON public.knowledge;
 -- 2. Grants. La policy sin el GRANT no hace nada; y al reves. Se cierran los
 --    dos, que es lo unico que garantiza el cierre.
 -- ---------------------------------------------------------------------------
-REVOKE ALL ON public.prospects          FROM anon;
-REVOKE ALL ON public.activities         FROM anon;
-REVOKE ALL ON public.knowledge          FROM anon;
-REVOKE ALL ON public.outreach_sequences FROM anon;
-REVOKE ALL ON public.demos              FROM anon;
+-- NX-1026 fix-4c: los revoke originales sin condicion se movieron al bloque
+-- condicionado de arriba (fix-4b); aqui no se repiten porque en base limpia
+-- romperian la migracion.
 
 -- ---------------------------------------------------------------------------
 -- 3. La puerta de salida para el servicio, por si algun dia hay que leer algo
 --    desde el servidor sin service role: sigue teniendo lo que tenia.
 -- ---------------------------------------------------------------------------
-GRANT SELECT ON public.knowledge TO service_role;
+-- NX-1026 fix-4d: grant condicionado; ya aplicado dentro del bloque fix-4b.
+DO $$
+BEGIN
+  IF to_regclass('public.knowledge') IS NOT NULL THEN
+    EXECUTE 'GRANT SELECT ON public.knowledge TO service_role';
+  END IF;
+END $$;
 
 -- ---------------------------------------------------------------------------
 -- 4. Comprobacion. Si esto no dice "crm cerrado", la migracion esta incompleta y

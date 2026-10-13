@@ -47,6 +47,12 @@ declare
   anon_can_read_projects  boolean;
   anon_can_write_profiles boolean;
 begin
+  -- NX-1026 fix-3: en una base limpia (staging nuevo) no existen las tablas del
+  -- CRM heredado; sin esta guarda, has_table_privilege lanza y mata la migracion.
+  if to_regclass('public.profiles') is null or to_regclass('public.projects') is null then
+    raise notice 'CRM heredado ausente (base limpia): nada que cerrar, se omite el lockdown';
+    return;
+  end if;
   select has_table_privilege('anon', 'public.profiles', 'select') into anon_can_read_profiles;
   select has_table_privilege('anon', 'public.projects', 'select') into anon_can_read_projects;
   select has_table_privilege('anon', 'public.profiles', 'insert') into anon_can_write_profiles;
@@ -64,8 +70,17 @@ end $$;
 --    reescribir. Las politicas las deja public.profiles_read_own / etc.; esta
 --    migracion solo retira el acceso del rol anon.
 -- ---------------------------------------------------------------------------
-revoke all on table public.profiles from anon;
-revoke all on table public.projects from anon;
+-- NX-1026 fix-3b: los revoke tambien van condicionados; en base limpia las
+-- tablas del CRM no existirian y un revoke directo romperia la migracion.
+do $$
+begin
+  if to_regclass('public.profiles') is not null then
+    execute 'revoke all on table public.profiles from anon';
+  end if;
+  if to_regclass('public.projects') is not null then
+    execute 'revoke all on table public.projects from anon';
+  end if;
+end $$;
 
 -- El service_role (usado por rr-commander y por la API de automatizacion)
 -- conserva el acceso completo: no se toca service_role.

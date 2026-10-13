@@ -164,7 +164,9 @@ export async function getCurrentUser() {
 }
 
 export async function getProject(slug: string) {
-  if (!(await clienteExiste(slug))) return { project: null, access: null, supabase: null };
+  const slugNormalizado = slug.trim().toLowerCase();
+  if (!(await clienteExiste(slugNormalizado))) return { project: null, access: null, supabase: null };
+  if (DEMO_MODE) return { project: getDemoProject(slugNormalizado) ?? null, access: null, supabase: null };
 
   // SIN PUERTA (2026-10-02). Antes estas cuatro líneas exigían que el slug fuera
   // el del código con el que se entró, y sin cookie devolvían null. Con la puerta
@@ -286,6 +288,7 @@ export async function getProfileName(userId: string): Promise<{ full_name: strin
 export async function getProjects() {
   const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) {
+    if (DEMO_MODE) return { projects: demoProjects.filter((project) => catalogoIncluye(project.slug)), supabase: null };
     // No `admin` role for a missing database. See requireSupabase().
     return { projects: [], supabase: null };
   }
@@ -947,6 +950,14 @@ export async function getClientesDeLaPersona(): Promise<{
   cerrados: { slug: string; name: string; client_name: string; brand_primary_color: string | null; description: string | null; motivo: 'sin-fila' | 'sin-codigo' }[];
   actual: string | null;
 }> {
+  if (DEMO_MODE) {
+    return {
+      abiertos: demoProjects.filter((project) => catalogoIncluye(project.slug)).map((project) => ({ ...project, rol: 'owner' })),
+      cerrados: [],
+      actual: 'wundeer',
+    };
+  }
+
   const vacio = { abiertos: [], cerrados: [], actual: null as string | null };
   const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) return vacio;
