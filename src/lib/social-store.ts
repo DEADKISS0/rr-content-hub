@@ -53,6 +53,14 @@ export type ResultadoEscritura =
   | { ok: true; plan: PlanSocial }
   | { ok: false; motivo: 'conflicto' | 'no-encontrado' | 'invalido'; versionActual?: number };
 
+/** La respuesta JSONB que devuelve la RPC transaccional de Supabase. */
+type RpcResultado = {
+  ok: boolean;
+  motivo?: 'conflicto' | 'no-encontrado' | 'invalido';
+  versionActual?: number;
+  plan?: { version: number; updatedAt: string; updatedBy: string };
+};
+
 export interface SocialPostStore {
   leer(projectSlug: string): Promise<PlanSocial | null>;
   /**
@@ -135,7 +143,8 @@ function validar(plan: Omit<PlanSocial, 'version' | 'updatedAt'>): boolean {
   if (!Array.isArray(plan.posts) || !Array.isArray(plan.pautas)) return false;
   const ids = new Set([...plan.posts, ...plan.pautas].map((p) => p.id));
   if (ids.size !== plan.posts.length + plan.pautas.length) return false;
-  return plan.posts.every((p) => typeof p.id === 'string' && p.id.length > 0);
+  return plan.posts.every((p) => typeof p.id === 'string' && p.id.length > 0)
+      && plan.pautas.every((p) => typeof p.id === 'string' && p.id.length > 0);
 }
 
 export class LocalFileSocialStore implements SocialPostStore {
@@ -253,60 +262,184 @@ export class SupabaseSocialStore implements SocialPostStore {
   }
 
   async leer(projectSlug: string): Promise<PlanSocial | null> {
-    void projectSlug;
     const { data, error } = await this.cliente
-      .from('rr_hub_social_posts')
-      .select('*')
+      .from('rr_hub_social_plans')
+      .select('version, posts, pautas, updated_at, updated_by')
       .eq('project_id', this.projectId)
-      .is('archived_at', null);
-    if (error || !data) return null;
-    const filas = data as {
-      collection: Coleccion; slot: number; version: number;
-      title: string; caption: string; hashtags: string[]; media_url: string;
-      cover_url: string; color: string; status: SocialPost['estado'];
-      scheduled_for: string | null; media_type: SocialPost['tipo'];
-      client_notes: string | null; id: string;
-    }[];
-    const aPost = (f: (typeof filas)[number]): SocialPost => ({
-      id: f.id,
-      slot: f.slot,
-      tipo: f.media_type,
-      titulo: f.title,
-      caption: f.caption,
-      hashtags: (f.hashtags ?? []) as string[],
-      mediaUrl: f.media_url,
-      portadaUrl: f.cover_url,
-      color: f.color,
-      estado: f.status,
-      fechaSugerida: f.scheduled_for ?? '',
-      feedbackCambio: f.client_notes ?? undefined,
-    });
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Supabase no devolvió el plan: ${error.message}`);
+    }
+    if (!data) return null;
+
     return {
       projectSlug,
-      version: Math.max(1, ...filas.map((f) => f.version)),
-      posts: filas.filter((f) => f.collection === 'organico').sort((a, b) => a.slot - b.slot).map(aPost),
-      pautas: filas.filter((f) => f.collection === 'pauta').sort((a, b) => a.slot - b.slot).map(aPost),
-      updatedAt: new Date().toISOString(),
-      updatedBy: 'supabase',
+      version: data.version,
+      posts: (data.posts ?? []) as SocialPost[],
+      pautas: (data.pautas ?? []) as SocialPost[],
+      updatedAt: data.updated_at,
+      updatedBy: data.updated_by,
     };
   }
 
-  async guardar(): Promise<ResultadoEscritura> {
-    throw new Error(
-      'Escritura remota deshabilitada: NX-1028 prohíbe escrituras hasta que Supabase quede autorizado.',
-    );
+  async guardar(
+    plan: Omit<PlanSocial, 'version' | 'updatedAt'>,
+    versionEsperada: number,
+  ): Promise<ResultadoEscritura> {
+    if (!validar(plan)) return { ok: false, motivo: 'invalido' };
+
+    const { data, error } = await this.cliente.rpc('rr_hub_social_plan_commit', {
+      p_project_id: this.projectId,
+      p_expected_version: versionEsperada,
+      p_posts: JSON.stringify(plan.posts),
+      p_pautas: JSON.stringify(plan.pautas),
+      p_changed_by: plan.updatedBy,
+      p_operation: 'guardar',
+    });
+
+    if (error) {
+      throw new Error(`Fallo guardando el plan social: ${error.message}`);
+    }
+    const rpc = data as RpcResultado;
+    if (!rpc || !rpc.ok) {
+      return {
+        ok: false,
+        motivo: rpc?.motivo ?? 'no-encontrado',
+        versionActual: rpc?.versionActual,
+      };
+    }
+
+    const guardado = data.plan as {
+      version: number;
+      updatedAt: string;
+      updatedBy: string;
+    };
+    return {
+      ok: true,
+      plan: {
+        ...plan,
+        version: guardado.version,
+        updatedAt: guardado.updatedAt,
+        updatedBy: guardado.updatedBy,
+      },
+    };
   }
 
-  async archivar(): Promise<ResultadoEscritura> {
-    throw new Error('Escritura remota deshabilitada (NX-1028).');
+  async archivar(
+    projectSlug: string,
+    coleccion: Coleccion,
+    postId: string,
+    por: string,
+  ): Promise<ResultadoEscritura> {
+    const actual = await this.leer(projectSlug);
+    if (!actual) return { ok: false, motivo: 'no-encontrado' };
+
+    const posts = coleccion === 'organico'
+      ? actual.posts.filter((p) => p.id !== postId)
+      : actual.posts;
+    const pautas = coleccion === 'pauta'
+      ? actual.pautas.filter((p) => p.id !== postId)
+      : actual.pautas;
+
+    const { data, error } = await this.cliente.rpc('rr_hub_social_plan_commit', {
+      p_project_id: this.projectId,
+      p_expected_version: actual.version,
+      p_posts: JSON.stringify(posts),
+      p_pautas: JSON.stringify(pautas),
+      p_changed_by: por,
+      p_operation: 'archivar',
+    });
+
+    if (error) {
+      throw new Error(`Fallo archivando: ${error.message}`);
+    }
+    const rpc = data as RpcResultado;
+    if (!rpc || !rpc.ok) {
+      return {
+        ok: false,
+        motivo: rpc?.motivo ?? 'no-encontrado',
+        versionActual: rpc?.versionActual,
+      };
+    }
+
+    const guardado = rpc.plan as { version: number; updatedAt: string; updatedBy: string };
+    return {
+      ok: true,
+      plan: {
+        projectSlug,
+        version: guardado.version,
+        posts,
+        pautas,
+        updatedAt: guardado.updatedAt,
+        updatedBy: guardado.updatedBy,
+      },
+    };
   }
 
-  async restaurar(): Promise<ResultadoEscritura> {
-    throw new Error('Escritura remota deshabilitada (NX-1028).');
+  async restaurar(projectSlug: string, version: number, por: string): Promise<ResultadoEscritura> {
+    const historial = await this.historial(projectSlug);
+    const snapshot = historial.find((entry) => entry.version === version);
+    if (!snapshot) return { ok: false, motivo: 'no-encontrado' };
+
+    const actual = await this.leer(projectSlug);
+    if (!actual) return { ok: false, motivo: 'no-encontrado' };
+
+    const { data, error } = await this.cliente.rpc('rr_hub_social_plan_commit', {
+      p_project_id: this.projectId,
+      p_expected_version: actual.version,
+      p_posts: JSON.stringify(snapshot.posts),
+      p_pautas: JSON.stringify(snapshot.pautas),
+      p_changed_by: por,
+      p_operation: 'restaurar',
+    });
+
+    if (error) {
+      throw new Error(`Fallo restaurando: ${error.message}`);
+    }
+    const rpc = data as RpcResultado;
+    if (!rpc || !rpc.ok) {
+      return {
+        ok: false,
+        motivo: rpc?.motivo ?? 'no-encontrado',
+        versionActual: rpc?.versionActual,
+      };
+    }
+
+    const guardado = rpc.plan as { version: number; updatedAt: string; updatedBy: string };
+    return {
+      ok: true,
+      plan: {
+        projectSlug,
+        version: guardado.version,
+        posts: snapshot.posts,
+        pautas: snapshot.pautas,
+        updatedAt: guardado.updatedAt,
+        updatedBy: guardado.updatedBy,
+      },
+    };
   }
 
-  async historial(): Promise<EntradaHistorial[]> {
-    return [];
+  async historial(projectSlug: string): Promise<EntradaHistorial[]> {
+    void projectSlug;
+    const { data, error } = await this.cliente
+      .from('rr_hub_social_plan_history')
+      .select('version, posts, pautas, changed_by, operation, created_at')
+      .eq('project_id', this.projectId)
+      .order('version', { ascending: false })
+      .limit(50);
+
+    if (error) {
+      throw new Error(`Fallo leyendo el historial social: ${error.message}`);
+    }
+
+    return (data ?? []).map((row) => ({
+      version: row.version,
+      en: row.created_at,
+      por: row.changed_by,
+      posts: (row.posts ?? []) as SocialPost[],
+      pautas: (row.pautas ?? []) as SocialPost[],
+    }));
   }
 }
 
@@ -316,8 +449,19 @@ export class SupabaseSocialStore implements SocialPostStore {
  * revés: una implementación remota seleccionada por accidente escribiendo en
  * producción es exactamente lo que la misión prohíbe.
  */
-export async function socialStore(): Promise<SocialPostStore> {
-  return new LocalFileSocialStore();
+export async function socialStore(proyecto?: { id: string; slug: string }): Promise<SocialPostStore> {
+  const { DEMO_MODE } = await import('@/lib/demo-mode');
+  if (DEMO_MODE || !proyecto) {
+    return new LocalFileSocialStore();
+  }
+
+  const { createServiceClient } = await import('@/lib/supabase/service');
+  const client = await createServiceClient();
+  if (!client) {
+    return new LocalFileSocialStore();
+  }
+
+  return new SupabaseSocialStore(client, proyecto.id);
 }
 
 /** Convierte el plan guardado en el objeto que la UI ya entiende. */
