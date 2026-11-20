@@ -19,6 +19,7 @@
 import { NextResponse } from 'next/server';
 
 import { createServiceClient } from '@/lib/supabase/service';
+import { idDeProyectoVisible } from '@/lib/projects';
 import { quienEs } from '@/lib/quien-es';
 import { DEMO_MODE } from '@/lib/demo-mode';
 
@@ -49,15 +50,8 @@ export async function GET(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'El servidor no tiene Supabase.' }, { status: 500 });
   }
 
-  const { data: fila, error: proyectoError } = await supabase
-    .from('rr_hub_projects')
-    .select('id')
-    .eq('slug', proyecto)
-    .maybeSingle();
-  if (proyectoError) {
-    return NextResponse.json({ error: proyectoError.message }, { status: 500 });
-  }
-  if (!fila) {
+  const proyectoId = await idDeProyectoVisible(supabase, proyecto);
+  if (!proyectoId) {
     return NextResponse.json({ error: 'Ese cliente no existe.' }, { status: 404 });
   }
 
@@ -78,7 +72,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   const { data: conAcceso } = await supabase
     .from('rr_hub_access')
     .select('user_id')
-    .eq('project_id', fila.id);
+    .eq('project_id', proyectoId);
   const conAccesoIds = new Set((conAcceso ?? []).map((a) => a.user_id as string));
 
   const { data, error } = await supabase

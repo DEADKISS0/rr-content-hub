@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/service';
+import { estaArchivado } from '@/lib/proyecto-archivado';
 
 /**
  * Los clientes que la puerta ofrece.
@@ -33,6 +34,7 @@ export type FilaProyecto = {
   name: string | null;
   brand_primary_color: string | null;
   access_code: string | null;
+  archived_at?: string | null;
 };
 
 /**
@@ -55,7 +57,8 @@ export function puertaDesdeFilas(filas: FilaProyecto[]): ClientePuerta[] {
       typeof f.access_code === 'string'
       && f.access_code.trim().length > 0
       && typeof f.slug === 'string'
-      && f.slug.length > 0)
+      && f.slug.length > 0
+      && !estaArchivado(f.archived_at))
     .map((f) => ({
       slug: f.slug,
       nombre: (f.name || f.slug).toUpperCase(),
@@ -77,7 +80,8 @@ export async function getClientesParaLaPuerta(): Promise<ClientePuerta[]> {
 
   const { data, error } = await supabase
     .from('rr_hub_projects')
-    .select('slug, name, brand_primary_color, access_code')
+    .select('slug, name, brand_primary_color, access_code, archived_at')
+    .is('archived_at', null)
     .not('access_code', 'is', null)
     .order('created_at', { ascending: true });
 

@@ -3,6 +3,7 @@ import { NewIdeaForm } from '@/components/new-idea-form';
 import { listarAnuncios, anunciosEnUso } from '@/lib/ad-library-server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { createClient } from '@/lib/supabase/server';
+import { idDeProyectoVisible } from '@/lib/projects';
 
 export async function generateMetadata({ params }: { params: Promise<{ projectSlug: string }> }): Promise<Metadata> {
   const { projectSlug } = await params;
@@ -27,13 +28,12 @@ export default async function NewIdea({ params }: { params: Promise<{ projectSlu
   // navegador (su tabla tiene los códigos), y esta página es de servidor.
   const supabase = (await createServiceClient()) ?? (await createClient());
   if (supabase) {
-    const { data: project } = await supabase
-      .from('rr_hub_projects').select('id').eq('slug', projectSlug).maybeSingle();
-    if (project) {
+    const projectIdVisible = await idDeProyectoVisible(supabase, projectSlug);
+    if (projectIdVisible) {
       try {
-        anuncios = await listarAnuncios(project.id);
-        for (const [id, n] of await anunciosEnUso(project.id)) usosPorAnuncio[id] = n;
-        projectId = project.id;
+        anuncios = await listarAnuncios(projectIdVisible);
+        for (const [id, n] of await anunciosEnUso(projectIdVisible)) usosPorAnuncio[id] = n;
+        projectId = projectIdVisible;
       } catch {
         anuncios = [];
       }

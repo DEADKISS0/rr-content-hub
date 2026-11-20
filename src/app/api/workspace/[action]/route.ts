@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { allowedTransitions, ganoLaVotacion, perdioLaVotacion, estadoVotacion, VOTOS_NECESARIOS, votosParaDecidir, ROLE_LABEL, salidaDeLaVotacion, caidaDeLaVotacion, hayCambioPedido, frenaLaVotacion, salidaDelCambioPedido, DECISIONES_VOTO, type DecisionVoto, type RoleKey, type WorkflowStatus, PUEDE_EDITAR, PUEDE_ESCRIBIR_GUION, PUEDE_COMENTAR, PUEDE_BORRAR, PUEDE_BORRAR_ESTADOS } from '@/lib/flow';
 import { rolEnProyecto } from '@/lib/project-guard';
 import { quienEs } from '@/lib/quien-es';
+import { clienteExiste, idDeProyectoVisible, puedeVerArchivados } from '@/lib/projects';
+import { estaArchivado } from '@/lib/proyecto-archivado';
 
 export const dynamic = 'force-dynamic';
 
@@ -176,11 +178,13 @@ async function context(request: NextRequest, accion: string) {
 async function roleForIdea(supabase: SupabaseClient, userId: string, email: string, ideaId: string): Promise<RoleKey | null> {
   const { data } = await supabase
     .from('rr_hub_ideas')
-    .select('project:rr_hub_projects!inner(id)')
+    .select('project:rr_hub_projects!inner(id, archived_at)')
     .eq('id', ideaId)
     .maybeSingle();
-  const project = (data?.project as { id?: string } | undefined)?.id;
-  if (!project) return null;
+  const projectRow = data?.project as { id?: string; archived_at?: string | null } | undefined;
+  if (!projectRow?.id) return null;
+  if (estaArchivado(projectRow.archived_at) && !(await puedeVerArchivados())) return null;
+  const project = projectRow.id;
 
   const { data: access } = await supabase
     .from('rr_hub_access')
@@ -200,10 +204,13 @@ async function roleForIdea(supabase: SupabaseClient, userId: string, email: stri
 async function projectIdDeIdea(supabase: SupabaseClient, ideaId: string): Promise<string | null> {
   const { data } = await supabase
     .from('rr_hub_ideas')
-    .select('project:rr_hub_projects!inner(id)')
+    .select('project:rr_hub_projects!inner(id, archived_at)')
     .eq('id', ideaId)
     .maybeSingle();
-  return (data?.project as { id?: string } | undefined)?.id ?? null;
+  const projectRow = data?.project as { id?: string; archived_at?: string | null } | undefined;
+  if (!projectRow?.id) return null;
+  if (estaArchivado(projectRow.archived_at) && !(await puedeVerArchivados())) return null;
+  return projectRow.id;
 }
 
 /**
@@ -973,15 +980,14 @@ export async function POST(request: NextRequest) {
     // acceso a ESTE proyecto", y para eso hace falta el id del proyecto.
     const slug = str(body.projectSlug, 60);
     if (!slug) return error('Falta projectSlug.', 400);
-    const { data: proyecto } = await service
-      .from('rr_hub_projects').select('id').eq('slug', slug).maybeSingle();
-    if (!proyecto) return error('Ese proyecto no existe.', 404);
+    const proyectoId = await idDeProyectoVisible(service, slug);
+    if (!proyectoId) return error('Ese proyecto no existe.', 404);
 
     const { data: existe } = await service
       .from('rr_hub_access')
       .select('user_id, role_in_project')
       .eq('user_id', asignado)
-      .eq('project_id', proyecto.id)
+      .eq('project_id', proyectoId)
       .maybeSingle();
     if (!existe) return error('Esa persona no tiene acceso a este proyecto.', 400);
 
@@ -1130,7 +1136,7 @@ export async function POST(request: NextRequest) {
     if (ideaProyectoError) return error('No se pudo comprobar el cliente de la idea.', 500);
     const proyectoRelacionado = ideaConProyecto?.project as { slug?: string } | { slug?: string }[] | undefined;
     const slugIdea = Array.isArray(proyectoRelacionado) ? proyectoRelacionado[0]?.slug : proyectoRelacionado?.slug;
-    if (!slugIdea) return error('Esa idea no existe.', 404);
+    if (!slugIdea || !(await clienteExiste(slugIdea))) return error('Esa idea no existe.', 404);
     if (ctx.proyecto && slugIdea !== ctx.proyecto) {
       return error('Esa idea no es de tu cliente.', 403);
     }
@@ -1205,9 +1211,8 @@ async function miRol(body: Body, ctx: Ctx): Promise<NextResponse> {
   const identidad = str(body.actorProfile, 200);
   if (!slug) return error('Falta projectSlug.', 400);
 
-  const { data: proyecto } = await ctx.service
-    .from('rr_hub_projects').select('id').eq('slug', slug).maybeSingle();
-  if (!proyecto) return error('Ese proyecto no existe.', 404);
+  const proyectoId = await idDeProyectoVisible(ctx.service, slug);
+  if (!proyectoId) return error('Ese proyecto no existe.', 404);
 
   // 1. La sesión manda si existe: es la identidad comprobada.
   const sesion = await quienEs();
@@ -1217,7 +1222,7 @@ async function miRol(body: Body, ctx: Ctx): Promise<NextResponse> {
     if (fila) {
       const { data: acceso } = await ctx.service
         .from('rr_hub_access').select('role_in_project')
-        .eq('user_id', fila.id).eq('project_id', proyecto.id).maybeSingle();
+        .eq('user_id', fila.id).eq('project_id', proyectoId).maybeSingle();
       if (acceso?.role_in_project) {
         return NextResponse.json({ role: acceso.role_in_project, via: 'session' });
       }
@@ -1226,7 +1231,7 @@ async function miRol(body: Body, ctx: Ctx): Promise<NextResponse> {
 
   // 2. Sin sesión, el perfil declarado: se contrasta contra la base.
   if (identidad) {
-    const rol = await roleForPerfilElegido(ctx.service, proyecto.id, identidad);
+    const rol = await roleForPerfilElegido(ctx.service, proyectoId, identidad);
     if (rol) return NextResponse.json({ role: rol, via: 'perfil' });
   }
 
@@ -1256,23 +1261,22 @@ async function roster(body: Body, ctx: Ctx): Promise<NextResponse> {
   const slug = str(body.projectSlug, 60);
   if (!slug) return error('Falta projectSlug.', 400);
 
-  const { data: proyecto } = await ctx.service
-    .from('rr_hub_projects').select('id').eq('slug', slug).maybeSingle();
-  if (!proyecto) return error('Ese proyecto no existe.', 404);
+  const proyectoId = await idDeProyectoVisible(ctx.service, slug);
+  if (!proyectoId) return error('Ese proyecto no existe.', 404);
 
   // Que la lista "no sea un secreto" no significa que cualquier sesión la pueda
   // leer. Esta acción salta el chequeo de ideaId porque no va sobre una pieza, y
   // usaba el service role (que ignora RLS) sin mirar quién pregunta. Con solo
   // tener sesión, cualquier cuenta de Supabase se llevaba los 18 correos del
   // equipo. Se cierra exigiendo que la persona sea del equipo de ESE proyecto.
-  const veredicto = await rolEnProyecto(proyecto.id);
+  const veredicto = await rolEnProyecto(proyectoId);
   if (!veredicto.puedeEscribir && veredicto.rol === 'sin_rol') {
     return error('Necesitas ser parte del equipo para ver la lista.', 403);
   }
   const { data: propio } = await ctx.service
     .from('rr_hub_access')
     .select('user_id')
-    .eq('project_id', proyecto.id)
+    .eq('project_id', proyectoId)
     .eq('user_id', ctx.userId ?? '')
     .maybeSingle();
   if (!propio) {
@@ -1282,7 +1286,7 @@ async function roster(body: Body, ctx: Ctx): Promise<NextResponse> {
   const { data: accesos, error: accesoError } = await ctx.service
     .from('rr_hub_access')
     .select('user_id, role_in_project')
-    .eq('project_id', proyecto.id);
+    .eq('project_id', proyectoId);
   if (accesoError) return error(accesoError.message, 500);
   if (!accesos?.length) return NextResponse.json({ roster: [] });
 
@@ -1315,20 +1319,19 @@ async function roster(body: Body, ctx: Ctx): Promise<NextResponse> {
 async function createIdea(body: Body, ctx: Ctx): Promise<NextResponse> {
   const { supabase, service, userId, email } = ctx;
   const projectSlug = str(body.projectSlug, 60);
-  const { data: project } = await supabase
-    .from('rr_hub_projects').select('id').eq('slug', projectSlug).maybeSingle();
-  if (!project) return error('Ese proyecto no existe.', 404);
+  const projectId = await idDeProyectoVisible(supabase, projectSlug);
+  if (!projectId) return error('Ese proyecto no existe.', 404);
 
   const { data: access } = ctx.abierto
     ? { data: null }
     : await supabase
       .from('rr_hub_access').select('role_in_project')
-      .eq('user_id', userId!).eq('project_id', project.id).maybeSingle();
+      .eq('user_id', userId!).eq('project_id', projectId).maybeSingle();
   const identidad = str(body.actorProfile, 200);
   const creatorRole: RoleKey | undefined =
     (access?.role_in_project as RoleKey | undefined)
     ?? (email && isSuperAdmin(email) ? 'owner' : undefined)
-    ?? (identidad ? (await roleForPerfilElegido(service, project.id, identidad)) ?? undefined : undefined);
+    ?? (identidad ? (await roleForPerfilElegido(service, projectId, identidad)) ?? undefined : undefined);
   if (!creatorRole) return unauthorized();
 
   const title = str(body.title, 160);
@@ -1399,7 +1402,7 @@ async function createIdea(body: Body, ctx: Ctx): Promise<NextResponse> {
       .select('id, project_id, external_url')
       .eq('id', adPedido)
       .maybeSingle();
-    if (anuncio && anuncio.project_id === project.id) {
+    if (anuncio && anuncio.project_id === projectId) {
       adId = anuncio.id as string;
       // Si la pieza viene sin referencia pero con anuncio, la referencia del
       // anuncio ES la referencia: es justo lo que el selector vino a buscar.
@@ -1433,12 +1436,12 @@ async function createIdea(body: Body, ctx: Ctx): Promise<NextResponse> {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const { data: codes } = await service
       .from('rr_hub_ideas').select('code')
-      .eq('project_id', project.id).eq('content_type', contentType);
+      .eq('project_id', projectId).eq('content_type', contentType);
     const next = (codes ?? []).reduce<number>(
       (max, row) => Math.max(max, Number(String((row as { code?: string | null }).code ?? '').replace(/^\D+/, '')) || 0), 0) + 1;
 
     const { data: idea, error: insertError } = await service.from('rr_hub_ideas').insert({
-      project_id: project.id, code: `${prefix}${next}`, title,
+      project_id: projectId, code: `${prefix}${next}`, title,
       description: str(body.description, 2000) || 'Sin descripción aún.',
       objective: str(body.objective, 500),
       content_type: contentType,

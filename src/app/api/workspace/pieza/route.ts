@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { quienEs } from '@/lib/quien-es';
 import { createServiceClient } from '@/lib/supabase/service';
+import { clienteExiste } from '@/lib/projects';
 import { getComentarios, getAssets, getTimeline } from '@/lib/data';
 
 export const dynamic = 'force-dynamic';
@@ -31,12 +32,15 @@ export async function GET(request: NextRequest) {
   }
   const { data: idea } = await service
     .from('rr_hub_ideas')
-    .select('projects:rr_hub_projects(slug)')
+    .select('projects:rr_hub_projects(slug, archived_at)')
     .eq('id', ideaId)
     .maybeSingle();
   const slug = (idea as { projects?: { slug?: string } | { slug?: string }[] } | null)?.projects;
   const proyectoSlug = Array.isArray(slug) ? slug[0]?.slug : slug?.slug;
   if (!proyectoSlug) {
+    return NextResponse.json({ error: 'Esa pieza no existe.' }, { status: 404 });
+  }
+  if (!(await clienteExiste(proyectoSlug))) {
     return NextResponse.json({ error: 'Esa pieza no existe.' }, { status: 404 });
   }
 

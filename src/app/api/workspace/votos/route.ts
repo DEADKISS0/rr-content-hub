@@ -20,6 +20,7 @@
 import { NextResponse } from 'next/server';
 
 import { createServiceClient } from '@/lib/supabase/service';
+import { idDeProyectoVisible } from '@/lib/projects';
 import { VOTOS_NECESARIOS } from '@/lib/flow';
 
 export const dynamic = 'force-dynamic';
@@ -103,12 +104,7 @@ export async function GET(request: Request): Promise<NextResponse> {
  */
 async function idDeProyecto(supabase: Awaited<ReturnType<typeof createServiceClient>>, slug: string): Promise<string> {
   if (!supabase) return '';
-  const { data } = await supabase
-    .from('rr_hub_projects')
-    .select('id')
-    .eq('slug', slug)
-    .maybeSingle();
-  return (data?.id as string) ?? '';
+  return (await idDeProyectoVisible(supabase, slug)) ?? '';
 }
 
 /**
