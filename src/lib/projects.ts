@@ -1,3 +1,5 @@
+import { estaArchivado } from './proyecto-archivado';
+
 /**
  * Los clientes que el hub enseña.
  *
@@ -68,10 +70,60 @@ export async function clienteExiste(slug?: string | null): Promise<boolean> {
   }
   const { data } = await supabase
     .from('rr_hub_projects')
-    .select('slug')
+    .select('slug, archived_at')
     .eq('slug', slugNormalizado)
     .maybeSingle();
-  return Boolean(data);
+  if (!data) return false;
+  // Un cliente archivado no abre ruta, salvo para el admin global, que sí lo ve.
+  if (estaArchivado(data.archived_at) && !(await puedeVerArchivados())) return false;
+  return true;
+}
+
+/**
+ * ¿La sesión es de un admin global?
+ *
+ * El admin sigue viendo los clientes archivados, marcados. Un visitante sin
+ * sesión, y cualquiera que no sea admin, no. El super-admin de configuración
+ * cuenta igual: es la misma red de emergencia que el resto de los guards.
+ */
+export async function puedeVerArchivados(): Promise<boolean> {
+  const { quienEs } = await import('./quien-es');
+  const sesion = await quienEs();
+  if (!sesion?.email) return false;
+  const { esSuperAdmin } = await import('./config');
+  if (esSuperAdmin(sesion.email)) return true;
+  const { createServiceClient } = await import('./supabase/service');
+  const { createClient } = await import('./supabase/server');
+  const supabase = (await createServiceClient()) ?? (await createClient());
+  if (!supabase) return false;
+  const { data } = await supabase
+    .from('rr_hub_profiles')
+    .select('global_role')
+    .ilike('email', sesion.email)
+    .maybeSingle();
+  return data?.global_role === 'admin';
+}
+
+/**
+ * El id de un cliente que esta sesión puede abrir.
+ *
+ * La clave de servicio no mira el RLS, así que la ruta que resuelve un slug
+ * tiene que repetir la regla aquí: archivado y no admin → no hay proyecto.
+ */
+export async function idDeProyectoVisible(
+  supabase: { from: (tabla: string) => any },
+  slug: string,
+): Promise<string | null> {
+  const slugNormalizado = slug.trim().toLowerCase();
+  if (!slugNormalizado) return null;
+  const { data } = await supabase
+    .from('rr_hub_projects')
+    .select('id, archived_at')
+    .eq('slug', slugNormalizado)
+    .maybeSingle();
+  if (!data?.id) return null;
+  if (estaArchivado(data.archived_at) && !(await puedeVerArchivados())) return null;
+  return data.id as string;
 }
 
 /**

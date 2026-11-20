@@ -89,6 +89,7 @@ export async function POST(request: Request) {
     .from('rr_hub_projects')
     .select('slug, name')
     .eq('slug', slug)
+    .is('archived_at', null)
     .maybeSingle();
   if (errorProyecto || !proyecto) {
     console.error('[entrar] el cliente del codigo no existe:', errorProyecto?.message);

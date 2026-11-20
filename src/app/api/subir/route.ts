@@ -3,6 +3,7 @@ import { quienEs } from '@/lib/quien-es';
 import { createServiceClient } from '@/lib/supabase/service';
 import { firmaDeImagen, TIPOS_DE_IMAGEN } from '@/lib/firma-imagen';
 import { catalogoIncluye } from '@/lib/config';
+import { clienteExiste } from '@/lib/projects';
 import { checkDbLimit, recordDbFailure, retryAfterDb } from '../_lib/rate-limit-db';
 
 export const dynamic = 'force-dynamic';
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
   if (!projectSlug) {
     return NextResponse.json({ error: 'Falta el cliente.' }, { status: 400 });
   }
-  if (!catalogoIncluye(projectSlug)) {
+  if (!catalogoIncluye(projectSlug) || !(await clienteExiste(projectSlug))) {
     return NextResponse.json({ error: 'Ese cliente no existe.' }, { status: 404 });
   }
   if (!ideaId) return NextResponse.json({ error: 'Falta la idea.' }, { status: 400 });

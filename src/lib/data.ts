@@ -4,7 +4,8 @@ import { createServiceClient } from '@/lib/supabase/service';
 import { quienEs } from '@/lib/quien-es';
 import { DEMO_MODE, SupabaseNotConfiguredError } from './demo-mode';
 import { demoIdeas, demoProjects, getDemoIdea, getDemoProject } from './demo-data';
-import { clienteEsVisible, clienteExiste } from './projects';
+import { clienteEsVisible, clienteExiste, puedeVerArchivados } from './projects';
+import { estaArchivado, marcarNombreArchivado } from './proyecto-archivado';
 import { catalogoIncluye } from './config';
 
 /**
@@ -188,9 +189,10 @@ export async function getProject(slug: string) {
       .from('rr_hub_projects')
       .select('*')
       .eq('slug', slug)
+      .is('archived_at', null)
       .maybeSingle();
     // `access: null` a proposito: sin sesion no hay fila que consultara y nadie
-    // puede escribir. La lectura si va entera.
+    // puede escribir. La lectura si va entera. Un archivado no es un cliente.
     return { project: proyecto ?? null, access: null, supabase: sinSesion };
   }
 
@@ -213,12 +215,17 @@ export async function getProject(slug: string) {
     return { project: null, access: null, supabase: null };
   }
 
-  const { data: project } = await supabase
+  const verArchivados = await puedeVerArchivados();
+  let consultaProyecto = supabase
     .from('rr_hub_projects')
     .select('*')
-    .eq('slug', slug)
-    .maybeSingle();
+    .eq('slug', slug);
+  if (!verArchivados) consultaProyecto = consultaProyecto.is('archived_at', null);
+  const { data: project } = await consultaProyecto.maybeSingle();
   if (!project) return { project: null, access: null, supabase };
+  if (verArchivados && estaArchivado(project.archived_at)) {
+    project.name = marcarNombreArchivado(project.name, project.archived_at);
+  }
 
   // El `sesion` de arriba ya es el bueno: si no hubiera, `getProject` ya habría
   // devuelto null. Así que aquí no se vuelve a preguntar.
@@ -310,7 +317,8 @@ export async function getProjects() {
   if (!sesion) {
     const { data: todos } = await supabase
       .from('rr_hub_projects')
-      .select('id, slug, name, client_name')
+      .select('id, slug, name, client_name, archived_at')
+      .is('archived_at', null)
       .order('name', { ascending: true });
     return { projects: (todos ?? []).filter((p) => catalogoIncluye(p.slug)), supabase };
   }
@@ -326,10 +334,13 @@ export async function getProjects() {
   if (profile?.global_role === 'admin') {
     const { data: allProjects } = await supabase
       .from('rr_hub_projects')
-      .select('id, name, slug, client_name, brand_primary_color, description')
+      .select('id, name, slug, client_name, brand_primary_color, description, archived_at')
       .eq('slug', sesion.proyecto).order('name');
     return {
-      projects: (allProjects ?? []).filter((project) => clienteEsVisible(project.slug, sesion.proyecto)).map((project) => ({ projects: project, role_in_project: 'owner' })),
+      projects: (allProjects ?? []).filter((project) => clienteEsVisible(project.slug, sesion.proyecto)).map((project) => ({
+        projects: { ...project, name: marcarNombreArchivado(project.name, project.archived_at) },
+        role_in_project: 'owner',
+      })),
       supabase,
     };
   }
@@ -345,10 +356,15 @@ export async function getProjects() {
 
   const { data } = await supabase
     .from('rr_hub_access')
-    .select('role_in_project, projects:rr_hub_projects(id, name, slug, client_name, brand_primary_color, description)')
+    .select('role_in_project, projects:rr_hub_projects(id, name, slug, client_name, brand_primary_color, description, archived_at)')
     .eq('user_id', perfil.id);
 
-  return { projects: (data ?? []).filter((row: any) => clienteEsVisible(row.projects?.slug, sesion.proyecto)), supabase };
+  return {
+    projects: (data ?? []).filter((row: any) =>
+      clienteEsVisible(row.projects?.slug, sesion.proyecto) && !estaArchivado(row.projects?.archived_at),
+    ),
+    supabase,
+  };
 }
 
 /**
@@ -717,12 +733,19 @@ export async function getAuditSettings() {
 export async function getAuditProjects() {
   const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) { requireSupabase(); return []; }
-  const { data } = await supabase
+  const verArchivados = await puedeVerArchivados();
+  let consulta = supabase
     .from('rr_hub_projects')
-    .select('id, name, slug, client_name, description, brand_primary_color')
+    .select('id, name, slug, client_name, description, brand_primary_color, archived_at')
     .order('name');
+  if (!verArchivados) consulta = consulta.is('archived_at', null);
+  const { data } = await consulta;
   const sesion = await quienEs();
-  return (data ?? []).filter((project) => clienteEsVisible(project.slug, sesion?.proyecto));
+  return (data ?? [])
+    .filter((project) => clienteEsVisible(project.slug, sesion?.proyecto))
+    .map((project) => verArchivados
+      ? { ...project, name: marcarNombreArchivado(project.name, project.archived_at) }
+      : project);
 }
 
 /** Read-only administrative surface: roster, access matrix and pending invites. */
@@ -754,12 +777,18 @@ export async function getAuditProject(slug: string) {
   if (sesion && !clienteEsVisible(slug, sesion.proyecto)) return null;
   const supabase = await createServiceClient() ?? await createClient();
   if (!supabase) { requireSupabase(); return null; }
-  const { data } = await supabase
+  const verArchivados = await puedeVerArchivados();
+  let consulta = supabase
     .from('rr_hub_projects')
-    .select('id, name, slug, client_name, description, brand_primary_color, public_audit')
-    .eq('slug', slug)
-    .maybeSingle();
-  return data ?? null;
+    .select('id, name, slug, client_name, description, brand_primary_color, public_audit, archived_at')
+    .eq('slug', slug);
+  if (!verArchivados) consulta = consulta.is('archived_at', null);
+  const { data } = await consulta.maybeSingle();
+  if (!data) return null;
+  if (verArchivados && estaArchivado(data.archived_at)) {
+    data.name = marcarNombreArchivado(data.name, data.archived_at);
+  }
+  return data;
 }
 
 export async function getAuditIdeas(projectId: string) {
@@ -992,10 +1021,11 @@ export async function getClientesDeLaPersona(): Promise<{
   // hace por `project_id`, que es una columna real de las dos. Nada de embed
   // aquí: `rr_hub_access` no tiene FK con `rr_hub_profiles` (verificado en
   // `pg_constraint`), y ese embed devolvía PGRST200 con `data: null` sin lanzar.
+  const verArchivados = await puedeVerArchivados();
   const [catalogo, accesos] = await Promise.all([
     supabase
       .from('rr_hub_projects')
-      .select('id, slug, name, client_name, brand_primary_color, description')
+      .select('id, slug, name, client_name, brand_primary_color, description, archived_at')
       .order('name'),
     // Sin sesión no hay `perfilId`: la consulta se hace igual y no devuelve
     // filas, que es lo correcto. `.eq()` con `null` se_skip en vez de reventar.
@@ -1021,8 +1051,14 @@ export async function getClientesDeLaPersona(): Promise<{
   const todosLosProyectos = (catalogo.data ?? []) as {
     id: string; slug: string; name: string; client_name: string;
     brand_primary_color: string | null; description: string | null;
+    archived_at: string | null;
   }[];
-  const proyectos = todosLosProyectos.filter((p) => catalogoIncluye(p.slug));
+  // El archivo es un corte anterior al catálogo visible: un cliente archivado
+  // no se lista, ni abierto ni con candado. El admin global sí lo ve, con el
+  // nombre marcado, porque la fila sigue y hay que poder reconocerla.
+  const proyectos = todosLosProyectos.filter((p) =>
+    catalogoIncluye(p.slug) && (verArchivados || !estaArchivado(p.archived_at)),
+  );
 
   if (proyectos.length === 0) return vacio;
 
@@ -1066,7 +1102,15 @@ export async function getClientesDeLaPersona(): Promise<{
   // Lo que se conserva: si la persona TIENE fila en `rr_hub_access`, su rol de
   // ahí manda y se muestra. Lo que se quita es el default de solo lectura, que ya
   // no describe lo que pasa.
-  const abiertos = conocidos.map((p) => ({ ...p, rol: rolPorProyecto.get(p.id) ?? 'owner' }));
+  const abiertos = conocidos.map((p) => ({
+    id: p.id,
+    slug: p.slug,
+    name: verArchivados ? marcarNombreArchivado(p.name, p.archived_at) : p.name,
+    client_name: p.client_name,
+    brand_primary_color: p.brand_primary_color,
+    description: p.description,
+    rol: rolPorProyecto.get(p.id) ?? 'owner',
+  }));
 
   // Los cerrados salen del catálogo ENTERO, no de `conocidos`. Con la lista
   // corta como fuente, Satiro y Boga no aparecían nunca: un `filter` sobre
@@ -1083,7 +1127,7 @@ export async function getClientesDeLaPersona(): Promise<{
   const slugsAbiertos = new Set(abiertos.map((p) => p.slug));
   const cerrados = proyectos
     .filter((p) => !slugsAbiertos.has(p.slug))
-    .map(({ id: _id, ...resto }) => ({
+    .map(({ id: _id, archived_at: _archivado, ...resto }) => ({
       ...resto,
       // Por qué está cerrado este cliente, que no es lo mismo siempre:
       //   - sin-fila   → tu correo no tiene fila de acceso. Pídeselo.
