@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   addComment,
   resolveComment,
-  signedAssetUrl,
   uploadAsset,
   type AssetStage,
   type IdeaAsset,
@@ -15,6 +14,8 @@ import {
 import { statusMeta } from '@/lib/flow';
 import { emailElegido, esDelEquipo, perfilElegido, suscribirPerfil } from '@/lib/perfil-votante';
 import { SelectorPerfil } from '@/components/selector-perfil';
+import { EditorEmbebido } from '@/components/editor-embebido';
+import { modoDeArchivo, type ModoEditor } from '@/lib/editor-embebido';
 
 const stageOptions: Array<{ value: AssetStage; label: string }> = [
   { value: 'reference_brief', label: 'REFERENCIA / BRIEF' },
@@ -74,6 +75,24 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId, comentariosInic
   const [busy, setBusy] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [timeline, setTimeline] = useState<TimelineEvent[]>(timelineInicial);
+  const editorUrl = useRef<string | null>(null);
+  const [editor, setEditor] = useState<{
+    modo: ModoEditor;
+    url: string;
+    nombre: string;
+    archivoOriginal: File | null;
+  } | null>(null);
+  const [enlaceExterno, setEnlaceExterno] = useState<string | null>(null);
+
+  const cerrarEditor = useCallback(() => {
+    if (editorUrl.current) URL.revokeObjectURL(editorUrl.current);
+    editorUrl.current = null;
+    setEditor(null);
+  }, []);
+
+  useEffect(() => () => {
+    if (editorUrl.current) URL.revokeObjectURL(editorUrl.current);
+  }, []);
 
   const refresh = useCallback(async () => {
     // Por la API del servidor, no con la clave del navegador. `loadComments` y
@@ -147,28 +166,78 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId, comentariosInic
     refresh();
   }
 
-  async function handleUpload(event: React.ChangeEvent<HTMLInputElement>) {
-    event.preventDefault();
+  function abrirLocal(file: File) {
+    const modo = modoDeArchivo(file.type, file.name);
+    if (!modo) {
+      setNotice('Elige una foto (jpg, png, webp, gif) o un video. Aquí no se editan documentos.');
+      return;
+    }
+    if (editorUrl.current) URL.revokeObjectURL(editorUrl.current);
+    const url = URL.createObjectURL(file);
+    editorUrl.current = url;
+    setEnlaceExterno(null);
+    setEditor({
+      modo,
+      url,
+      nombre: file.name,
+      archivoOriginal: modo === 'foto' ? file : null,
+    });
+  }
+
+  function elegirArchivo(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
+    abrirLocal(file);
+  }
+
+  async function guardarVersion(archivo: File, etiqueta: string) {
     setBusy(true);
-    const versionLabel = `v${assets.filter((asset) => asset.stage === stage).length + 1}`;
-    const { error } = await uploadAsset({ ideaId, projectSlug, stage, file, versionLabel });
+    const { error } = await uploadAsset({ ideaId, projectSlug, stage, file: archivo, versionLabel: etiqueta });
     setBusy(false);
-    if (error) { 
-      setNotice(`No se cargó el archivo: ${error}`); 
-      return; 
+    if (error) {
+      setNotice(`No se guardó la versión: ${error}`);
+      return;
     }
-    setNotice(`✓ ${file.name} quedó registrado como ${stageLabel(stage)}.`);
+    setNotice(`✓ ${archivo.name} quedó como ${etiqueta} en ${stageLabel(stage)}.`);
+    cerrarEditor();
     refresh();
   }
 
-  async function openAsset(asset: IdeaAsset) {
-    const url = await signedAssetUrl(asset.url ?? '');
-    if (url) window.open(url, '_blank', 'noopener,noreferrer');
-    else setNotice('No se pudo generar el enlace del archivo.');
+  async function abrirExistente(asset: IdeaAsset) {
+    const ruta = asset.url ?? '';
+    if (!ruta) {
+      setNotice('Ese archivo no tiene ruta.');
+      return;
+    }
+    if (/^https?:\/\//.test(ruta)) {
+      cerrarEditor();
+      setEnlaceExterno(ruta);
+      setNotice('Ese archivo es un enlace externo. Se muestra en esta ficha, sin abrir otra pestaña.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const respuesta = await fetch(`/api/archivo?path=${encodeURIComponent(ruta)}&bytes=1`, {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      });
+      if (!respuesta.ok) {
+        const cuerpo = await respuesta.json().catch(() => null) as { error?: string } | null;
+        setNotice(cuerpo?.error ?? 'No se pudo abrir el archivo en el editor.');
+        return;
+      }
+      const blob = await respuesta.blob();
+      const tipo = blob.type || asset.kind;
+      abrirLocal(new File([blob], asset.name || 'archivo', { type: tipo }));
+    } catch {
+      setNotice('No se pudo abrir el archivo en el editor.');
+    } finally {
+      setBusy(false);
+    }
   }
+
+  const numeroVersion = assets.filter((asset) => asset.stage === stage).length + 1;
 
   const lastMove = timeline[0];
 
@@ -312,20 +381,46 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId, comentariosInic
         
         {/* Zona de carga de archivos por input */}
         <label className="mt-3 flex min-h-32 cursor-pointer flex-col items-center justify-center border border-dashed border-blanco-20 p-4 text-center transition-all duration-200 hover:border-blanco-40 hover:bg-blanco-05">
-          <input 
-            type="file" 
-            className="sr-only" 
-            onChange={handleUpload} 
-            disabled={busy} 
-            accept="image/*,video/*,.pdf,.doc,.docx"
+          <input
+            type="file"
+            className="sr-only"
+            onChange={elegirArchivo}
+            disabled={busy}
+            accept="image/*,video/*"
           />
           <span className="font-display text-lg font-bold text-blanco-70">
-            {busy ? 'SUBIENDO…' : `+ CARGAR ${stageLabel(stage)}`}
+            {busy ? 'ABRIENDO…' : `+ EDITAR ${stageLabel(stage)} AQUÍ`}
           </span>
           <span className="mt-1 font-mono text-[10px] text-blanco-40">
-            PDF · VIDEO · IMAGEN · GUIÓN
+            FOTO O VIDEO · SE EDITA EN ESTA FICHA
           </span>
         </label>
+
+        {editor && (
+          <EditorEmbebido
+            key={editor.url}
+            modo={editor.modo}
+            origen={editor.url}
+            nombre={editor.nombre}
+            numeroVersion={numeroVersion}
+            archivoOriginal={editor.archivoOriginal}
+            ocupado={busy}
+            onCerrar={cerrarEditor}
+            onGuardar={(archivo, etiqueta) => { void guardarVersion(archivo, etiqueta); }}
+          />
+        )}
+
+        {enlaceExterno && (
+          <figure className="mt-4 border border-blanco-20 p-3">
+            <figcaption className="mono-label mb-2 text-blanco-50">ENLACE EXTERNO · VISTO AQUÍ</figcaption>
+            {/\.(jpe?g|png|webp|gif|avif)(\?|$)/i.test(enlaceExterno) ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={enlaceExterno} alt="" className="max-h-[40vh] w-full object-contain" />
+            ) : (
+              <p className="text-sm leading-6 text-blanco-60">Este enlace no es una foto editable. Sigue en esta ficha.</p>
+            )}
+          </figure>
+        )}
         
         {notice && (
           <p 
@@ -342,14 +437,15 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId, comentariosInic
         <p className="mono-label text-blanco-50">HISTORIAL DE ENTREGAS</p>
         <div className="mt-2 space-y-1">
           {assets.map((asset) => (
-            <button 
-              key={asset.id} 
-              onClick={() => openAsset(asset)} 
-              className="block w-full text-left font-mono text-[10px] text-blanco-60 transition-colors duration-150 hover:text-blanco"
+            <button
+              key={asset.id}
+              type="button"
+              onClick={() => { void abrirExistente(asset); }}
+              className="block min-h-[44px] w-full text-left font-mono text-[10px] text-blanco-60 transition-colors duration-150 hover:text-blanco"
             >
               <div className="flex items-center justify-between gap-1 mb-0.5">
                 <span className="truncate text-blanco-60">{asset.kind} // {asset.name}</span>
-                <span className="text-blanco-60">{asset.version}</span>
+                <span className="text-blanco-60">{asset.version} · EDITAR AQUÍ</span>
               </div>
               <span className="text-blanco-40 text-[10px]">{stageLabel(asset.stage)} · {asset.createdAt}</span>
             </button>
