@@ -293,7 +293,7 @@ type Ctx = {
  * que el valor no viaje en el JSON que cualquiera puede replicar desde otro
  * script: leerla obliga a estar en el servidor.
  */
-export const CABEZA_ORIGEN = 'x-rr-origen';
+const CABEZA_ORIGEN = 'x-rr-origen';
 
 const str = (value: unknown, max = 4000) => (typeof value === 'string' ? value.trim().slice(0, max) : '');
 

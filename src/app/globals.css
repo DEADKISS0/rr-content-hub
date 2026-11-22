@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* Las capturas PNG de QA son evidencia binaria, no fuentes de clases Tailwind. */
+@source not "../../docs/capturas-material";
 
 @theme {
   --color-fucsia: #be076d;
