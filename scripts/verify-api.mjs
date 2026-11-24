@@ -44,7 +44,14 @@ check('el codigo se genera con reintentos', /for \(let attempt = 0; attempt < 5/
 check('el reintento se dispara por violacion de unicidad', /code === '23505'/.test(source));
 check('el error de colision tiene su propio status', /409/.test(source));
 
-// 5. El service role no debe filtrarse al cliente. createClient con la service
+// 5. La rutina semanal debe cargar las diez ideas como un lote idempotente:
+// una respuesta perdida no puede poblar el tablero por segunda vez.
+check('el lote exige exactamente diez ideas', /ideas debe contener exactamente \$\{IDEAS_POR_LOTE\}/.test(source));
+check('el lote usa una clave idempotente persistida', /automation_batch_key/.test(source));
+check('el lote conserva los tres mini-briefs',
+  ['camera_brief', 'talent_brief', 'edit_brief'].every((field) => source.includes(field)));
+
+// 6. El service role no debe filtrarse al cliente. createClient con la service
 //    key solo puede vivir en un Route Handler de servidor: la variable de
 //    entorno que lo alimenta no lleva el prefijo NEXT_PUBLIC.
 check('la service key no se lee de una variable NEXT_PUBLIC',
