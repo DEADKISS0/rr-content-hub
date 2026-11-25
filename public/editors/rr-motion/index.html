@@ -6,6 +6,8 @@
   <meta name="color-scheme" content="dark">
   <title>RR Motion</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="modulepreload" href="./filmcraft_web.js?v=385741163fd2e6a3">
+  <link rel="preload" href="./filmcraft_web_bg.wasm?v=385741163fd2e6a3" as="fetch" type="application/wasm" fetchpriority="high" crossorigin="anonymous">
   <style>
     html, body { margin: 0; height: 100%; overflow: hidden; background: #1b1c1f; }
     canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
@@ -65,9 +67,9 @@
     addEventListener("unhandledrejection", (ev) => { if (window.filmcraftLoad.readyMs && isFatal(ev.reason)) window.filmcraftFatal(ev.reason); });
   </script>
   <script type="module">
-    // `847b2e8de20f0b4e` is replaced by `cargo xtask web` with a hash of the build: the glue and the
+    // `385741163fd2e6a3` is replaced by `cargo xtask web` with a hash of the build: the glue and the
     // wasm are cached as immutable, so their URLs must change with every build.
-    const build = "847b2e8de20f0b4e";
+    const build = "385741163fd2e6a3";
     const v = build.startsWith("__") ? "" : "?v=" + build;
     const t0 = performance.now();
     const params = new URLSearchParams(location.search);

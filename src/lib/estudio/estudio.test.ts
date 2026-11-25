@@ -53,8 +53,8 @@ describe('editores dentro del hub', () => {
   });
 
   it('los editores son secciones del hub y no enlaces a otro sitio', () => {
-    expect(paginaFoto).toMatch(/PhotoStudio/);
-    expect(paginaVideo).toMatch(/VideoStudio/);
+    expect(paginaFoto).toMatch(/redirect\(['"]\/editors\/rr-imagen\/index\.html['"]\)/);
+    expect(paginaVideo).toMatch(/redirect\(['"]\/editors\/rr-motion\/index\.html['"]\)/);
     expect(nota).toMatch(/DENTRO del Content Hub/);
   });
 

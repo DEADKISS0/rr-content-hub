@@ -556,20 +556,23 @@ export function MaterialPanel({
                     {archivo.esVideo ? (
                       <Link
                         href={`/${cliente}/editar/video`}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         data-testid={`material-editar-video-${archivo.id}`}
                         className="btn-ghost min-h-[44px] justify-center"
                       >
                         Editar video
                       </Link>
                     ) : (
-                      <button
-                        type="button"
+                      <Link
+                        href="/editors/rr-imagen/index.html"
+                        target="_blank"
+                        rel="noopener noreferrer"
                         data-testid={`material-editar-${archivo.id}`}
-                        onClick={() => void abrirEditor(archivo)}
                         className="btn-ghost min-h-[44px] justify-center"
                       >
-                        Editar
-                      </button>
+                        Editar foto
+                      </Link>
                     )}
                   </div>
                 </li>

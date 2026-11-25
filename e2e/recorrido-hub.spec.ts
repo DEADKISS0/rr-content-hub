@@ -69,8 +69,6 @@ test.describe('el recorrido completo del hub', () => {
       { etiqueta: 'PRODUCCIÓN', url: `/${PROYECTO}/produccion` },
       { etiqueta: 'PUBLICACIONES', url: `/${PROYECTO}/publicaciones` },
       { etiqueta: 'MATERIAL', url: `/${PROYECTO}/material` },
-      { etiqueta: 'EDITAR FOTO', url: `/${PROYECTO}/editar/foto` },
-      { etiqueta: 'EDITAR VIDEO', url: `/${PROYECTO}/editar/video` },
       { etiqueta: 'FLOW · IA', url: `/${PROYECTO}/flow-ia` },
       { etiqueta: 'DECISIONES DEL EQUIPO', url: `/${PROYECTO}/ideas/en-votacion` },
       { etiqueta: 'APROBACIONES', url: `/${PROYECTO}/aprobaciones` },
@@ -79,19 +77,31 @@ test.describe('el recorrido completo del hub', () => {
     ];
 
     for (const destino of destinos) {
-      const respuesta = await page.goto(`http://localhost:3100${destino.url}`, { waitUntil: 'domcontentloaded' });
+      const respuesta = await page.goto(`${destino.url}`, { waitUntil: 'domcontentloaded' });
       const estado = respuesta?.status() ?? 0;
       if (estado >= 400) errores.push(`${destino.etiqueta} (${destino.url}) → HTTP ${estado}`);
       await expect(page.locator('main').first()).toBeVisible();
     }
 
+    // Los botones reales de Estudio deben salir del editor antiguo y llegar a
+    // las aplicaciones profesionales publicadas dentro del Hub.
+    await page.goto(`/${PROYECTO}`, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('link', { name: /EDITAR FOTO/ }).click();
+    await expect(page).toHaveURL(/\/editors\/rr-imagen\/index\.html$/);
+    await expect(page).toHaveTitle('RR Imagen');
+
+    await page.goto(`/${PROYECTO}`, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('link', { name: /EDITAR VIDEO/ }).click();
+    await expect(page).toHaveURL(/\/editors\/rr-motion\/index\.html$/);
+    await expect(page).toHaveTitle('RR Motion');
+
     // ── 3. La cola de decisiones del equipo ──────────────────────────────
-    await page.goto(`http://localhost:3100/${PROYECTO}/ideas/en-votacion`, { waitUntil: 'networkidle' });
+    await page.goto(`/${PROYECTO}/ideas/en-votacion`, { waitUntil: 'networkidle' });
     await expect(page.getByText('DECISIONES DEL EQUIPO').first()).toBeVisible();
     await capturar(page, 'escritorio-05-decisiones');
 
     // ── 4. La ficha: el hilo de comentarios ──────────────────────────────
-    await page.goto(`http://localhost:3100/${PROYECTO}/ideas`, { waitUntil: 'networkidle' });
+    await page.goto(`/${PROYECTO}/ideas`, { waitUntil: 'networkidle' });
     // El enlace de una PIEZA, no el de «+ NUEVA» (que también vive bajo /ideas/).
     // La pieza que está en decisión: es la que tiene la tarjeta de decisión.
     const piezaEnDecision = page.locator(`a[href="/${PROYECTO}/ideas/13"]`).first();
@@ -115,7 +125,7 @@ test.describe('el recorrido completo del hub', () => {
     await capturar(page, 'escritorio-06-ficha-comentario');
 
     // ── 5. El alta de una pieza ──────────────────────────────────────────
-    await page.goto(`http://localhost:3100/${PROYECTO}/ideas/nueva`, { waitUntil: 'networkidle' });
+    await page.goto(`/${PROYECTO}/ideas/nueva`, { waitUntil: 'networkidle' });
     await page.getByLabel('TÍTULO *').fill('Pieza del recorrido automático');
     await page.getByLabel('OBJETIVO *').fill('Comprobar que el alta funciona de punta a punta');
     await page.getByLabel(/REFERENCIA \*/).fill('https://www.instagram.com/p/DEM0-recorrido/');
@@ -125,7 +135,7 @@ test.describe('el recorrido completo del hub', () => {
     await capturar(page, 'escritorio-07-pieza-creada');
 
     // ── 6. Material: carpeta de ejemplo, listado y editor de foto ────────
-    await page.goto(`http://localhost:3100/${PROYECTO}/material`, { waitUntil: 'networkidle' });
+    await page.goto(`/${PROYECTO}/material`, { waitUntil: 'networkidle' });
     await page.getByTestId('material-elegir-carpeta').click();
     const carpeta = page.locator('[data-testid^="material-carpeta-demo-"]').first();
     await expect(carpeta).toBeVisible();
@@ -133,65 +143,25 @@ test.describe('el recorrido completo del hub', () => {
     await expect(page.getByTestId('material-lista')).toBeVisible({ timeout: 15_000 });
     await capturar(page, 'escritorio-08-material');
 
-    // Editar una foto: se abre el editor de foto DENTRO del hub.
+    // Editar una foto abre la aplicación profesional en una pestaña nueva.
     const botonEditar = page.locator('[data-testid^="material-editar-"]').first();
-    await botonEditar.click();
-    const editor = page.getByTestId('editor-foto');
-    await expect(editor).toBeVisible({ timeout: 15_000 });
-    await capturar(page, 'escritorio-09-editor-foto');
-
-    // El botón de guardar NO puede quedar tapado por el botón de la guía.
-    const botonGuardar = page.getByRole('button', { name: /Guardar versión editada/ });
-    await expect(botonGuardar).toBeVisible();
-    const guia = page.getByTestId('boton-guia');
-    if (await guia.count()) {
-      const cajaGuia = await guia.boundingBox();
-      const cajaGuardar = await botonGuardar.boundingBox();
-      if (cajaGuia && cajaGuardar) {
-        const sePisan =
-          cajaGuia.x < cajaGuardar.x + cajaGuardar.width &&
-          cajaGuia.x + cajaGuia.width > cajaGuardar.x &&
-          cajaGuia.y < cajaGuardar.y + cajaGuardar.height &&
-          cajaGuia.y + cajaGuia.height > cajaGuardar.y;
-        if (sePisan) errores.push('el botón de la guía tapa «Guardar versión editada»');
-      }
-    }
+    const [editorFoto] = await Promise.all([
+      page.waitForEvent('popup'),
+      botonEditar.click(),
+    ]);
+    await expect(editorFoto).toHaveURL(/\/editors\/rr-imagen\/index\.html$/);
+    await expect(editorFoto).toHaveTitle('RR Imagen');
+    await capturar(editorFoto, 'escritorio-09-editor-foto');
+    await editorFoto.close();
 
     // ── 7. El editor de video ────────────────────────────────────────────
-    await page.goto(`http://localhost:3100/${PROYECTO}/editar/video`, { waitUntil: 'networkidle' });
-    await expect(page.getByRole('heading', { name: 'Editar video' })).toBeVisible();
+    await page.goto(`/${PROYECTO}/editar/video`, { waitUntil: 'domcontentloaded' });
+    await expect(page).toHaveURL(/\/editors\/rr-motion\/index\.html$/);
+    await expect(page).toHaveTitle('RR Motion');
     await capturar(page, 'escritorio-10-editor-video');
 
-    // Sin clip seleccionado, el panel se muestra con el aviso. Para llegar a
-    // ese estado se hace clic en el fondo de la línea de tiempo.
-    await page.locator('.est-track-row').first().click({ position: { x: 300, y: 10 } });
-    const avisoClip = page.getByTestId('estudio-sin-clip');
-    if (await avisoClip.count()) {
-      await expect(avisoClip).toContainText('Selecciona un clip');
-    } else {
-      errores.push('el panel de clip no muestra el aviso «Selecciona un clip»');
-    }
-    // Velocidad y transición se ven aun sin una selección; quedan desactivadas
-    // hasta que la persona elige un clip en la línea de tiempo.
-    const velocidad = page.getByLabel('Velocidad');
-    const transicion = page.getByLabel('Transición de entrada');
-    await expect(velocidad).toBeVisible();
-    await expect(transicion).toBeVisible();
-    await expect(velocidad).toBeDisabled();
-    await expect(transicion).toBeDisabled();
-    await page.locator('.est-clip[title^="Aurora RR"]').click();
-    await expect(velocidad).toBeEnabled();
-    await expect(transicion).toBeEnabled();
-
-    // El export ofrece los dos formatos.
-    await page.getByRole('button', { name: 'Exportar video' }).click();
-    await expect(page.getByRole('button', { name: /MP4 \(H\.264\)/ })).toBeVisible();
-    await expect(page.getByRole('button', { name: /WebM \(VP9 \+ Opus\)/ })).toBeVisible();
-    await capturar(page, 'escritorio-11-export-video');
-    await page.getByRole('button', { name: 'Cancelar' }).click();
-
     // ── 8. Flow: un solo botón externo, sin cuenta preseleccionada ───────
-    await page.goto(`http://localhost:3100/${PROYECTO}/flow-ia`, { waitUntil: 'networkidle' });
+    await page.goto(`/${PROYECTO}/flow-ia`, { waitUntil: 'networkidle' });
     const botonesFlow = page.locator('[data-testid="flow-abrir"]');
     await expect(botonesFlow).toHaveCount(1);
     const enlaceFlow = await botonesFlow.getAttribute('href');
@@ -202,7 +172,7 @@ test.describe('el recorrido completo del hub', () => {
     await capturar(page, 'escritorio-12-flow');
 
     // ── 9. La auditoría ya no es un 404 ──────────────────────────────────
-    const auditoria = await page.goto('http://localhost:3100/audit/wundeer', { waitUntil: 'domcontentloaded' });
+    const auditoria = await page.goto('/audit/wundeer', { waitUntil: 'domcontentloaded' });
     if ((auditoria?.status() ?? 0) >= 400) errores.push(`la auditoría responde HTTP ${auditoria?.status()}`);
 
     expect(errores, `botones o destinos que fallan:\n- ${errores.join('\n- ')}`).toEqual([]);
@@ -222,16 +192,16 @@ test.describe('el recorrido completo del hub', () => {
     await page.waitForURL(new RegExp(`/${PROYECTO}`), { timeout: 15_000 });
     await capturar(page, 'celular-03-tablero');
 
-    await page.goto(`http://localhost:3100/${PROYECTO}/material`, { waitUntil: 'networkidle' });
+    await page.goto(`/${PROYECTO}/material`, { waitUntil: 'networkidle' });
     await capturar(page, 'celular-04-material');
 
-    await page.goto(`http://localhost:3100/${PROYECTO}/editar/foto`, { waitUntil: 'networkidle' });
+    await page.goto(`/${PROYECTO}/editar/foto`, { waitUntil: 'networkidle' });
     await capturar(page, 'celular-05-editor-foto');
 
-    await page.goto(`http://localhost:3100/${PROYECTO}/editar/video`, { waitUntil: 'networkidle' });
+    await page.goto(`/${PROYECTO}/editar/video`, { waitUntil: 'networkidle' });
     await capturar(page, 'celular-06-editor-video');
 
-    await page.goto(`http://localhost:3100/${PROYECTO}/ideas/en-votacion`, { waitUntil: 'networkidle' });
+    await page.goto(`/${PROYECTO}/ideas/en-votacion`, { waitUntil: 'networkidle' });
     await capturar(page, 'celular-07-decisiones');
   });
 });

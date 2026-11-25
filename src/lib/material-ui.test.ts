@@ -56,8 +56,8 @@ describe('módulo de material', () => {
 
   it('los editores son secciones del hub, no enlaces a otro sitio', () => {
     // Decisión de Rosas: los editores de foto y video van DENTRO del hub.
-    expect(paginaFoto).toMatch(/PhotoStudio/);
-    expect(paginaVideo).toMatch(/VideoStudio/);
+    expect(paginaFoto).toMatch(/redirect\(['"]\/editors\/rr-imagen\/index\.html['"]\)/);
+    expect(paginaVideo).toMatch(/redirect\(['"]\/editors\/rr-motion\/index\.html['"]\)/);
     expect(paginaFoto).not.toMatch(/href="http/);
     expect(paginaVideo).not.toMatch(/href="http/);
   });
