@@ -38,4 +38,19 @@ test.describe('Estudio · editores profesionales', () => {
 
     expect(errores.filter((mensaje) => /Content Security Policy|WebAssembly|failed to fetch/i.test(mensaje))).toEqual([]);
   });
+
+  test('al anticipar el clic se precarga el WASM del editor', async ({ page }) => {
+    const pedidos: string[] = [];
+    page.on('request', (peticion) => {
+      if (/\.wasm/.test(peticion.url())) pedidos.push(peticion.url());
+    });
+
+    await page.goto('/wundeer', { waitUntil: 'domcontentloaded' });
+    await page.getByRole('link', { name: /EDITAR FOTO/ }).hover();
+    await expect.poll(() => pedidos.some((url) => url.includes('rr-imagen'))).toBe(true);
+
+    await page.goto('/wundeer', { waitUntil: 'domcontentloaded' });
+    await page.getByRole('link', { name: /EDITAR VIDEO/ }).hover();
+    await expect.poll(() => pedidos.some((url) => url.includes('filmcraft_web_bg.wasm'))).toBe(true);
+  });
 });

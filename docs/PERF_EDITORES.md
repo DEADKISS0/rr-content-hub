@@ -25,7 +25,16 @@ Medido el 2026-11-25 en Chromium contra el servidor local del Hub. Las cifras de
 - Primera apertura observada tras los cambios: RR Motion 2.101 ms; RR Imagen 1.162 ms en caliente.
 - Pruebas de regresión: 733 unitarias, typecheck, lint, build y dos recorridos Playwright.
 
+## Ronda 2 (2026-11-25)
+
+- Precarga del WASM al pasar el cursor o enfocar «EDITAR FOTO»/«EDITAR VIDEO» en el menú Estudio: la descarga de ~14 MB empieza antes del clic. Se hace con `requestIdleCallback` y una sola vez por editor, así que no penaliza a quien no abre el estudio.
+- `fetchpriority="high"` en el preload del WASM de RR Imagen, antes solo lo tenía RR Motion.
+- Recorrido E2E nuevo que comprueba la precarga al anticipar el clic.
+
+Medición en producción tras la ronda 1, con caché caliente: RR Imagen WASM 253 ms y RR Motion listo en 391 ms. En frío Vercel sirve 14,6 MB (imagen) y 13,4 MB (video) comprimidos con Brotli; el service worker no pre-cachea los binarios a propósito.
+
 ## No hecho
 
-- No se reconstruyó Rust ni se desactivó HEIF/codecs: requiere benchmark de funcionalidad y rendimiento de edición/exportación.
+- No se reconstruyó Rust ni se desactivó HEIF/codecs: las fuentes entregadas son instantáneas sin `.git` y el README dice que reconstruirlas no está verificado; además RR Motion ya desactiva Rayon solo para WASM. Cambiar codecs exige validar edición y exportación reales.
+- No se sirve Zstd:reduce ~18% frente a Brotli, pero Vercel no lo negocia y lo devuelve sin comprimir (verificado), así que empeoraría la carga.
 - No se añadieron duplicados `.br` al repo: aumenta el payload y puede superar límites de despliegue.

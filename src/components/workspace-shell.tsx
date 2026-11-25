@@ -219,14 +219,38 @@ export function WorkspaceShell({ children, project, role, email, nombre, puedeEs
     window.dispatchEvent(new Event(STORAGE_EVENT));
   }
 
+  /**
+   * Los editadores profesionales descargan ~14 MB de WebAssembly en la primera
+   * visita. Empezar esa descarga cuando la persona ya pulsó el botón obliga a
+   * esperar a pantalla completa; empezarla al pasar el cursor (o al enfocar con
+   * teclado) la deja lista antes del clic, sin coste para quien no los usa.
+   * Se guarda en una ref para no lanzar dos descargas si entran y salen.
+   */
+  const editorPrefetched = useRef<Set<string>>(new Set());
+
+  function prefetchEditor(ruta: string) {
+    if (editorPrefetched.current.has(ruta)) return;
+    editorPrefetched.current.add(ruta);
+    const url = ruta === '/editar/foto'
+      ? '/editors/rr-imagen/photocraft-web-f7f123201fc1f159_bg.wasm'
+      : '/editors/rr-motion/filmcraft_web_bg.wasm?v=385741163fd2e6a3';
+    const começar = () => { void fetch(url, { priority: 'high' }).catch(() => {}); };
+    const idle = (window as unknown as { requestIdleCallback?: (fn: () => void) => number }).requestIdleCallback;
+    if (idle) idle(começar);
+    else começar();
+  }
+
   function enlace(item: { label: string; path: string; help: string; icon: IconName }) {
     const href = `/${slug}${item.path}`;
     const active = item.path ? pathname.startsWith(href) : pathname === `/${slug}`;
+    const esEditor = item.path === '/editar/foto' || item.path === '/editar/video';
     return (
       <Link
         key={item.label}
         href={href}
         title={item.help}
+        onPointerEnter={esEditor ? () => prefetchEditor(item.path) : undefined}
+        onFocus={esEditor ? () => prefetchEditor(item.path) : undefined}
         onClick={() => setMenuOpen(false)}
         aria-current={active ? 'page' : undefined}
         className={`group flex items-center gap-3 border-l-2 py-3 transition-colors ${collapsed ? 'md:justify-center md:px-0' : 'items-start px-3'} ${active ? 'border-blanco bg-blanco-10 text-blanco' : 'border-transparent text-blanco-60 hover:border-blanco-40 hover:bg-blanco-05 hover:text-blanco'}`}
