@@ -66,6 +66,29 @@
     addEventListener("error", (ev) => { if (window.filmcraftLoad.readyMs && isFatal(ev.error || ev.message)) window.filmcraftFatal(ev.error || ev.message); });
     addEventListener("unhandledrejection", (ev) => { if (window.filmcraftLoad.readyMs && isFatal(ev.reason)) window.filmcraftFatal(ev.reason); });
   </script>
+  <div id="rr_save_feedback" role="status" aria-live="polite" hidden style="position:fixed;right:16px;bottom:16px;z-index:50;max-width:min(360px,calc(100vw - 32px));padding:14px 18px;background:#be076d;color:#fff;font:14px/1.5 system-ui,sans-serif;box-shadow:0 4px 20px rgba(0,0,0,.5)">
+    <strong id="rr_save_title"></strong>
+    <p id="rr_save_detail" style="margin:6px 0 0"></p>
+    <a id="rr_save_link" href="/wundeer/material" target="_blank" rel="noopener noreferrer" style="color:#fff;display:inline-block;margin-top:8px;text-decoration:underline">Ver en el Content Hub ↗</a>
+  </div>
+  <script>
+    // The hub confirms every exported file through this same-origin message.
+    addEventListener('message', (evento) => {
+      if (evento.origin !== location.origin) return;
+      const d = evento.data;
+      if (!d || d.version !== 1 || (d.type !== 'rr-editor-save-result' && d.type !== 'filmcraft:save-result')) return;
+      const aviso = document.getElementById('rr_save_feedback');
+      document.getElementById('rr_save_title').textContent = d.ok === false ? 'No se pudo guardar en Drive' : 'Exportación guardada en Drive';
+      document.getElementById('rr_save_detail').textContent = d.ok === false
+        ? (d.error || 'Revisa el Content Hub para ver qué pasó.')
+        : (d.nombre ? '«' + d.nombre + '» quedó como nueva versión. El original sigue intacto.' : 'La versión editada quedó guardada.');
+      const enlace = document.getElementById('rr_save_link');
+      if (d.cliente && enlace) enlace.href = '/' + d.cliente + '/material';
+      aviso.hidden = false;
+      clearTimeout(window.__rrFeedbackTimer);
+      window.__rrFeedbackTimer = setTimeout(() => { aviso.hidden = true; }, 12000);
+    });
+  </script>
   <script type="module">
     // `385741163fd2e6a3` is replaced by `cargo xtask web` with a hash of the build: the glue and the
     // wasm are cached as immutable, so their URLs must change with every build.

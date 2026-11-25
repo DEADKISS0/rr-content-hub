@@ -436,10 +436,10 @@ export function MaterialPanel({
     }
     setAviso(`«${nombre}» quedó guardado como una nueva versión en Drive.`);
     pendiente.ventana.postMessage(
-      { type: 'rr-editor-save-result', version: EDITOR_BRIDGE_VERSION, nonce: pendiente.nonce, ok: true, nombre },
+      { type: 'rr-editor-save-result', version: EDITOR_BRIDGE_VERSION, nonce: pendiente.nonce, ok: true, nombre, cliente },
       window.location.origin,
     );
-  }, [busqueda, cabecera, cuenta?.correo, listar, slugs]);
+  }, [busqueda, cabecera, cliente, cuenta?.correo, listar, slugs]);
 
   useEffect(() => {
     function recibirMensaje(evento: MessageEvent) {
@@ -493,7 +493,7 @@ export function MaterialPanel({
         void guardarSalidaEditor(pendiente, guardado).catch((fallo) => {
           setError(fallo instanceof Error ? fallo.message : 'No se pudo persistir la salida del editor.');
           pendiente.ventana.postMessage(
-            { type: 'rr-editor-save-result', version: EDITOR_BRIDGE_VERSION, nonce: pendiente.nonce, ok: false },
+            { type: 'rr-editor-save-result', version: EDITOR_BRIDGE_VERSION, nonce: pendiente.nonce, ok: false, error: fallo instanceof Error ? fallo.message : 'No se pudo persistir la salida del editor.', cliente },
             window.location.origin,
           );
         });
@@ -502,7 +502,7 @@ export function MaterialPanel({
 
     window.addEventListener('message', recibirMensaje);
     return () => window.removeEventListener('message', recibirMensaje);
-  }, [guardarSalidaEditor]);
+  }, [cliente, guardarSalidaEditor]);
 
   return (
     <div data-modulo="material" className="mx-auto grid max-w-6xl gap-8 px-5 py-8 md:px-10 md:py-12">
