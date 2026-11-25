@@ -34,17 +34,60 @@ import { logoDeCliente } from '@/lib/logo-cliente';
  * El rol no se dibuja a propósito: cualquiera con el link ve el tablero
  * completo, así que la navegación no finge permisos.
  */
-const PRINCIPAL: readonly { label: string; path: string; help: string; icon: IconName }[] = [
-  { label: 'EL TABLERO', path: '', help: 'Todo el trabajo, de un vistazo', icon: 'map' },
-  { label: 'LAS PIEZAS', path: '/ideas', help: 'La lista completa', icon: 'pieces' },
-  { label: 'ESPERA RESPUESTA', path: '/aprobaciones', help: 'Lo que hay que decidir', icon: 'decisions' },
-  { label: 'EL PLAN', path: '/roadmap', help: 'Cuánto falta para el final', icon: 'roadmap' },
-  { label: 'PLAN DE PUBLICACIÓN', path: '/redes', help: 'Feed simulado, orden y aprobación', icon: 'publish' },
-];
+/**
+ * La navegación, agrupada.
+ *
+ * MEDIDO 2026-11-09: la barra tenía siete entradas sueltas y un «VER MÁS» que
+ * escondía dos destinos. Con la especificación v2 en la mano, el trabajo se
+ * agrupa bajo «Trabajo» y el resto de destinos se nombran de frente: un
+ * «VER MÁS» es un destino que no se ve, y un destino que no se ve es un
+ * destino que no existe para quien lo necesita.
+ *
+ *   TRABAJO   · resumen, piezas, producción y publicaciones (el trabajo diario)
+ *   ESTUDIO   · material, editar foto, editar video y Flow (producir y entregar)
+ *   DECISIONES · la cola de decisiones del equipo y las aprobaciones del cliente
+ *   PROYECTO  · métricas, hoja de ruta, plan de publicación y perfil
+ *
+ * «Decisiones del equipo» sustituye a «Votación interna»: el nombre viejo
+ * prometía una votación y lo que hay es una cola con motivo, versión y
+ * siguiente paso. Y «Flow · IA» sigue siendo UN solo botón externo, sin
+ * cuenta preseleccionada.
+ */
+type Entrada = { label: string; path: string; help: string; icon: IconName };
 
-const SECUNDARIO: readonly { label: string; path: string; help: string; icon: IconName }[] = [
-  { label: 'EN MARCHA', path: '/produccion', help: 'Rodaje y edición', icon: 'camera' },
-  { label: 'LO PUBLICADO', path: '/publicaciones', help: 'Lo que ya salió y la pauta', icon: 'publish' },
+const GRUPOS: readonly { titulo: string; entradas: readonly Entrada[] }[] = [
+  {
+    titulo: 'Trabajo',
+    entradas: [
+      { label: 'RESUMEN', path: '', help: 'El tablero del proyecto', icon: 'map' },
+      { label: 'PIEZAS', path: '/ideas', help: 'La lista completa', icon: 'pieces' },
+      { label: 'PRODUCCIÓN', path: '/produccion', help: 'Rodaje y edición', icon: 'camera' },
+      { label: 'PUBLICACIONES', path: '/publicaciones', help: 'Lo que ya salió', icon: 'publish' },
+    ],
+  },
+  {
+    titulo: 'Estudio',
+    entradas: [
+      { label: 'MATERIAL', path: '/material', help: 'Drive, edición y entrega', icon: 'folder' },
+      { label: 'EDITAR FOTO', path: '/editar/foto', help: 'Retocar, sin salir del hub', icon: 'image' },
+      { label: 'EDITAR VIDEO', path: '/editar/video', help: 'Montar y exportar', icon: 'video' },
+      { label: 'FLOW · IA', path: '/flow-ia', help: 'Fotos y video con IA', icon: 'spark' },
+    ],
+  },
+  {
+    titulo: 'Decisiones',
+    entradas: [
+      { label: 'DECISIONES DEL EQUIPO', path: '/ideas/en-votacion', help: 'Lo que hay que decidir', icon: 'decisions' },
+      { label: 'APROBACIONES', path: '/aprobaciones', help: 'Lo que espera al cliente', icon: 'clock' },
+    ],
+  },
+  {
+    titulo: 'Proyecto',
+    entradas: [
+      { label: 'MÉTRICAS', path: '/metricas', help: 'Cómo va el proyecto', icon: 'chart' },
+      { label: 'HOJA DE RUTA', path: '/roadmap', help: 'Cuánto falta para el final', icon: 'roadmap' },
+    ],
+  },
 ];
 
 const STORAGE_KEY = 'rr-hub-aside';
@@ -138,7 +181,7 @@ type ListaDeClientes = {
   actual: string | null;
 };
 
-export function WorkspaceShell({ children, project, role, email, nombre, puedeEscribir = true, clientes }: { children: React.ReactNode; project: { slug: string; name: string; client_name: string }; role: string; email?: string; nombre?: string; puedeEscribir?: boolean; clientes?: ListaDeClientes }) {
+export function WorkspaceShell({ children, project, role, email, nombre, puedeEscribir = true, clientes, tienePlanSocial = false }: { children: React.ReactNode; project: { slug: string; name: string; client_name: string }; role: string; email?: string; nombre?: string; puedeEscribir?: boolean; clientes?: ListaDeClientes; tienePlanSocial?: boolean }) {
   const params = useParams<{ projectSlug: string }>();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -176,14 +219,38 @@ export function WorkspaceShell({ children, project, role, email, nombre, puedeEs
     window.dispatchEvent(new Event(STORAGE_EVENT));
   }
 
+  /**
+   * Los editadores profesionales descargan ~14 MB de WebAssembly en la primera
+   * visita. Empezar esa descarga cuando la persona ya pulsó el botón obliga a
+   * esperar a pantalla completa; empezarla al pasar el cursor (o al enfocar con
+   * teclado) la deja lista antes del clic, sin coste para quien no los usa.
+   * Se guarda en una ref para no lanzar dos descargas si entran y salen.
+   */
+  const editorPrefetched = useRef<Set<string>>(new Set());
+
+  function prefetchEditor(ruta: string) {
+    if (editorPrefetched.current.has(ruta)) return;
+    editorPrefetched.current.add(ruta);
+    const url = ruta === '/editar/foto'
+      ? '/editors/rr-imagen/photocraft-web-f7f123201fc1f159_bg.wasm'
+      : '/editors/rr-motion/filmcraft_web_bg.wasm?v=385741163fd2e6a3';
+    const começar = () => { void fetch(url, { priority: 'high' }).catch(() => {}); };
+    const idle = (window as unknown as { requestIdleCallback?: (fn: () => void) => number }).requestIdleCallback;
+    if (idle) idle(começar);
+    else começar();
+  }
+
   function enlace(item: { label: string; path: string; help: string; icon: IconName }) {
     const href = `/${slug}${item.path}`;
     const active = item.path ? pathname.startsWith(href) : pathname === `/${slug}`;
+    const esEditor = item.path === '/editar/foto' || item.path === '/editar/video';
     return (
       <Link
         key={item.label}
         href={href}
         title={item.help}
+        onPointerEnter={esEditor ? () => prefetchEditor(item.path) : undefined}
+        onFocus={esEditor ? () => prefetchEditor(item.path) : undefined}
         onClick={() => setMenuOpen(false)}
         aria-current={active ? 'page' : undefined}
         className={`group flex items-center gap-3 border-l-2 py-3 transition-colors ${collapsed ? 'md:justify-center md:px-0' : 'items-start px-3'} ${active ? 'border-blanco bg-blanco-10 text-blanco' : 'border-transparent text-blanco-60 hover:border-blanco-40 hover:bg-blanco-05 hover:text-blanco'}`}
@@ -246,19 +313,30 @@ export function WorkspaceShell({ children, project, role, email, nombre, puedeEs
           </div>
         )}
 
-        <nav className="mt-2 space-y-1" aria-label="Menú principal">
-          {PRINCIPAL.map(enlace)}
+        <nav className="mt-2 space-y-4" aria-label="Menú principal">
+          {GRUPOS.map((grupo) => (
+            <div key={grupo.titulo}>
+              <p className={`px-3 font-mono text-[10px] uppercase tracking-[0.14em] text-blanco-40 ${collapsed ? 'md:hidden' : ''}`}>
+                {grupo.titulo}
+              </p>
+              <div className="mt-1 space-y-1">{grupo.entradas.map(enlace)}</div>
+            </div>
+          ))}
 
-          {/* Rodaje y publicación son de uso interno: quedan a un toque, sin
-              ocupar los cuatro lugares principales. */}
-          {!collapsed && (
-            <details className="group/mas pt-2">
-              <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 px-3 font-mono text-xs text-blanco-50 transition-colors hover:text-blanco">
-                <Icon name="chevron" size={11} className="transition-transform group-open/mas:rotate-180" />
-                VER MÁS
-              </summary>
-              <div className="mt-1">{SECUNDARIO.map(enlace)}</div>
-            </details>
+          {/*
+            El plan de publicación solo se ofrece cuando el cliente lo tiene.
+            Antes la entrada estaba siempre y SÁTIRO y BOGA —que no lo tienen—
+            llevaban a un 404: un enlace que promete un plan y no hay plan.
+          */}
+          {tienePlanSocial && (
+            <div>
+              <p className={`px-3 font-mono text-[10px] uppercase tracking-[0.14em] text-blanco-40 ${collapsed ? 'md:hidden' : ''}`}>
+                Publicación
+              </p>
+              <div className="mt-1 space-y-1">
+                {enlace({ label: 'PLAN DE PUBLICACIÓN', path: '/redes', help: 'Feed, orden y aprobación', icon: 'publish' })}
+              </div>
+            </div>
           )}
         </nav>
 
@@ -310,12 +388,16 @@ export function WorkspaceShell({ children, project, role, email, nombre, puedeEs
                   de la ficha de cada idea. Con 18 piezas en `voting`, eso es
                   recorrer el tablero buscando cuál abrir. Este enlace va en la
                   barra, no dentro de un menú, porque la reunión empieza buscando
-                  "qué hay que decidir hoy". */}
+                  "qué hay que decidir hoy".
+                  MEDIDO 2026-11-09: el nombre era «VOTACIÓN INTERNA» y mentía:
+                  lo que hay es una cola con motivo, versión y siguiente paso, no
+                  una votación a la que se llegue votando. Ahora se llama
+                  «DECISIONES DEL EQUIPO», que es lo que es. */}
               <Link
                 href={`/${slug}/ideas/en-votacion`}
                 className="border border-mostaza-40 px-2 py-1 font-mono text-[10px] text-mostaza transition-colors hover:border-mostaza"
               >
-                VOTACIÓN INTERNA
+                DECISIONES DEL EQUIPO
               </Link>
             </div>
             <div className="flex items-center gap-2">
@@ -382,7 +464,17 @@ export function WorkspaceShell({ children, project, role, email, nombre, puedeEs
                     href={`/${slug}/ideas/en-votacion`}
                     className="inline-flex items-center gap-2 border border-blanco-20 px-2 py-1.5 font-mono text-[10px] text-blanco-70 hover:border-blanco-50"
                   >
-                    VOTACIÓN INTERNA
+                    DECISIONES DEL EQUIPO
+                  </Link>
+                  {/* La puerta del hub. Antes no había ninguna: el hub estaba
+                      abierto y no se entraba a ninguna parte. Con la puerta por
+                      código, este enlace es el camino de entrada y el de
+                      salida. */}
+                  <Link
+                    href="/login"
+                    className="inline-flex items-center gap-2 border border-blanco-20 px-2 py-1.5 font-mono text-[10px] text-blanco-70 hover:border-blanco-50"
+                  >
+                    ENTRAR
                   </Link>
                 </div>
               ))}

@@ -9,7 +9,33 @@ const scriptSrc = [
   "script-src 'self' 'unsafe-inline'",
   isDevelopment ? "'unsafe-eval'" : "",
   "https://platform.instagram.com",
+  // Google Picker y Google Identity Services (el módulo de material).
+  // El Picker se carga desde `apis.google.com` y el token se pide con
+  // `accounts.google.com`: sin estas dos líneas, elegir carpeta de Drive
+  // falla con un error de CSP que no dice nada de Drive.
+  "https://apis.google.com",
+  "https://accounts.google.com",
 ].filter(Boolean).join(" ");
+
+const editorCsp = [
+  "default-src 'self'",
+  // Rust/WASM needs WebAssembly compilation, not arbitrary JavaScript eval.
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "media-src 'self' blob: https:",
+  "connect-src 'self' blob:",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join("; ");
+
+const immutableEditorAsset = {
+  key: "Cache-Control",
+  value: "public, max-age=31536000, immutable",
+};
 
 const securityHeaders = [
   // The hub must not be embeddable by others (clickjacking). This is about
@@ -35,12 +61,12 @@ const securityHeaders = [
       // Reference embeds and delivered media come from Supabase and Drive.
       "img-src 'self' data: blob: https:",
       "media-src 'self' blob: https:",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.googleapis.com https://accounts.google.com https://oauth2.googleapis.com",
       // Video previews are iframed, not pictured. Without these the embed is
       // refused and the piece looks broken: the `frame-src` list was Drive and
       // Supabase only, so no social platform could ever load here. Wundeer's
       // sandbox prototype also lives on Railway and is embedded by `/wundeer/redes`.
-      "frame-src 'self' https://www.instagram.com https://instagram.com https://www.tiktok.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://www.facebook.com https://drive.google.com https://*.supabase.co https://commerce-wundeer-beta.up.railway.app",
+      "frame-src 'self' https://www.instagram.com https://instagram.com https://www.tiktok.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://www.facebook.com https://drive.google.com https://*.supabase.co https://*.google.com https://commerce-wundeer-beta.up.railway.app",
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",
@@ -64,6 +90,43 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },
+      // Los editores Rust/WASM viven en el mismo origen, pero necesitan compilar
+      // WebAssembly. Esta regla solo afecta /editors/* y no abre unsafe-eval al Hub.
+      {
+        source: "/editors/:path*",
+        headers: [{ key: "Content-Security-Policy", value: editorCsp }],
+      },
+      // Los binarios y el glue versionado no cambian bajo la misma URL. Cachearlos
+      // evita volver a bajar 14 MB comprimidos en cada visita.
+      {
+        source: "/editors/rr-imagen/:path(.*\\.wasm)",
+        headers: [immutableEditorAsset],
+      },
+      {
+        source: "/editors/rr-imagen/:path(.*\\.js)",
+        headers: [immutableEditorAsset],
+      },
+      {
+        source: "/editors/rr-motion/:path(.*\\.wasm)",
+        headers: [immutableEditorAsset],
+      },
+      {
+        source: "/editors/rr-motion/filmcraft_web.js",
+        headers: [immutableEditorAsset],
+      },
+      {
+        source: "/editors/rr-motion/snippets/:path*",
+        headers: [immutableEditorAsset],
+      },
+      // El HTML debe revalidarse para descubrir el próximo hash de build.
+      {
+        source: "/editors/rr-imagen/index.html",
+        headers: [{ key: "Cache-Control", value: "no-cache" }],
+      },
+      {
+        source: "/editors/rr-motion/index.html",
+        headers: [{ key: "Cache-Control", value: "no-cache" }],
+      },
       // El service worker vive en el ambito raiz para poder cachear el armazon
       // de Next (`/_next/static/...`). Con el ambito por defecto (`/sw.js`)
       // notendria acceso a esas rutas y la app no arrancaria sin conexion.

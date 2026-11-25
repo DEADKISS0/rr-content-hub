@@ -20,6 +20,8 @@ const eslintConfig = defineConfig([
     "build/**",
     ".vercel/**",
     "next-env.d.ts",
+    // Binarios y glue generados por Trunk/wasm-bindgen; no son fuente que editemos.
+    "public/editors/**",
   ]),
 ]);
 
