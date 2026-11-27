@@ -80,10 +80,10 @@ export async function POST(request: Request) {
 
   const { data: proyecto } = await supabase
     .from('rr_hub_projects')
-    .select('slug, is_active')
+    .select('id')
     .eq('slug', projectSlug)
     .maybeSingle();
-  if (!proyecto || proyecto.is_active === false) {
+  if (!proyecto) {
     await recordDbFailure(origen, path);
     return NextResponse.json({ error: 'No se encontró ese cliente.' }, { status: 404 });
   }
