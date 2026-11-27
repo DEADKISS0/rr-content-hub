@@ -5,6 +5,7 @@ import { createServiceClient } from '@/lib/supabase/service';
 import { quienEs } from '@/lib/quien-es';
 import { PUEDE_EDITAR, type RoleKey } from '@/lib/flow';
 import { esSuperAdmin } from '@/lib/config';
+import { ROL_INVITADO } from '@/lib/identidad';
 
 /**
  * Roles que pueden crear y mover piezas. `client_viewer` no está.
@@ -138,7 +139,10 @@ export async function rolEnProyecto(projectId: string): Promise<VeredictoProyect
     (fila) => fila.user_id === idDeEsta,
   ) as { role_in_project: RolProyecto } | undefined;
 
-  const rol = filaDeEsta?.role_in_project ?? 'sin_rol';
+  // Identificado (hay perfil) sin fila de acceso: invitado con el rol editor
+  // que ya existe. Sin eso, la ficha y el botón de nueva pieza quedan en solo
+  // lectura aunque la API sí acepte crear, editar, votar, guion y comentar.
+  const rol = filaDeEsta?.role_in_project ?? (idDeEsta ? ROL_INVITADO : 'sin_rol');
   // `sin_rol` es lo que devuelve el guard cuando la fila no trae un rol válido.
   // No es un rol de `ROLE_KEYS`, así que ni `includes` ni el `Set` lo aceptan;
   // se resuelve comprobando los roles reales. No hay que "arreglar" el rol:
