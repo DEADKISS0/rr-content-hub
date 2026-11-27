@@ -68,7 +68,7 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId, comentariosInic
    * de tu cliente». Ahora se explica antes de intentarlo.
    */
   const perfilActual = useSyncExternalStore(suscribirPerfil, perfilElegido, () => null);
-  const puedeComentar = esDelEquipo(perfilActual?.email ?? '', equipo);
+  const puedeComentar = Boolean(perfilActual?.email);
   const [stage, setStage] = useState<AssetStage>('reference_brief');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -253,8 +253,7 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId, comentariosInic
       )}
       {!puedeComentar && (
         <p className="mb-3 border-l-4 border-l-mostaza bg-mostaza-05 px-3 py-2 text-sm leading-6 text-mostaza">
-          Elige con qué perfil del equipo comentas. Sin perfil no se puede publicar
-          en el hilo.
+          Elige con qué nombre comentas. El nombre se pide al subir una idea, o arriba a la derecha si ya hay perfiles.
         </p>
       )}
 

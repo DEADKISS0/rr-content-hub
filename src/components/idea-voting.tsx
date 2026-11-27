@@ -133,7 +133,9 @@ export function IdeaVoting({
    * igual en cada voto, así que esto solo decide si el botón se explica o no.
    */
   const perfilActual = useSyncExternalStore(suscribirPerfil, perfilElegido, () => null);
-  const puedeVotar = esDelEquipo(perfilActual?.email ?? '', equipo);
+  // Un invitado identificado (nombre al crear la idea) también puede votar.
+  // El servidor vuelve a comprobar la identidad; aquí solo se decide si el botón se explica o se puede pulsar.
+  const puedeVotar = Boolean(perfilActual?.email);
 
   const votar = useCallback(async (decision: DecisionVoto, nota = '') => {
     if (isSubmitting) return;
@@ -292,8 +294,7 @@ export function IdeaVoting({
               emitir, y se dice por qué en vez de dejar un botón que falla. */}
           {!puedeVotar && (
             <p className="mt-4 border-l-4 border-l-mostaza bg-mostaza-05 px-3 py-2 text-sm leading-6 text-mostaza">
-              Para votar, elige con qué perfil del equipo estás.emitiendo este
-              voto. Está arriba a la derecha.
+              Para votar, elige con qué nombre estás. El nombre se pide al subir una idea, o arriba a la derecha si ya hay perfiles.
             </p>
           )}
 
