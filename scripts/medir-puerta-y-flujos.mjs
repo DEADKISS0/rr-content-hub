@@ -1,6 +1,6 @@
 import { chromium } from 'playwright';
 
-const URL = 'https://rr-content-hub.vercel.app';
+const URL = 'https://rr-content-hub-five.vercel.app';
 const CODIGO_WUNDEER = '1111';
 
 async function sesion(cookie) {
@@ -16,7 +16,7 @@ async function entrar(correo) {
   const bruto = r.headers.getSetCookie().find((c) => c.startsWith('hub_sesion='));
   const valor = bruto.split(';')[0].split('=')[1];
   return {
-    name: 'hub_sesion', value: valor, domain: 'rr-content-hub.vercel.app',
+    name: 'hub_sesion', value: valor, domain: 'rr-content-hub-five.vercel.app',
     path: '/', expires: 4102444800, httpOnly: true, secure: true, sameSite: 'Lax',
   };
 }
