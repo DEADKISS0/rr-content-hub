@@ -5,6 +5,7 @@ import { statusMeta, type WorkflowStatus } from '@/lib/flow';
 import { BOARD_COLUMNS } from '@/lib/queues';
 import { Icon } from '@/components/ui/icons';
 import { resumenProyecto, seccionesProyecto } from '@/lib/resumen-proyecto';
+import { EntradaHub } from '@/components/entrada-hub';
 
 /**
  * MEDIDO 2026-10-03. La puerta de entrada del hub.
@@ -117,9 +118,17 @@ export default async function Home() {
         </h1>
         <p className="mt-6 max-w-3xl text-base leading-8 text-blanco-70 anim-rise" style={{ animationDelay: '160ms' }}>
           Un solo lugar donde una idea de Wundeer o de Candilejas deja de ser un mensaje suelto
-          y se vuelve un trabajo con dueño, fecha y estado. Se entra directo, sin código y sin
-          contraseñas: quien llega sin acceso abre en modo lectura.
+          y se vuelve un trabajo con dueño, fecha y estado. El perfil se crea aquí mismo,
+          o se entra como invitado, sin salir de la página.
         </p>
+        {!sesion && (
+          <div className="mt-6">
+            <EntradaHub
+              proyecto={sesionActual}
+              clientes={conConteo.map(({ cliente }) => ({ slug: cliente.slug, nombre: cliente.name }))}
+            />
+          </div>
+        )}
         <p className="mt-5 font-mono text-[11px] leading-6 text-blanco-50 anim-rise" style={{ animationDelay: '200ms' }}>
           {abiertos.length === 1
             ? `1 cliente abierto · ${totalPiezas} piezas en total`
