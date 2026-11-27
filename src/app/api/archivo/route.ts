@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { quienEs } from '@/lib/quien-es';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { createServiceClient } from '@/lib/supabase/service';
 import { catalogoIncluye } from '@/lib/config';
+import { firmaDeImagen, TIPOS_DE_IMAGEN } from '@/lib/firma-imagen';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,6 +59,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'El servidor no tiene la configuración de Supabase.' }, { status: 500 });
   }
 
+  // El editor de la ficha pide los bytes por aquí, no por la URL del bucket.
+  // Una imagen de otro origen mancha el lienzo y el navegador se niega a
+  // exportarla. La misma puerta de siempre (catálogo, sin `..`) y, encima, la
+  // firma: solo sale una imagen de verdad. No es una política nueva de RLS;
+  // lee con el mismo cliente de servicio que ya usa esta ruta para listar.
+  if (request.nextUrl.searchParams.get('bytes') === '1') {
+    return bytesDeImagen(service, path);
+  }
+
   // `list` con la búsqueda exacta del archivo: es una consulta de metadatos, no
   // baja los bytes. Devolver el nombre exacto es lo que decide; una búsqueda
   // parcial daría un falso positivo con `prueba.png` y `prueba.png.2`.
@@ -71,4 +81,39 @@ export async function GET(request: NextRequest) {
   const existe = (data ?? []).some((entrada) => entrada.name === archivo);
 
   return NextResponse.json({ existe, path });
+}
+
+const TOPE_EDITOR = 25 * 1024 * 1024;
+
+function tipoDeImagen(binario: Uint8Array, declarado: string): string | null {
+  const limpio = declarado.split(';')[0].trim().toLowerCase();
+  if ((TIPOS_DE_IMAGEN as readonly string[]).includes(limpio) && firmaDeImagen(binario, limpio)) return limpio;
+  for (const tipo of TIPOS_DE_IMAGEN) {
+    if (firmaDeImagen(binario, tipo)) return tipo;
+  }
+  return null;
+}
+
+async function bytesDeImagen(service: SupabaseClient, path: string) {
+  const { data, error } = await service.storage.from('rr-content-assets').download(path);
+  if (error || !data) {
+    return NextResponse.json({ error: 'Ese archivo no está en el bucket.' }, { status: 404 });
+  }
+  if (data.size > TOPE_EDITOR) {
+    return NextResponse.json({ error: 'El archivo pesa demasiado para editarlo en la ficha.' }, { status: 413 });
+  }
+  const binario = new Uint8Array(await data.arrayBuffer());
+  const tipo = tipoDeImagen(binario, data.type || '');
+  if (!tipo) {
+    return NextResponse.json({ error: 'El editor solo abre imágenes del bucket.' }, { status: 415 });
+  }
+  return new NextResponse(Buffer.from(binario), {
+    status: 200,
+    headers: {
+      'Content-Type': tipo,
+      'Content-Length': String(binario.byteLength),
+      'Cache-Control': 'private, no-store',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
 }
