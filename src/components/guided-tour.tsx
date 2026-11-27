@@ -127,7 +127,7 @@ function pasosDe(ruta: string): Paso[] {
   return PASOS_TABLERO;
 }
 
-export function GuidedTour() {
+export function GuidedTour({ habilitada = true }: { habilitada?: boolean } = {}) {
   const ruta = usePathname();
   const pasos = pasosDe(ruta ?? '');
   const [paso, setPaso] = useState<number | null>(null);
@@ -206,6 +206,11 @@ export function GuidedTour() {
   // ser estorbo. El botón flotante siempre está para volver a abrirla.
   useEffect(() => {
     reducido.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // No se abre sola mientras «¿Quién eres?» está en pantalla, ni antes de
+    // que haya sesión: le ganaba al formulario de una idea nueva y, en un
+    // contexto fresco, volvía a saltar al recargar. El botón «¿Cómo se usa?»
+    // sigue disponible siempre.
+    if (!habilitada) return;
     try {
       if (window.localStorage.getItem(CLAVE) !== 'visto') {
         const t = window.setTimeout(() => setPaso(0), 700);
@@ -214,7 +219,7 @@ export function GuidedTour() {
     } catch {
       /* sin localStorage, no se abre sola */
     }
-  }, []);
+  }, [habilitada]);
 
   const medir = useCallback((indice: number) => {
     const objetivo = document.querySelector(selectorDe(pasos[indice]));

@@ -506,7 +506,7 @@ export function WorkspaceShell({ children, project, role, email, nombre, puedeEs
           sesion.marcarIdentidad(quien);
         }}
       />
-      <GuidedTour />
+      <GuidedTour habilitada={Boolean(sesion.correo)} />
     </div>
   );
 }

@@ -39,10 +39,15 @@ export default async function NewIdea({ params }: { params: Promise<{ projectSlu
     const { data: project } = await supabase
       .from('rr_hub_projects').select('id').eq('slug', projectSlug).maybeSingle();
     if (project) {
+      // El id del cliente se fija YA, antes del catálogo. Si `listarAnuncios`
+      // o `anunciosEnUso` fallan, el selector queda vacío y el formulario
+      // sigue pudiendo crear la idea. Antes `projectId` se asignaba después,
+      // y un error del catálogo dejaba el alta en «No se pudo identificar
+      // el cliente» con el botón que no iba a ningún sitio.
+      projectId = project.id;
       try {
         anuncios = await listarAnuncios(project.id);
         for (const [id, n] of await anunciosEnUso(project.id)) usosPorAnuncio[id] = n;
-        projectId = project.id;
       } catch {
         anuncios = [];
       }
