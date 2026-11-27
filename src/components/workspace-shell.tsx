@@ -10,6 +10,7 @@ import { Icon, type IconName } from './ui/icons';
 import { SelectorPerfil } from '@/components/selector-perfil';
 import { AUTH_ENABLED } from '@/lib/mode';
 import { HubFooter } from '@/components/hub-footer';
+import { QuienEres } from '@/components/quien-eres';
 import { SelectorCliente, type ClienteParaPintar } from '@/components/selector-cliente';
 import { logoDeCliente } from '@/lib/logo-cliente';
 
@@ -135,17 +136,11 @@ function useSesion(emailServidor?: string, nombreServidor?: string) {
   // `/api/quien-soy` responde `{email, nombre, proyecto, id}` y con la sesión de
   // Nicolás devuelve "Nicolás David Río Vargas". El shell solo leía `email` y
   // se olvidaba de `nombre`, así que en toda la app solo se veía el correo.
-  //
-  // No es un dato inventado ni una copyrighted: es el nombre que la persona
-  // eligió en la puerta, y el servidor ya lo tenía.
   const [nombre, setNombre] = useState<string | null>(nombreServidor ?? null);
+  const [listo, setListo] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    // La puerta es un código por cliente (2026-09-28), así que no hay sesión de
-    // Supabase que escuchar: la cookie del hub no emite eventos. Se pregunta una
-    // vez quién entró, con `no-store` para que no se quede pegado el nombre de
-    // la persona anterior.
     let vivo = true;
     void fetch('/api/quien-soy', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
@@ -153,9 +148,12 @@ function useSesion(emailServidor?: string, nombreServidor?: string) {
         if (!vivo) return;
         setCorreo(cuerpo?.email ?? null);
         setNombre(cuerpo?.nombre ?? null);
+        setListo(true);
       })
       .catch(() => {
-        if (vivo) setCorreo(null);
+        if (!vivo) return;
+        setCorreo(null);
+        setListo(true);
       });
     return () => { vivo = false; };
   }, []);
@@ -166,8 +164,14 @@ function useSesion(emailServidor?: string, nombreServidor?: string) {
     router.refresh();
   }
 
-  return { correo, nombre, cerrarSesion };
+  function marcarIdentidad(quien: { nombre: string; email: string }) {
+    setCorreo(quien.email);
+    setNombre(quien.nombre);
+  }
+
+  return { correo, nombre, listo, cerrarSesion, marcarIdentidad };
 }
+
 
 /**
  * `clientes` lo pasa el servidor (`getClientesDeLaPersona`): qué clientes puede
@@ -495,6 +499,13 @@ export function WorkspaceShell({ children, project, role, email, nombre, puedeEs
         <HubFooter slug={slug} projectName={project.name} />
       </div>
 
+      <QuienEres
+        projectSlug={slug}
+        abierto={sesion.listo && !sesion.correo}
+        onListo={(quien) => {
+          sesion.marcarIdentidad(quien);
+        }}
+      />
       <GuidedTour />
     </div>
   );

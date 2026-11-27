@@ -1,13 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ReferenceWithBrief } from '@/components/reference-with-brief';
 import { BotonBiblioteca } from '@/components/ad-library-picker';
 import { buildIdeaPack, createIdea, looksLikeUrl } from '@/lib/workspace-client';
 import { Icon } from './ui/icons';
-import { EntradaInvitadoIdea } from '@/components/entrada-invitado-idea';
 
 type FormState = { title: string; type: 'Orgánico' | 'Pauta'; category: string; objective: string; description: string; camera: string; talent: string; edit: string; reference: string; adId: string; adName: string };
 const empty: FormState = { title: '', type: 'Orgánico', category: '', objective: '', description: '', camera: '', talent: '', edit: '', reference: '', adId: '', adName: '' };
@@ -32,16 +31,6 @@ export function NewIdeaForm({ projectSlug, projectId, anuncios, usosPorAnuncio }
   const [form, setForm] = useState<FormState>(empty);
   const [notice, setNotice] = useState('');
   const [saving, setSaving] = useState(false);
-  const [identificado, setIdentificado] = useState(false);
-  const [pedirNombre, setPedirNombre] = useState(false);
-
-  useEffect(() => {
-    let cancelado = false;
-    fetch('/api/quien-soy', { cache: 'no-store' })
-      .then((r) => { if (!cancelado) setIdentificado(r.ok); })
-      .catch(() => { if (!cancelado) setIdentificado(false); });
-    return () => { cancelado = true; };
-  }, []);
 
   const contentType = form.type === 'Orgánico' ? 'organic' : 'paid';
   const update = (field: keyof FormState, value: string) => setForm((current) => ({ ...current, [field]: value }));
@@ -63,19 +52,11 @@ export function NewIdeaForm({ projectSlug, projectId, anuncios, usosPorAnuncio }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    await guardarIdea(identificado);
-  }
-
-  async function guardarIdea(yaIdentificado: boolean) {
     if (saving) return;
     if (!form.title.trim() || !form.objective.trim()) { avisar('Falta el título o el objetivo.'); return; }
     if (!form.reference.trim()) { avisar('Toda idea necesita al menos un link de referencia (Instagram, TikTok, YouTube, Google Drive o cualquier URL pública). Sin referencia no se crea la idea.'); return; }
     if (!referenceValid) { avisar('La referencia debe ser un enlace válido (https://…).'); return; }
     if (!projectId) { avisar('No se pudo identificar el cliente de esta idea. Recarga la página.'); return; }
-    if (!yaIdentificado) {
-      setPedirNombre(true);
-      return;
-    }
     setSaving(true);
     setNotice('');
     // The insert and the event go through the server: it checks that this
@@ -117,8 +98,7 @@ export function NewIdeaForm({ projectSlug, projectId, anuncios, usosPorAnuncio }
     }, 40);
   }
 
-  return <>
-  <form onSubmit={submit} className="mt-10 space-y-6">
+  return <form onSubmit={submit} className="mt-10 space-y-6">
     <div className="border-l-2 border-blanco-20 bg-blanco-05 px-4 py-3 font-mono text-[10px] leading-5 text-blanco-60">[CAPTURA GUIADA] Pega la referencia, escribe título y objetivo. El sistema prepara un primer brief para cámara, modelo, edición y guion; cada rol lo puede afinar después.</div>
 
     {/* El aviso vive ARRIBA, a la vista, no debajo de ocho bloques. Antes se
@@ -215,18 +195,7 @@ export function NewIdeaForm({ projectSlug, projectId, anuncios, usosPorAnuncio }
       <button disabled={saving || !referenceValid} className="btn-brutal" type="submit">{saving ? 'GUARDANDO…' : 'CREAR IDEA →'}</button>
       <span className="font-mono text-[10px] text-blanco-50">GUARDADO EN EL HUB COMPARTIDO</span>
     </div>
-  </form>
-    <EntradaInvitadoIdea
-      projectSlug={projectSlug}
-      abierto={pedirNombre}
-      onCerrar={() => setPedirNombre(false)}
-      onListo={() => {
-        setIdentificado(true);
-        setPedirNombre(false);
-        void guardarIdea(true);
-      }}
-    />
-  </>;
+  </form>;
 }
 
 function Field({ label, value, onChange, placeholder, textarea, select, options, className = '', maxLength, error, id }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; textarea?: boolean; select?: boolean; options?: string[]; className?: string; maxLength?: number; error?: string; id?: string }) {
