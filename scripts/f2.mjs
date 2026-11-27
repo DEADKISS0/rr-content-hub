@@ -2,7 +2,7 @@ import { chromium } from 'playwright';
 const nav = await chromium.launch();
 const ctx = await nav.newContext({ viewport: { width: 1400, height: 1000 }, locale: 'es-ES' });
 const pg = await ctx.newPage();
-await pg.goto('https://rr-content-hub.vercel.app/login', { waitUntil: 'domcontentloaded' });
+await pg.goto('https://rr-content-hub-five.vercel.app/login', { waitUntil: 'domcontentloaded' });
 await pg.waitForTimeout(1800);
 await pg.getByRole('button', { name: /WUNDEER/i }).first().click().catch(() => {});
 await pg.waitForTimeout(500);
@@ -13,7 +13,7 @@ await pg.getByRole('button', { name: /ENTRAR/i }).click().catch(() => {});
 await pg.waitForTimeout(4000);
 const s = pg.getByRole('button', { name: /^SALTAR$/i });
 if (await s.count()) { await s.first().click().catch(()=>{}); await pg.waitForTimeout(700); }
-await pg.goto('https://rr-content-hub.vercel.app/wundeer/ideas', { waitUntil: 'domcontentloaded' });
+await pg.goto('https://rr-content-hub-five.vercel.app/wundeer/ideas', { waitUntil: 'domcontentloaded' });
 await pg.waitForTimeout(10000);
 await pg.getByRole('button', { name: /DE HERMES/ }).first().click();
 await pg.waitForTimeout(2500);
