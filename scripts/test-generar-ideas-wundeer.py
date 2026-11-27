@@ -65,7 +65,7 @@ comprobar(
 creadas = [("P3", "paid", "id-1"), ("P4", "paid", "id-2"), ("O18", "organic", "id-3"), ("O19", "organic", "id-4")]
 paquete = generador.empaquetar(creadas)
 comprobar("el paquete anuncia 2 pauta y 2 organico", "2 pauta · 2 orgánico" in paquete, paquete[:80])
-comprobar("el paquete trae los cuatro enlaces", paquete.count("rr-content-hub.vercel.app/wundeer/ideas/") == 4, str(paquete.count("rr-content-hub.vercel.app")))
+comprobar("el paquete trae los cuatro enlaces", paquete.count("rr-content-hub-five.vercel.app/wundeer/ideas/") == 4, str(paquete.count("rr-content-hub-five.vercel.app")))
 comprobar("el paquete explica la regla de mayoria", "más votos a favor que en contra" in paquete)
 comprobar("el paquete NO lleva rutas locales", "/home/" not in paquete)
 comprobar("el paquete NO lleva conteos internos", "total" not in paquete.lower())

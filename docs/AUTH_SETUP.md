@@ -4,7 +4,7 @@
 
 1. En Supabase, activar **Google** en Authentication → Providers.
 2. En Google Cloud, crear OAuth Client (Web application) y añadir la callback que indique Supabase.
-3. Configurar Site URL: `https://rr-content-hub.vercel.app` y Redirect URL: `https://rr-content-hub.vercel.app/auth/callback`.
+3. El proyecto de Supabase es compartido con el CRM: no cambies la Site URL si ya apunta a otra app. Agrega la Redirect URL `https://rr-content-hub-five.vercel.app/auth/callback`, preservando las URLs previas. Dominio de producción del hub: `https://rr-content-hub-five.vercel.app`.
 4. Guardar `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` como variables de producción en Vercel. La service role key nunca llega al navegador.
 5. Aplicar únicamente `supabase/migrations/20260910_content_hub_isolated.sql`. El proyecto Supabase ya tiene tablas de otro CRM en `public.*`; el Content Hub usa sus propias tablas `rr_hub_*` para no interferir.
 6. Promover la cuenta de Rosas a admin mediante SQL controlado:
@@ -38,6 +38,12 @@
 - [x] Perfiles sembrados para las 5 cuentas existentes y la cuenta admin promovida a `admin` (correo en la migración de bootstrap, no en el repo).
 
 > La migración `20260910_roles_and_workflow.sql` quedó descartada (tocaba tablas `public.profiles`/`user_project_access` del CRM) y se movió a `supabase/_archivo/`. No aplicarla.
+
+## Actualización 2026-11-27
+
+El dominio de producción definitivo es `https://rr-content-hub-five.vercel.app`. El anterior `rr-content-hub.vercel.app` quedó muerto (`DEPLOYMENT_NOT_FOUND`).
+
+El proyecto de Supabase es compartido con el CRM. Si hay que tocar Auth, agregar `https://rr-content-hub-five.vercel.app/auth/callback` a Redirect URLs, preservando las URLs previas. No cambiar la Site URL si el CRM u otra app del mismo proyecto la usa.
 
 ## Principio de seguridad
 

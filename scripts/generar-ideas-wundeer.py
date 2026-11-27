@@ -42,7 +42,7 @@ Q_JSON = chr(34)
 PROYECTO = "ntgtvtzbjwotuwkiflar"
 API = f"https://api.supabase.com/v1/projects/{PROYECTO}/database/query"
 TOKENS = pathlib.Path.home() / ".hermes" / "mcp-tokens" / "supabase.json"
-HUB = "https://rr-content-hub.vercel.app"
+HUB = "https://rr-content-hub-five.vercel.app"
 # El cliente para el que se generan las ideas. Antes era una constante fija
 # ("wundeer") y por eso Candilejas no recibía ninguna: el generador no tenía por
 # dónde configurable el cliente, solo por dónde cambiar el código. Ahora es un

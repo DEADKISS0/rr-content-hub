@@ -1,7 +1,7 @@
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 
-const URL = 'https://rr-content-hub.vercel.app';
+const URL = 'https://rr-content-hub-five.vercel.app';
 const IDEA = fs.readFileSync('/tmp/idea_sonda.txt', 'utf8').trim();
 
 async function cookieDe(correo) {
@@ -13,7 +13,7 @@ async function cookieDe(correo) {
   const bruto = r.headers.getSetCookie().find((c) => c.startsWith('hub_sesion='));
   return {
     name: 'hub_sesion', value: bruto.split(';')[0].split('=')[1],
-    domain: 'rr-content-hub.vercel.app', path: '/', expires: 4102444800,
+    domain: 'rr-content-hub-five.vercel.app', path: '/', expires: 4102444800,
     httpOnly: true, secure: true, sameSite: 'Lax',
   };
 }

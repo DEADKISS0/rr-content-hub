@@ -1,6 +1,6 @@
 import { chromium } from 'playwright';
 
-const URL = 'https://rr-content-hub.vercel.app';
+const URL = 'https://rr-content-hub-five.vercel.app';
 
 const r = await fetch(`${URL}/api/entrar`, {
   method: 'POST',
@@ -10,7 +10,7 @@ const r = await fetch(`${URL}/api/entrar`, {
 const bruto = r.headers.getSetCookie().find((c) => c.startsWith('hub_sesion='));
 const cookie = {
   name: 'hub_sesion', value: bruto.split(';')[0].split('=')[1],
-  domain: 'rr-content-hub.vercel.app', path: '/', expires: 4102444800,
+  domain: 'rr-content-hub-five.vercel.app', path: '/', expires: 4102444800,
   httpOnly: true, secure: true, sameSite: 'Lax',
 };
 

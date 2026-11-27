@@ -6,7 +6,7 @@ Sistema multi-cliente de RR ALIADOS para ideación, aprobación, producción y p
 
 El hub está abierto: **cualquiera con el link ve todo** lo que ve el admin, sin credenciales, en solo lectura.
 
-- Producción: https://rr-content-hub.vercel.app
+- Producción: https://rr-content-hub-five.vercel.app
 - Autenticación desactivada por interruptor: `NEXT_PUBLIC_AUTH_ENABLED=true` la reactiva (Google OAuth ya está configurado).
 - La escritura anónima está bloqueada por RLS: solo existen políticas `SELECT` para `anon`.
 - Detalle completo: [`docs/AUDIT_MODE.md`](docs/AUDIT_MODE.md).
