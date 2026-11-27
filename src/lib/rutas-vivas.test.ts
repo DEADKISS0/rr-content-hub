@@ -51,19 +51,13 @@ describe('todas las paginas posibles funcionan', () => {
     expect(archivos.length).toBeGreaterThan(40);
   });
 
-  it('la puerta /login existe y es la puerta canónica', () => {
-    // MEDIDO 2026-11-09: `/login` era un «sin destino» — la spec v2 lo
-    // declaraba inexistente y este test prohibía que nadie lo enlazara. Ahora la
-    // puerta existe (es la de código de cuatro dígitos que ya había en
-    // `/api/entrar`) y hay que poder entrar por ella.
-    //
-    // Lo que se comprueba es que la pantalla exista y que se llegue: un
-    // enlace a una pantalla borrada es un 404 con un texto que promete entrar.
+  it('/login redirige al inicio: ya no hay puerta por código', () => {
+    // 27-nov-2026: la página existe para no dejar un 404, y redirige a `/`.
     expect(existeArchivo(join(RAIZ, 'app/login/page.tsx'))).toBe(true);
-    expect(existeArchivo(join(RAIZ, 'app/login/formulario.tsx'))).toBe(true);
     const pagina = sinComentarios(readFileSync(join(RAIZ, 'app/login/page.tsx'), 'utf8'));
-    expect(pagina).toMatch(/getClientesParaLaPuerta/);
-    expect(pagina).toMatch(/Formulario/);
+    expect(pagina).toMatch(/redirect\('\/'\)/);
+    expect(pagina).not.toMatch(/getClientesParaLaPuerta/);
+    expect(pagina).not.toMatch(/Formulario/);
   });
 
   it('nadie enlaza a una puerta que no existe', () => {

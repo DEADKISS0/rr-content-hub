@@ -44,11 +44,12 @@ describe('el cliente aprueba desde su propio perfil', () => {
 
   it('un perfil inexistente o desactivado no recibe ningún rol', () => {
     const api = leer(RUTA_API);
-    const bloque = api.slice(api.indexOf('async function roleForPerfilElegido'));
-    const cuerpo = bloque.slice(0, bloque.indexOf('\n}'));
+    const inicio = api.indexOf('async function roleForPerfilElegido');
+    const cuerpo = api.slice(inicio, api.indexOf('async function resolverRol', inicio));
     expect(cuerpo).toMatch(/if \(!perfil \|\| perfil\.is_active === false\) return null/);
-    // Sin fila de acceso, `null`: nunca un rol por omisión.
-    expect(cuerpo).toMatch(/return \(acceso\?\.role_in_project as RoleKey\) \?\? null/);
+    // Perfil activo sin acceso: invitado identificado, rol editor que ya existe.
+    // Un perfil que no existe o está desactivado sigue en null, más arriba.
+    expect(cuerpo).toMatch(/rolDeIdentidad/);
   });
 
   it('la ficha pregunta su rol en vez de quedarse con el de la prop', () => {

@@ -292,21 +292,19 @@ export default async function Home() {
       </p>
 
       {/*
-        MEDIDO 2026-11-09: `/login` era un «sin destino» — la spec v2 lo
-        declaraba inexistente y no había ni un enlace que lo llevara. Ahora la
-        puerta existe y es el camino de entrada: cuatro dígitos y tu nombre.
+        El hub se recorre sin puerta. El nombre se pide solo al subir una idea.
       */}
       <div className="mt-8 border border-blanco-20 p-6 md:p-8">
-        <p className="eyebrow text-blanco-50">[LA PUERTA]</p>
+        <p className="eyebrow text-blanco-50">[EL HUB]</p>
         <h2 className="mt-3 font-display text-2xl font-bold text-blanco md:text-3xl">
-          Entrar con el código de tu cliente
+          Entra directo al tablero
         </h2>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-blanco-70">
-          Son cuatro dígitos y tu nombre. El código abre el cliente; lo que puedes hacer
-          dentro lo decide tu rol, y ese no cambia con el código.
+          No hace falta código ni correo para mirar. Si subes una idea, entonces
+          sí te pediremos un nombre: el tuyo, o uno de los ya registrados.
         </p>
-        <Link href="/login" className="btn-brutal mt-5 inline-flex min-h-[44px] items-center gap-2">
-          <Icon name="arrow" size={14} /> ENTRAR
+        <Link href={`/${abiertos[0].slug}`} className="btn-brutal mt-5 inline-flex min-h-[44px] items-center gap-2">
+          <Icon name="arrow" size={14} /> IR AL TABLERO
         </Link>
       </div>
     </div>

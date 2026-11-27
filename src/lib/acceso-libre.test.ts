@@ -87,27 +87,13 @@ describe('la puerta del hub se queda abierta', () => {
     expect(c).not.toMatch(/redirect\('\/login'\)/);
   });
 
-  it('la pantalla de login existe y es la puerta por codigo', () => {
-    // MEDIDO 2026-11-09. Este test exigía que NO existiera, porque `/login` era
-    // un «sin destino»: la spec v2 lo declaraba inexistente y no había ni un
-    // enlace que lo llevara.
-    //
-    // Ahora la puerta EXISTE y es la de siempre: cuatro dígitos y tu nombre, la
-    // misma que ya usaba `/api/entrar`. Lo que se comprueba es que la pantalla
-    // use ese camino y no invente otro.
-    let hayPantalla = true;
-    try {
-      readFileSync(join(process.cwd(), 'src/app/login/page.tsx'), 'utf8');
-    } catch {
-      hayPantalla = false;
-    }
-    expect(hayPantalla, 'la puerta del hub tiene que existir').toBe(true);
-
+  it('la pantalla de login redirige: el hub se recorre sin puerta', () => {
+    // 27-nov-2026: se quita la puerta por código. `/login` se queda para no
+    // dejar un 404 en enlaces viejos, y redirige al inicio. El nombre se pide
+    // solo al subir una idea.
     const pagina = codigo('src/app/login/page.tsx');
-    // La lista de clientes sale del servidor (de `rr_hub_projects`), no de una
-    // constante escrita a mano.
-    expect(pagina).toMatch(/getClientesParaLaPuerta/);
-    // Y no se inventa una sesión de Supabase: la puerta es el código.
+    expect(pagina).toMatch(/redirect\('\/'\)/);
+    expect(pagina).not.toMatch(/getClientesParaLaPuerta/);
     expect(pagina).not.toMatch(/supabase\.auth|signInWith|signIn\(/);
   });
 

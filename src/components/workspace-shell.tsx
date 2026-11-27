@@ -466,16 +466,6 @@ export function WorkspaceShell({ children, project, role, email, nombre, puedeEs
                   >
                     DECISIONES DEL EQUIPO
                   </Link>
-                  {/* La puerta del hub. Antes no había ninguna: el hub estaba
-                      abierto y no se entraba a ninguna parte. Con la puerta por
-                      código, este enlace es el camino de entrada y el de
-                      salida. */}
-                  <Link
-                    href="/login"
-                    className="inline-flex items-center gap-2 border border-blanco-20 px-2 py-1.5 font-mono text-[10px] text-blanco-70 hover:border-blanco-50"
-                  >
-                    ENTRAR
-                  </Link>
                 </div>
               ))}
 

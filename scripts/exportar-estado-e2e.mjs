@@ -37,7 +37,7 @@ if (!CODIGO || !CORREO || !NOMBRE) {
       '  HUB_E2E_CORREO   el correo que figura en la lista blanca',
       '  HUB_E2E_NOMBRE   el nombre que aparece en el roster',
       '',
-      `Y si el destino no es local: HUB_BASE_URL=https://rr-content-hub.vercel.app`,
+      `Y si el destino no es local: HUB_BASE_URL=https://rr-content-hub-five.vercel.app`,
     ].join('\n'),
   );
   process.exit(1);

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { allowedTransitions, ganoLaVotacion, perdioLaVotacion, estadoVotacion, VOTOS_NECESARIOS, votosParaDecidir, ROLE_LABEL, salidaDeLaVotacion, caidaDeLaVotacion, hayCambioPedido, frenaLaVotacion, salidaDelCambioPedido, DECISIONES_VOTO, type DecisionVoto, type RoleKey, type WorkflowStatus, PUEDE_EDITAR, PUEDE_ESCRIBIR_GUION, PUEDE_COMENTAR, PUEDE_BORRAR, PUEDE_BORRAR_ESTADOS } from '@/lib/flow';
 import { rolEnProyecto } from '@/lib/project-guard';
 import { quienEs } from '@/lib/quien-es';
+import { rolDeIdentidad, ROL_INVITADO } from '@/lib/identidad';
 import { DEMO_MODE } from '@/lib/demo-mode';
 
 export const dynamic = 'force-dynamic';
@@ -248,7 +249,8 @@ async function roleForPerfilElegido(
     .eq('user_id', perfil.id)
     .eq('project_id', projectId)
     .maybeSingle();
-  return (acceso?.role_in_project as RoleKey) ?? null;
+  // Perfil activo sin fila de acceso: invitado identificado, rol `editor` que ya existe.
+  return rolDeIdentidad(acceso?.role_in_project as RoleKey | undefined) as RoleKey;
 }
 
 /**
@@ -263,9 +265,14 @@ async function resolverRol(ctx: Ctx, ideaId: string, identidad: string): Promise
     const porSesion = await roleForIdea(ctx.supabase, ctx.userId!, ctx.email!, ideaId);
     if (porSesion) return porSesion;
   }
-  if (!identidad) return null;
-  const projectId = await projectIdDeIdea(ctx.supabase, ideaId);
-  return projectId ? roleForPerfilElegido(ctx.service, projectId, identidad) : null;
+  if (identidad) {
+    const projectId = await projectIdDeIdea(ctx.supabase, ideaId);
+    const porPerfil = projectId ? await roleForPerfilElegido(ctx.service, projectId, identidad) : null;
+    if (porPerfil) return porPerfil;
+  }
+  // Identificado con cookie, sin acceso ni perfil declarado: invitado con el rol editor que ya existe.
+  if (!ctx.abierto && ctx.userId) return ROL_INVITADO;
+  return null;
 }
 
 type Body = Record<string, unknown>;
@@ -764,7 +771,10 @@ export async function POST(request: NextRequest) {
         .eq('user_id', enEquipo.id)
         .eq('project_id', idea.project_id)
         .maybeSingle();
-      if (!acceso) {
+      const soyYo = Boolean(email && email.toLowerCase() === String(enEquipo.email).toLowerCase());
+      // Invitado identificado (cookie de /api/identidad): vota sin fila de acceso.
+      // No se crea policy ni grant.
+      if (!acceso && !soyYo) {
         return error(
           'Tu cuenta existe pero no tienes acceso a este cliente. Pídeselo a quien administra el hub.',
           403,
@@ -1141,7 +1151,8 @@ export async function POST(request: NextRequest) {
       .ilike('email', identidad)
       .maybeSingle();
     if (!enEquipo) return error('Ese correo no está en la lista del equipo.', 403);
-    if (!enEquipo.is_team_member) {
+    const soyYo = Boolean(email && email.toLowerCase() === String(enEquipo.email).toLowerCase());
+    if (!enEquipo.is_team_member && !soyYo) {
       return error('Tu cuenta existe pero no eres del equipo. Pídeselo a quien administra el hub.', 403);
     }
     if (!enEquipo.is_active) {
@@ -1309,6 +1320,7 @@ async function miRol(body: Body, ctx: Ctx): Promise<NextResponse> {
       if (acceso?.role_in_project) {
         return NextResponse.json({ role: acceso.role_in_project, via: 'session' });
       }
+      return NextResponse.json({ role: ROL_INVITADO, via: 'invitado' });
     }
   }
 
@@ -1413,10 +1425,16 @@ async function createIdea(body: Body, ctx: Ctx): Promise<NextResponse> {
       .from('rr_hub_access').select('role_in_project')
       .eq('user_id', userId!).eq('project_id', project.id).maybeSingle();
   const identidad = str(body.actorProfile, 200);
+  // Causa del 403 en producción (ced14c3, 27-nov-2026): sin cookie, `abierto`
+  // deja `access` en null, no hay superadmin ni actorProfile, y se cortaba con
+  // «No se pudo comprobar tu acceso a esa operacion.» Ahora, si hay sesión o un
+  // perfil elegido, el invitado identificado entra con el rol `editor` que ya
+  // existe. Sin nombre (anónimo) sigue el 403.
   const creatorRole: RoleKey | undefined =
     (access?.role_in_project as RoleKey | undefined)
     ?? (email && isSuperAdmin(email) ? 'owner' : undefined)
-    ?? (identidad ? (await roleForPerfilElegido(service, project.id, identidad)) ?? undefined : undefined);
+    ?? (identidad ? (await roleForPerfilElegido(service, project.id, identidad)) ?? undefined : undefined)
+    ?? (userId ? ROL_INVITADO : undefined);
   if (!creatorRole) return unauthorized();
 
   const title = str(body.title, 160);

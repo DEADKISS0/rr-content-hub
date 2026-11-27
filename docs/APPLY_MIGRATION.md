@@ -93,7 +93,7 @@ select count(*) from public.rr_hub_comments
  where body = 'probe-hermes';                 -- esperado: 0
 ```
 
-Y desde fuera, en `https://rr-content-hub.vercel.app/wundeer/ideas`, la vista de
+Y desde fuera, en `https://rr-content-hub-five.vercel.app/wundeer/ideas`, la vista de
 anónimo debe seguir mostrando las ideas: solo se cerró la escritura.
 
 ## Si después quieres devolver la escritura

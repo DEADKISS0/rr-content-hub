@@ -4,7 +4,7 @@
 
 1. En Supabase, activar **Google** en Authentication → Providers.
 2. En Google Cloud, crear OAuth Client (Web application) y añadir la callback que indique Supabase.
-3. Configurar Site URL: `https://rr-content-hub.vercel.app` y Redirect URL: `https://rr-content-hub.vercel.app/auth/callback`.
+3. Configurar Site URL: `https://rr-content-hub-five.vercel.app` y Redirect URL: `https://rr-content-hub-five.vercel.app/auth/callback`.
 4. Guardar `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` como variables de producción en Vercel. La service role key nunca llega al navegador.
 5. Aplicar únicamente `supabase/migrations/20260910_content_hub_isolated.sql`. El proyecto Supabase ya tiene tablas de otro CRM en `public.*`; el Content Hub usa sus propias tablas `rr_hub_*` para no interferir.
 6. Promover la cuenta de Rosas a admin mediante SQL controlado:
@@ -33,7 +33,7 @@
 - [x] Funciones `public.rr_hub_is_admin()` y `public.rr_hub_handle_new_user()`; trigger `rr_hub_auth_user_created` en `auth.users`.
 - [x] Bucket privado `rr-content-assets` (límite 50 MB) con políticas de lectura/inserción/actualización para usuarios autenticados.
 - [x] Proyectos sembrados: `wundeer`, `satiro`, `boga`.
-- [x] Google OAuth habilitado (302 real hacia `accounts.google.com`); redirect `https://rr-content-hub.vercel.app/auth/callback` agregada preservando las URLs previas.
+- [x] Google OAuth habilitado (302 real hacia `accounts.google.com`); redirect `https://rr-content-hub-five.vercel.app/auth/callback` agregada preservando las URLs previas.
 - [x] `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SITE_URL` y `NEXT_PUBLIC_STORAGE_BUCKET` cargadas en Vercel (production/preview/development).
 - [x] Perfiles sembrados para las 5 cuentas existentes y la cuenta admin promovida a `admin` (correo en la migración de bootstrap, no en el repo).
 
