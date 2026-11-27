@@ -386,12 +386,51 @@ export async function POST(request: NextRequest) {
     }
     const script = str(body.script, 60_000);
     if (!script) return error('El guion está vacío.', 400);
+
+    // La versión queda en `rr_hub_script_versions` y el texto vigente en la idea.
+    // La función ya existe en prod y no abre permisos nuevos: la llama el
+    // service role. Si en este entorno no se puede ejecutar, se escribe igual
+    // con el mismo cliente, que es quien ya actualizaba `script_content`.
+    const porFuncion = await service.rpc('rr_hub_save_script', {
+      p_idea_id: ideaId,
+      p_script_content: script,
+      p_saved_by: userId,
+      p_actor_label: email ?? 'RR ALIADOS',
+    });
+    if (!porFuncion.error) {
+      const fila = Array.isArray(porFuncion.data) ? porFuncion.data[0] : porFuncion.data;
+      return NextResponse.json({
+        success: true,
+        version: fila?.version_number ?? null,
+        versionId: fila?.version_id ?? null,
+      });
+    }
+
+    const { data: previa } = await service
+      .from('rr_hub_script_versions')
+      .select('version_number')
+      .eq('idea_id', ideaId)
+      .order('version_number', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const siguiente = Number(previa?.version_number ?? 0) + 1;
+    const { data: version, error: versionError } = await service
+      .from('rr_hub_script_versions')
+      .insert({
+        idea_id: ideaId,
+        version_number: siguiente,
+        script_content: script,
+        saved_by: userId,
+        actor_label: email ?? 'RR ALIADOS',
+      })
+      .select('id, version_number')
+      .single();
+    if (versionError) return error(versionError.message, 500);
+
     const { error: updateError } = await service
       .from('rr_hub_ideas').update({ script_content: script, updated_at: new Date().toISOString() }).eq('id', ideaId);
     if (updateError) return error(updateError.message, 500);
-    // Deliberately no event: saving a script is not a state transition, and a
-    // fake one in the timeline is worse than no trace.
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, version: version?.version_number ?? siguiente, versionId: version?.id ?? null });
   }
 
   if (action === 'roster') return roster(body, ctx);
@@ -1053,9 +1092,6 @@ export async function POST(request: NextRequest) {
       .ilike('email', identidad)
       .maybeSingle();
     if (!enEquipo) return error('Ese correo no está en la lista del equipo.', 403);
-    if (!enEquipo.is_team_member) {
-      return error('Tu cuenta existe pero no eres del equipo. Pídeselo a quien administra el hub.', 403);
-    }
     if (!enEquipo.is_active) {
       return error('Tu fila está desactivada, así que por ahora no cuentan tus comentarios.', 403);
     }
@@ -1079,6 +1115,12 @@ export async function POST(request: NextRequest) {
         .maybeSingle()
       : { data: null as { role_in_project: string } | null };
     const rolDelProyecto = (acceso?.role_in_project as RoleKey | undefined) ?? null;
+    // El equipo comenta en cualquier cliente. Quien se dio de alta en este
+    // cliente no es `is_team_member` (el trigger no lo pone) pero tiene fila
+    // de acceso: sin esta rama el comentario se rechazaba y el alta no servía.
+    if (!enEquipo.is_team_member && !rolDelProyecto) {
+      return error('Tu cuenta existe pero no tienes acceso a este cliente. Pídeselo a quien administra el hub.', 403);
+    }
     if (rolDelProyecto && !PUEDE_COMENTAR.includes(rolDelProyecto)) {
       return error('Tu rol no está en el equipo de este proyecto.', 403);
     }
@@ -1086,6 +1128,7 @@ export async function POST(request: NextRequest) {
     const nombreAutor = (enEquipo.full_name as string | null) ?? enEquipo.email;
     const { error: insertError } = await service.from('rr_hub_comments').insert({
       idea_id: ideaId, body: text,
+      author_id: enEquipo.id,
       role_label: rolDelProyecto ? ROLE_LABEL[rolDelProyecto] : 'EQUIPO',
       author_label: `${nombreAutor} · EQUIPO`,
     });
@@ -1456,6 +1499,7 @@ async function createIdea(body: Body, ctx: Ctx): Promise<NextResponse> {
       script_content: str(body.script, 60_000),
       reference_urls: references,
       ad_id: adId,
+      ...(userId ? { created_by: userId } : {}),
     }).select('id').single();
 
     if (!insertError && idea) {

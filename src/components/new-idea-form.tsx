@@ -1,12 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { ReferenceWithBrief } from '@/components/reference-with-brief';
 import { BotonBiblioteca } from '@/components/ad-library-picker';
-import { buildIdeaPack, createIdea, looksLikeUrl } from '@/lib/workspace-client';
-import { Icon } from './ui/icons';
+import { addComment, buildIdeaPack, createIdea, looksLikeUrl, saveIdeaScript, voteIdea } from '@/lib/workspace-client';
+import { emailElegido } from '@/lib/perfil-votante';
 
 type FormState = { title: string; type: 'Orgánico' | 'Pauta'; category: string; objective: string; description: string; camera: string; talent: string; edit: string; reference: string; adId: string; adName: string };
 const empty: FormState = { title: '', type: 'Orgánico', category: '', objective: '', description: '', camera: '', talent: '', edit: '', reference: '', adId: '', adName: '' };
@@ -27,10 +25,13 @@ export function NewIdeaForm({ projectSlug, projectId, anuncios, usosPorAnuncio }
   anuncios: { id: string; name: string; platform: string; format: string; externalUrl: string; objective: string; brand: string }[];
   usosPorAnuncio: Record<string, number>;
 }) {
-  const router = useRouter();
   const [form, setForm] = useState<FormState>(empty);
   const [notice, setNotice] = useState('');
   const [saving, setSaving] = useState(false);
+  const [creada, setCreada] = useState<{ id: string; title: string } | null>(null);
+  const [guion, setGuion] = useState('');
+  const [comentario, setComentario] = useState('');
+  const [seguimiento, setSeguimiento] = useState('');
 
   const contentType = form.type === 'Orgánico' ? 'organic' : 'paid';
   const update = (field: keyof FormState, value: string) => setForm((current) => ({ ...current, [field]: value }));
@@ -82,7 +83,34 @@ export function NewIdeaForm({ projectSlug, projectId, anuncios, usosPorAnuncio }
       adId: form.adId.trim() || null,
     });
     if (error || !id) { setSaving(false); avisar(error ?? 'No se guardó la idea.'); return; }
-    router.push(`/${projectSlug}/ideas/${id}`);
+    setSaving(false);
+    setCreada({ id, title: form.title.trim() });
+    setGuion('Gancho, desarrollo y cierre de la pieza.');
+    setSeguimiento('La idea quedó guardada. Puedes votar, escribir el guion y comentar sin salir de esta página.');
+  }
+
+  async function votarSi() {
+    if (!creada) return;
+    const resultado = await voteIdea(creada.id, 'yes', '', emailElegido());
+    setSeguimiento(resultado.error ? resultado.error : `Voto guardado. ${resultado.aFavor ?? 0} a favor.`);
+  }
+
+  async function guardarGuion() {
+    if (!creada) return;
+    const { error } = await saveIdeaScript({ ideaId: creada.id, script: guion, role: 'editor' });
+    setSeguimiento(error ? error : 'Guion guardado.');
+  }
+
+  async function publicarComentario() {
+    if (!creada || !comentario.trim()) return;
+    const { error } = await addComment({
+      ideaId: creada.id,
+      body: comentario.trim(),
+      roleLabel: 'editor',
+      authorProfile: emailElegido(),
+    });
+    setSeguimiento(error ? error : 'Comentario publicado.');
+    if (!error) setComentario('');
   }
 
   /**
@@ -108,6 +136,43 @@ export function NewIdeaForm({ projectSlug, projectId, anuncios, usosPorAnuncio }
       <div id="aviso-crear" role="alert" className="anim-pop border-l-4 border-l-mostaza bg-blanco-05 px-4 py-3">
         <p className="text-sm leading-6 text-blanco-80">{notice}</p>
       </div>
+    )}
+
+    {creada && (
+      <section data-testid="idea-creada" className="border border-mostaza-40 bg-blanco-05 p-5">
+        <p className="mono-label text-mostaza">// IDEA GUARDADA</p>
+        <h2 className="mt-2 font-display text-2xl font-bold text-blanco">{creada.title}</h2>
+        <p data-testid="seguimiento" className="mt-2 text-sm leading-6 text-blanco-70" role="status">{seguimiento}</p>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button type="button" data-testid="votar-si" className="btn-brutal" onClick={() => { void votarSi(); }}>
+            VOTAR SÍ
+          </button>
+        </div>
+        <label className="mt-4 block">
+          <span className="mono-label mb-2 block text-blanco-50">// GUION</span>
+          <textarea
+            data-testid="guion-texto"
+            value={guion}
+            onChange={(evento) => setGuion(evento.target.value)}
+            className="input-brutal min-h-24 w-full"
+          />
+        </label>
+        <button type="button" data-testid="guardar-guion" className="btn-brutal mt-3" onClick={() => { void guardarGuion(); }}>
+          GUARDAR GUION
+        </button>
+        <label className="mt-4 block">
+          <span className="mono-label mb-2 block text-blanco-50">// COMENTARIO</span>
+          <textarea
+            data-testid="comentario-texto"
+            value={comentario}
+            onChange={(evento) => setComentario(evento.target.value)}
+            className="input-brutal min-h-20 w-full"
+          />
+        </label>
+        <button type="button" data-testid="publicar-comentario" className="btn-brutal mt-3" onClick={() => { void publicarComentario(); }}>
+          PUBLICAR COMENTARIO
+        </button>
+      </section>
     )}
 
     <div className="grid gap-6 md:grid-cols-[120px_1fr]">

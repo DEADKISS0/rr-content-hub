@@ -68,7 +68,9 @@ export function EnhancedIdeaCollaboration({ projectSlug, ideaId, comentariosInic
    * de tu cliente». Ahora se explica antes de intentarlo.
    */
   const perfilActual = useSyncExternalStore(suscribirPerfil, perfilElegido, () => null);
-  const puedeComentar = esDelEquipo(perfilActual?.email ?? '', equipo);
+  // Igual que el voto: un perfil recién creado no está en la lista del equipo
+  // (is_team_member sigue en false) y aun así puede comentar en su cliente.
+  const puedeComentar = Boolean(perfilActual?.email) || esDelEquipo(perfilActual?.email ?? '', equipo);
   const [stage, setStage] = useState<AssetStage>('reference_brief');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);

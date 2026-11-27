@@ -8,6 +8,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { GuidedTour } from './guided-tour';
 import { Icon, type IconName } from './ui/icons';
 import { SelectorPerfil } from '@/components/selector-perfil';
+import { EntradaHub } from '@/components/entrada-hub';
 import { AUTH_ENABLED } from '@/lib/mode';
 import { HubFooter } from '@/components/hub-footer';
 import { SelectorCliente, type ClienteParaPintar } from '@/components/selector-cliente';
@@ -57,7 +58,7 @@ const STORAGE_EVENT = 'rr-hub-aside-change';
  * expandida, y al hidratar toma lo guardado sin producir un render en cascada.
  */
 function subscribeAside(callback: () => void) {
-  window.addEventListener(STORAGE_EVENT, callback);
+    window.addEventListener(STORAGE_EVENT, callback);
   window.addEventListener('storage', callback);
   return () => {
     window.removeEventListener(STORAGE_EVENT, callback);
@@ -104,6 +105,7 @@ function useSesion(emailServidor?: string, nombreServidor?: string) {
     // vez quién entró, con `no-store` para que no se quede pegado el nombre de
     // la persona anterior.
     let vivo = true;
+    const cargar = () => {
     void fetch('/api/quien-soy', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((cuerpo) => {
@@ -114,7 +116,13 @@ function useSesion(emailServidor?: string, nombreServidor?: string) {
       .catch(() => {
         if (vivo) setCorreo(null);
       });
-    return () => { vivo = false; };
+    };
+    cargar();
+    window.addEventListener('rr-hub-sesion', cargar);
+    return () => {
+      vivo = false;
+      window.removeEventListener('rr-hub-sesion', cargar);
+    };
   }, []);
 
   async function cerrarSesion() {
@@ -376,7 +384,8 @@ export function WorkspaceShell({ children, project, role, email, nombre, puedeEs
                    Ahora el selector está AQUÍ, en la barra de la pantalla en la que
                    se está. El enlace a la pantalla de votación se queda al lado,
                    porque esa lista de ideas para votar es útil en sí misma. */
-                <div className="flex items-start gap-2">
+                <div className="flex flex-wrap items-start gap-2">
+                  <EntradaHub proyecto={slug} clientes={[{ slug, nombre: project.name }]} />
                   <SelectorPerfil slug={slug} pedirEquipo />
                   <Link
                     href={`/${slug}/ideas/en-votacion`}

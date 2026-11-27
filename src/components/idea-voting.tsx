@@ -128,7 +128,9 @@ export function IdeaVoting({
    * igual en cada voto, así que esto solo decide si el botón se explica o no.
    */
   const perfilActual = useSyncExternalStore(suscribirPerfil, perfilElegido, () => null);
-  const puedeVotar = esDelEquipo(perfilActual?.email ?? '', equipo);
+  // El registro rápido guarda el perfil en este navegador. No hace falta que
+  // ese correo esté en la lista previa del equipo: el servidor comprueba la fila.
+  const puedeVotar = Boolean(perfilActual?.email) || esDelEquipo(perfilActual?.email ?? '', equipo);
 
   const votar = useCallback(async (decision: DecisionVoto, nota = '') => {
     if (isSubmitting) return;
